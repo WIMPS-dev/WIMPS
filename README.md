@@ -44,7 +44,7 @@ Need a refresher, or new to MIPS? No problem. Visit the documentation page for a
 - Better, more detailed runtime error outputs
 - Complete UI overhaul
 - Extra MARS-like tools: Bitmap Display, Data Cache Simulator, and more
-
+- Expand our mongodb's capability with funding
 ---
 
 ## Account & File Storage
