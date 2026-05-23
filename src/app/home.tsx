@@ -182,14 +182,14 @@ function HeroSection({ theme, screenHeight, onArrowPress }: HeroProps) {
             onPress={() => Linking.openURL('https://github.com/DashellF/WIMPS')}
             activeOpacity={0.8}
           >
-            <Text style={[staticStyles.ctaSecondaryText, { color: theme.text }]}>⬡  GitHub</Text>
+            <Text style={[staticStyles.ctaSecondaryText, { color: theme.text }]}>GitHub</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[staticStyles.ctaSecondary, { borderColor: theme.border }]}
             onPress={() => Linking.openURL('https://github.com/DashellF/WIMPS#readme')}
             activeOpacity={0.8}
           >
-            <Text style={[staticStyles.ctaSecondaryText, { color: theme.text }]}>📄  README</Text>
+            <Text style={[staticStyles.ctaSecondaryText, { color: theme.text }]}>README</Text>
           </TouchableOpacity>
         </View>
       </View>
