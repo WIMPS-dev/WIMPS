@@ -1,81 +1,68 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Theme } from '../theme/themes';
+import type { Theme } from '../theme/themes';
 
-
-export function WindowWrapper({ title, children, theme, isMinimized, onToggleMinimize, style }: any) {
-  const styles = getThemeStyles(theme);
-  
-  return (
-    <View style={[
-      styles.windowContainer,
-      {
-        backgroundColor: theme.bg,
-        borderColor: theme.border,
-        marginBottom: isMinimized ? 8 : 0,
-      },
-      style,
-      isMinimized && { flex: 0, height: 34, minHeight: 34 },
-    ]}>
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={onToggleMinimize}
-        style={[
-          styles.titleBar,
-          {
-            backgroundColor: theme.card,
-            borderBottomColor: isMinimized ? 'transparent' : theme.border,
-          },
-        ]}
-      >
-        {/* Toggle Icon Logic */}
-        <Text style={styles.controlButton}>
-          {isMinimized ? '▲' : '▼'}
-        </Text>
-
-        <Text style={[styles.titleText, { color: theme.text }]}>
-          {title} {isMinimized && ' (Minimized)'}
-        </Text>
-        <View style={{ width: 60 }} />
-      </TouchableOpacity>
-
-      {!isMinimized && (
-        <View style={styles.contentArea}>
-          {children}
-        </View>
-      )}
-    </View>
-  );
+interface WindowWrapperProps {
+  title: string;
+  children: React.ReactNode;
+  theme: Theme;
+  isMinimized?: boolean;
+  onToggleMinimize?: () => void;
+  style?: React.CSSProperties;
 }
 
-const getThemeStyles = (theme: Theme) =>
-  StyleSheet.create({
-  windowContainer: {
-    borderRadius: 10,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  titleBar: {
-    height: 34,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-  },
-  contentArea: {
-    flex: 1,
-  },
-  controlButton: {
-    color: theme.text,
-    fontSize: 14,
-    width: 20,
-  },
-  titleText: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    textAlign: 'center',
-    flex: 1, // Ensures title stays centered between the icon and the spacer
-  },
-});
+export function WindowWrapper({ title, children, theme, isMinimized, onToggleMinimize, style }: WindowWrapperProps) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        borderRadius: 10,
+        border: `1px solid ${theme.border}`,
+        overflow: 'hidden',
+        backgroundColor: theme.bg,
+        height: isMinimized ? 34 : undefined,
+        minHeight: isMinimized ? 34 : undefined,
+        flex: isMinimized ? '0 0 34px' : undefined,
+        ...style,
+      }}
+    >
+      <button
+        onClick={onToggleMinimize}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          height: 34,
+          minHeight: 34,
+          padding: '0 12px',
+          backgroundColor: theme.card,
+          borderBottom: isMinimized ? 'none' : `1px solid ${theme.border}`,
+          cursor: 'pointer',
+          border: 'none',
+          gap: 8,
+          width: '100%',
+        }}
+      >
+        <span style={{ color: theme.text, fontSize: 12, width: 20 }}>
+          {isMinimized ? '▲' : '▼'}
+        </span>
+        <span style={{
+          flex: 1,
+          color: theme.text,
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: 0.3,
+          textAlign: 'center',
+        }}>
+          {title}{isMinimized ? ' (Minimized)' : ''}
+        </span>
+        <span style={{ width: 20 }} />
+      </button>
+
+      {!isMinimized && (
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}

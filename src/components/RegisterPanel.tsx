@@ -1,13 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-
 import type { Theme } from '../theme/themes';
 
 export interface RegisterValue {
@@ -24,184 +15,88 @@ interface RegisterPanelProps {
   toggleFormat?: () => void;
 }
 
-export function RegisterPanel({
-  registers,
-  theme,
-  showHex = true,
-  toggleFormat,
-}: RegisterPanelProps) {
+export function RegisterPanel({ registers, theme, showHex = true, toggleFormat }: RegisterPanelProps) {
   const [query, setQuery] = useState('');
-  const styles = getThemeStyles(theme);
 
   const filteredRegisters = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return registers;
-
-    return registers.filter((register) => {
-      return (
-        register.name.toLowerCase().includes(normalized) ||
-        register.number.toString().includes(normalized) ||
-        register.hexValue.toLowerCase().includes(normalized)
-      );
-    });
+    const q = query.trim().toLowerCase();
+    if (!q) return registers;
+    return registers.filter(r =>
+      r.name.toLowerCase().includes(q) ||
+      r.number.toString().includes(q) ||
+      r.hexValue.toLowerCase().includes(q)
+    );
   }, [query, registers]);
 
   return (
-    <View style={styles.outerWrapper}>
-  {/* TABLE HEADER */}
-  <View style={styles.tableHeader}>
-    <View style={styles.nameColumn}>
-      <TextInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Filter registers..."
-        placeholderTextColor={theme.subText}
-        style={styles.headerSearch}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-    </View>
-
-    <Text style={[styles.headerCell, styles.numColumn]}>#</Text>
-
-    <View style={styles.valueColumn}>
-      <TouchableOpacity
-        onPress={toggleFormat}
-        style={styles.modeButton}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.modeButtonText}>
-          {showHex ? 'HEX VALUE' : 'INT VALUE'}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-
-  {/* REGISTER LIST */}
-  <View style={[styles.innerCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-    <ScrollView
-      style={styles.list}
-      contentContainerStyle={styles.listContent}
-      showsVerticalScrollIndicator={true}
-    >
-      {filteredRegisters.map((register) => (
-        <View
-          key={register.name}
-          style={[styles.row, { borderBottomColor: theme.border + '22' }]}
+    <div style={{ flex: 1, minHeight: 0, backgroundColor: theme.bg, padding: 10, display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 10, paddingRight: 28, paddingBottom: 6, gap: 8 }}>
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Filter registers..."
+          style={{
+            flex: 1,
+            backgroundColor: theme.card,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 6,
+            padding: '4px 10px',
+            fontSize: 12,
+            color: theme.text,
+            outline: 'none',
+          }}
+        />
+        <span style={{ color: theme.subText, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', width: 30, textAlign: 'center' }}>#</span>
+        <button
+          onClick={toggleFormat}
+          style={{
+            backgroundColor: '#2563eb',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            padding: '3px 6px',
+            fontSize: 9,
+            fontWeight: 600,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
         >
-          <View style={styles.nameColumn}>
-            <Text style={[styles.nameText, { color: theme.text }]}>
-              {register.name}
-            </Text>
-          </View>
+          {showHex ? 'HEX VALUE' : 'INT VALUE'}
+        </button>
+      </div>
 
-          <Text
-            style={[styles.rowText, styles.numColumn, { color: theme.subText }]}
-          >
-            {register.number}
-          </Text>
-
-          <Text
-            style={[
-              styles.rowText,
-              styles.valueColumn,
-              { color: theme.text, fontWeight: 'bold' },
-            ]}
-            numberOfLines={1}
-          >
-            {showHex
-              ? register.hexValue
-              : (parseInt(register.hexValue, 16) | 0).toString()}
-          </Text>
-        </View>
-      ))}
-    </ScrollView>
-  </View>
-</View>
+      {/* Table */}
+      <div style={{
+        flex: 1,
+        minHeight: 0,
+        borderRadius: 10,
+        border: `1px solid ${theme.border}`,
+        backgroundColor: theme.card,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {filteredRegisters.map(reg => (
+            <div
+              key={reg.name}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '8px 10px',
+                borderBottom: `1px solid ${theme.border}22`,
+              }}
+            >
+              <span style={{ flex: 1.2, fontWeight: 700, fontSize: 12, color: theme.text }}>{reg.name}</span>
+              <span style={{ width: 30, textAlign: 'center', fontFamily: 'monospace', fontSize: 12, color: theme.subText }}>{reg.number}</span>
+              <span style={{ flex: 1.4, textAlign: 'right', fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold', color: theme.text }}>
+                {showHex ? reg.hexValue : (parseInt(reg.hexValue, 16) | 0).toString()}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
-
-const getThemeStyles = (theme: Theme) =>
-  StyleSheet.create({
-    outerWrapper: {
-      flex: 1,
-      backgroundColor: theme.bg,
-      padding: 10,
-
-    },
-    tableHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingLeft: 10,
-      paddingRight: 28,
-      paddingBottom: 6,
-    },
-    headerCell: {
-      color: theme.subText,
-      fontSize: 10,
-      fontWeight: '700',
-      textTransform: 'uppercase',
-    },
-    headerSearch: {
-      backgroundColor: theme.card,
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 6,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      fontSize: 12,
-      color: theme.text,
-      width: '100%',
-    },
-    innerCard: {
-      flex: 1,
-      borderRadius: 10,
-      borderWidth: 1,
-      overflow: 'hidden',
-    },
-    list: {
-      flex: 1,
-    },
-    listContent: {
-      paddingHorizontal: 0,
-    },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 8,
-      paddingHorizontal: 10,
-      borderBottomWidth: 1,
-    },
-    rowText: {
-      fontFamily: 'monospace',
-      fontSize: 12,
-    },
-    nameColumn: {
-      flex: 1.2,
-    },
-    numColumn: {
-      width: 30,
-      textAlign: 'center',
-    },
-    valueColumn: {
-      flex: 1.4,
-      textAlign: 'right',
-    },
-    nameText: {
-      fontWeight: '700',
-      fontSize: 12,
-    },
-    modeButton: {
-      backgroundColor: '#2563eb',
-      paddingHorizontal: 6,
-      paddingVertical: 3,
-      borderRadius: 8,
-      alignSelf: 'flex-end',
-    },
-
-    modeButtonText: {
-      color: '#fff',
-      fontSize: 9,
-      fontWeight: '600',
-    },
-  });

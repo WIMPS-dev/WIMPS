@@ -1,5 +1,3 @@
-import { StatusBarStyle } from 'react-native';
-
 export type SyntaxColors = {
   instruction: string;
   register: string;
@@ -22,8 +20,6 @@ export type Theme = {
   tabInactive: string;
   consoleText: string;
   btnBg: string;
-  statusBarStyle: StatusBarStyle;
-
   syntax: SyntaxColors;
 };
 
@@ -39,17 +35,16 @@ export const THEMES: Record<'dark' | 'light', Theme> = {
     tabInactive: '#111827',
     consoleText: '#cbd5e1',
     btnBg: '#111827',
-    statusBarStyle: 'light-content',
-      syntax: {
-    instruction: '#60a5fa',
-    register: '#fb923c',
-    directive: '#f472b6',
-    comment: '#4ade80',
-    number: '#f8fafc',
-    label: '#f8fafc',
-    string: '#f8fafc',
-    text: '#f8fafc',
-  },
+    syntax: {
+      instruction: '#60a5fa',
+      register: '#fb923c',
+      directive: '#f472b6',
+      comment: '#4ade80',
+      number: '#f8fafc',
+      label: '#f8fafc',
+      string: '#f8fafc',
+      text: '#f8fafc',
+    },
   },
   light: {
     bg: '#f1f5f9',
@@ -62,16 +57,15 @@ export const THEMES: Record<'dark' | 'light', Theme> = {
     tabInactive: '#ffffff',
     consoleText: '#334155',
     btnBg: '#ffffff',
-    statusBarStyle: 'dark-content',
-      syntax: {
-    instruction: '#2563eb',
-    register: '#f97316',
-    directive: '#ec4899',
-    comment: '#16a34a',
-    number: '#0f172a',
-    label: '#0f172a',
-    string: '#0f172a',
-    text: '#0f172a',
-  },
+    syntax: {
+      instruction: '#2563eb',
+      register: '#f97316',
+      directive: '#ec4899',
+      comment: '#16a34a',
+      number: '#0f172a',
+      label: '#0f172a',
+      string: '#0f172a',
+      text: '#0f172a',
+    },
   },
 };
