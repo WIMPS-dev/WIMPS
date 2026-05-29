@@ -60,6 +60,7 @@ export function CodeEditor({ code, setCode, theme, activeLine }: CodeEditorProps
           paddingBottom: 100,
           flexShrink: 0,
           alignSelf: 'flex-start',
+          minHeight: '100%',
           userSelect: 'none',
         }}>
           {lines.map((_, i) => {
