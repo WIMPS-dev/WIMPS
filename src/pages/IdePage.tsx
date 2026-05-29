@@ -4,7 +4,6 @@ import { CodeEditor } from '../components/CodeEditor';
 import { MemoryView } from '../components/MemoryView';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { ThemeSwitch } from '../components/ThemeSwitch';
-import { WindowWrapper } from '../components/WindowWrapper';
 import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getApiHeaders, getAuthToken } from '../helpers/authStorage';
 import { assemble, feedInput, getMemoryRange, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
@@ -72,16 +71,16 @@ export default function IdePage() {
   const [memoryData, setMemoryData] = useState<any[]>([]);
   const [activeLine, setActiveLine] = useState<number | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
+  const [isAssembled, setIsAssembled] = useState(false);
   const [showHex, setShowHex] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
 
-  const [minimized, setMinimized] = useState({ editor: false, console: false, registers: false, memory: false });
+  const [rightTab, setRightTab] = useState<'registers' | 'memory'>('registers');
 
   // Desktop layout percentages
-  const [leftPct, setLeftPct] = useState(65);
-  const [editorHeightPct, setEditorHeightPct] = useState(65);
-  const [sideHeightPct, setSideHeightPct] = useState(50);
+  const [leftPct, setLeftPct] = useState(75);
+  const [editorHeightPct, setEditorHeightPct] = useState(70);
 
   const isWide = typeof window !== 'undefined' && window.innerWidth >= 900;
   const [wide, setWide] = useState(isWide);
@@ -99,7 +98,11 @@ export default function IdePage() {
 
   const setActiveCode = useCallback((code: string) => {
     setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, code, isDirty: true } : t));
+    setIsAssembled(false);
   }, [activeTabId]);
+
+  // Reset assembled state when switching tabs
+  useEffect(() => { setIsAssembled(false); }, [activeTabId]);
 
   // Auth check on mount
   useEffect(() => {
@@ -144,10 +147,12 @@ export default function IdePage() {
     const result = assemble(activeCode);
     if (!result.ok) {
       setOutput(`Assembly failed:\n${result.error}`);
+      setIsAssembled(false);
     } else {
       setOutput('');
       setRegisters(buildInitialRegisters());
       setMemoryData([]);
+      setIsAssembled(true);
     }
   };
 
@@ -168,6 +173,7 @@ export default function IdePage() {
     setMemoryData([]);
     setActiveLine(null);
     setIsWaiting(false);
+    setIsAssembled(false);
   };
 
   const handleFeedInput = useCallback((value: string) => {
@@ -295,20 +301,6 @@ export default function IdePage() {
     window.addEventListener('mouseup', onUp);
   };
 
-  const startSideVDrag = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const onMove = (ev: MouseEvent) => {
-      const col = (e.target as HTMLElement).closest('.side-column') as HTMLElement;
-      if (!col) return;
-      const rect = col.getBoundingClientRect();
-      const pct = ((ev.clientY - rect.top) / rect.height) * 100;
-      setSideHeightPct(Math.max(20, Math.min(80, pct)));
-    };
-    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
-
   // ---------------------------------------------------------------------------
   // Editor actions
   // ---------------------------------------------------------------------------
@@ -322,12 +314,23 @@ export default function IdePage() {
     ...(isLoggedIn ? [{ label: 'Save', symbol: '💾', onPress: handleSave }] : []),
   ];
 
-  const resizerStyle: React.CSSProperties = {
-    backgroundColor: theme.resizer,
-    cursor: 'col-resize',
-    flexShrink: 0,
-    transition: 'background-color 0.15s',
-  };
+  const hDragHandle = (
+    <div
+      onMouseDown={startHDrag}
+      style={{ width: 5, flexShrink: 0, cursor: 'col-resize', backgroundColor: theme.border, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+    >
+      <div style={{ width: 1, height: 28, backgroundColor: theme.subText, opacity: 0.35, borderRadius: 1 }} />
+    </div>
+  );
+
+  const vDragHandle = (
+    <div
+      onMouseDown={startEditorVDrag}
+      style={{ height: 5, flexShrink: 0, cursor: 'row-resize', backgroundColor: theme.border, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+    >
+      <div style={{ height: 1, width: 28, backgroundColor: theme.subText, opacity: 0.35, borderRadius: 1 }} />
+    </div>
+  );
 
   // ---------------------------------------------------------------------------
   // Render
@@ -349,62 +352,101 @@ export default function IdePage() {
         {/* Logo */}
         <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 16, flexShrink: 0, marginRight: 4 }}>WIMPS</Link>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', alignItems: 'center', gap: 4 }}>
-          <div style={{ display: 'flex', overflow: 'hidden', gap: 4, flex: 1 }}>
-            {tabs.map(tab => (
-              <div
-                key={tab.id}
-                onClick={() => setActiveTabId(tab.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '0 8px',
-                  height: 32,
-                  borderRadius: 6,
-                  backgroundColor: tab.id === activeTabId ? theme.tabActive : theme.tabInactive,
-                  border: `1px solid ${theme.border}`,
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                  maxWidth: 160,
-                }}
-              >
-                {editingTabId === tab.id ? (
-                  <input
-                    autoFocus
-                    value={editTabName}
-                    onChange={e => setEditTabName(e.target.value)}
-                    onBlur={commitRename}
-                    onKeyDown={e => e.key === 'Enter' && commitRename()}
-                    onClick={e => e.stopPropagation()}
-                    style={{ width: 90, backgroundColor: 'transparent', border: 'none', outline: 'none', color: theme.text, fontSize: 12 }}
-                  />
-                ) : (
-                  <span
-                    onDoubleClick={e => startRename(tab, e)}
-                    style={{ fontSize: 12, color: theme.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}
-                  >
-                    {tab.name}{tab.isDirty ? ' •' : ''}
-                  </span>
-                )}
-                {tabs.length > 1 && (
-                  <button
-                    onClick={e => closeTab(tab.id, e)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 14, lineHeight: 1, padding: 2, flexShrink: 0 }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            ))}
+        {/* Tabs — scrollable, capped width */}
+        <div style={{ display: 'flex', flex: 1, minWidth: 0, alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+          {/* Scroll wrapper: plain block so overflow-x actually scrolls */}
+          <div className="tab-scroll" style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: 'max-content', height: 36 }}>
+              {tabs.map(tab => (
+                <div
+                  key={tab.id}
+                  onClick={() => setActiveTabId(tab.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '0 8px',
+                    height: 32,
+                    borderRadius: 6,
+                    backgroundColor: tab.id === activeTabId ? theme.tabActive : theme.tabInactive,
+                    border: `1px solid ${theme.border}`,
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    maxWidth: 160,
+                  }}
+                >
+                  {editingTabId === tab.id ? (
+                    <input
+                      autoFocus
+                      value={editTabName}
+                      onChange={e => setEditTabName(e.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={e => e.key === 'Enter' && commitRename()}
+                      onClick={e => e.stopPropagation()}
+                      style={{ width: 90, backgroundColor: 'transparent', border: 'none', outline: 'none', color: theme.text, fontSize: 12 }}
+                    />
+                  ) : (
+                    <span
+                      onDoubleClick={e => startRename(tab, e)}
+                      style={{ fontSize: 12, color: theme.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}
+                    >
+                      {tab.name}{tab.isDirty ? ' •' : ''}
+                    </span>
+                  )}
+                  {tabs.length > 1 && (
+                    <button
+                      onClick={e => closeTab(tab.id, e)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 14, lineHeight: 1, padding: 2, flexShrink: 0 }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
+
+          {/* New tab */}
           <button
             onClick={addTab}
             style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', width: 28, height: 28, fontSize: 18, flexShrink: 0 }}
           >
             +
           </button>
+
+          {/* Divider */}
+          <div style={{ width: 1, height: 20, backgroundColor: theme.border, flexShrink: 0 }} />
+
+          {/* Action buttons grouped in a toolbar pill */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0, backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0 6px', height: 34 }}>
+            {actions.map(a => {
+              const isBlue = isAssembled
+                ? (a.label === 'Run' || a.label === 'Step')
+                : a.label === 'Assemble';
+              return (
+                <button
+                  key={a.label}
+                  onClick={a.onPress}
+                  title={a.label}
+                  style={{
+                    backgroundColor: isBlue ? '#2563eb' : 'transparent',
+                    border: 'none',
+                    borderRadius: 5,
+                    color: isBlue ? '#fff' : theme.text,
+                    cursor: 'pointer',
+                    width: 28,
+                    height: 26,
+                    fontSize: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {a.symbol ?? a.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Right controls */}
@@ -451,71 +493,49 @@ export default function IdePage() {
           {/* Left column: editor + console */}
           <div className="editor-column" style={{ width: `${leftPct}%`, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ height: `${editorHeightPct}%`, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <WindowWrapper
-                title="Editor"
-                theme={theme}
-                isMinimized={minimized.editor}
-                onToggleMinimize={() => setMinimized(p => ({ ...p, editor: !p.editor }))}
-                style={{ flex: 1, minHeight: 0 }}
-              >
-                <CodeEditor code={activeCode} setCode={setActiveCode} actions={actions} theme={theme} activeLine={activeLine} />
-              </WindowWrapper>
+              <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} />
             </div>
 
-            {/* Vertical resizer */}
-            <div
-              onMouseDown={startEditorVDrag}
-              style={{ height: 6, cursor: 'row-resize', backgroundColor: theme.resizer, flexShrink: 0 }}
-            />
+            {vDragHandle}
 
-            {/* Console */}
             <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <WindowWrapper
-                title="Console"
-                theme={theme}
-                isMinimized={minimized.console}
-                onToggleMinimize={() => setMinimized(p => ({ ...p, console: !p.console }))}
-                style={{ flex: 1, minHeight: 0 }}
-              >
-                <ConsolePanel
-                  output={output}
-                  isWaiting={isWaiting}
-                  onSubmit={handleFeedInput}
-                  theme={theme}
-                />
-              </WindowWrapper>
+              <ConsolePanel output={output} isWaiting={isWaiting} onSubmit={handleFeedInput} theme={theme} />
             </div>
           </div>
 
-          {/* Horizontal resizer */}
-          <div onMouseDown={startHDrag} style={{ ...resizerStyle, width: 6 }} />
+          {hDragHandle}
 
-          {/* Right column: registers + memory */}
-          <div className="side-column" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ height: `${sideHeightPct}%`, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <WindowWrapper
-                title="Registers"
-                theme={theme}
-                isMinimized={minimized.registers}
-                onToggleMinimize={() => setMinimized(p => ({ ...p, registers: !p.registers }))}
-                style={{ flex: 1, minHeight: 0 }}
-              >
-                <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} />
-              </WindowWrapper>
+          {/* Right column: tabbed registers / memory */}
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* Tab bar */}
+            <div style={{ display: 'flex', backgroundColor: theme.card, borderBottom: `1px solid ${theme.border}`, flexShrink: 0, height: 34 }}>
+              {(['registers', 'memory'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setRightTab(tab)}
+                  style={{
+                    flex: 1,
+                    height: '100%',
+                    border: 'none',
+                    borderBottom: rightTab === tab ? '2px solid #2563eb' : '2px solid transparent',
+                    backgroundColor: 'transparent',
+                    color: rightTab === tab ? theme.text : theme.subText,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    letterSpacing: 0.5,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {tab === 'registers' ? 'Registers' : 'Memory'}
+                </button>
+              ))}
             </div>
 
-            <div onMouseDown={startSideVDrag} style={{ height: 6, cursor: 'row-resize', backgroundColor: theme.resizer, flexShrink: 0 }} />
-
-            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <WindowWrapper
-                title="Memory"
-                theme={theme}
-                isMinimized={minimized.memory}
-                onToggleMinimize={() => setMinimized(p => ({ ...p, memory: !p.memory }))}
-                style={{ flex: 1, minHeight: 0 }}
-              >
-                <MemoryView data={memoryData} theme={theme} />
-              </WindowWrapper>
+            {/* Panel content */}
+            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              {rightTab === 'registers' && <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} />}
+              {rightTab === 'memory' && <MemoryView data={memoryData} theme={theme} />}
             </div>
           </div>
         </div>
@@ -523,7 +543,7 @@ export default function IdePage() {
         /* Mobile single-panel */
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {mobileView === 'editor' && (
-            <CodeEditor code={activeCode} setCode={setActiveCode} actions={actions} theme={theme} activeLine={activeLine} />
+            <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} />
           )}
           {mobileView === 'console' && (
             <ConsolePanel

@@ -1,27 +1,18 @@
 import { highlightMipsCode } from '@/helpers/mipsSyntax';
-import React, { useState } from 'react';
+import React from 'react';
 import Editor from 'react-simple-code-editor';
 import type { Theme } from '../theme/themes';
 
 const TAB = '    ';
 
-interface Action {
-  label: string;
-  symbol?: string;
-  onPress: () => void;
-}
-
 interface CodeEditorProps {
   code: string;
   setCode: (code: string) => void;
-  actions: Action[];
   theme: Theme;
   activeLine: number | null;
 }
 
-export function CodeEditor({ code, setCode, actions, theme, activeLine }: CodeEditorProps) {
-  const [showActionMenu, setShowActionMenu] = useState(false);
-
+export function CodeEditor({ code, setCode, theme, activeLine }: CodeEditorProps) {
   const lines = code.split('\n');
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -48,53 +39,7 @@ export function CodeEditor({ code, setCode, actions, theme, activeLine }: CodeEd
       backgroundColor: theme.bg,
       padding: 14,
       border: `1px solid ${theme.border}`,
-      position: 'relative',
     }}>
-      {/* Floating action menu */}
-      <div style={{ position: 'absolute', top: 15, right: 15, zIndex: 20, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-        <button
-          onClick={() => setShowActionMenu(p => !p)}
-          style={{
-            backgroundColor: theme.bg,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 10,
-            width: 44,
-            height: 44,
-            cursor: 'pointer',
-            fontSize: 18,
-            color: theme.text,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {showActionMenu ? '▲' : '▼'}
-        </button>
-        {showActionMenu && actions.map(a => (
-          <button
-            key={a.label}
-            onClick={a.onPress}
-            title={a.label}
-            style={{
-              backgroundColor: theme.bg,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 10,
-              width: 44,
-              height: 44,
-              cursor: 'pointer',
-              color: theme.text,
-              fontSize: 18,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {a.symbol ?? a.label}
-          </button>
-        ))}
-      </div>
-
       {/* Editor shell */}
       <div style={{
         flex: 1,
@@ -140,7 +85,7 @@ export function CodeEditor({ code, setCode, actions, theme, activeLine }: CodeEd
         </div>
 
         {/* Editor input wrapper */}
-        <div style={{ flex: 1, position: 'relative', minWidth: 0, '--editor-caret': theme.text } as React.CSSProperties}>
+        <div style={{ flex: 1, position: 'relative', minWidth: 0, '--editor-caret': theme.text, '--editor-placeholder': theme.subText } as React.CSSProperties}>
           {/* Active line overlay */}
           <div style={{ position: 'absolute', top: 16, left: 0, right: 0, pointerEvents: 'none', zIndex: 0 }}>
             {lines.map((_, i) => (
@@ -160,6 +105,7 @@ export function CodeEditor({ code, setCode, actions, theme, activeLine }: CodeEd
             highlight={value => highlightMipsCode(value, theme.syntax)}
             padding={16}
             onKeyDown={handleKeyDown as any}
+            placeholder="# Write MIPS assembly here..."
             textareaClassName="mips-editor-textarea"
             preClassName="mips-editor-highlight"
             style={{
