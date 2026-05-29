@@ -55,11 +55,6 @@ input, textarea {
 .mips-editor-highlight {
   color: inherit !important;
   pointer-events: none;
-  position: absolute !important;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
 }
 
 /* Tab strip — thin visible scrollbar */
