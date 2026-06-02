@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
+import { clearAuthToken, getAuthToken } from '../helpers/authStorage';
 
 interface MockPart { text: string; color: string; }
 interface MockReg  { name: string; value: string; changed: boolean; }
@@ -48,6 +49,15 @@ const ACTIVE_LINE = 4;
 export default function HomePage() {
   const { theme } = useTheme();
 
+
+  const [isLoggedIn] = useState(() => !!getAuthToken());
+
+  const handleLogout = () => {
+    clearAuthToken();
+    window.location.href = '/login';
+  };
+
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: theme.bg }}>
       <a className="skip-link" href="#main-content">Skip to content</a>
@@ -68,7 +78,11 @@ export default function HomePage() {
         <span style={{ color: theme.text, fontWeight: 800, fontSize: 20 }}>WIMPS</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           <Link to="/docs" className="home-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Docs</Link>
-          <Link to="/login" className="home-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Sign in</Link>
+          {isLoggedIn ? (
+            <button type="button" onClick={handleLogout} className="home-nav-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: theme.subText, fontSize: 14, fontWeight: 500, fontFamily: 'inherit' }}>Sign out</button>
+          ) : (
+            <Link to="/login" className="home-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Sign in</Link>
+          )}
           <Link to="/ide" className="home-nav-btn" style={{
             backgroundColor: '#2563eb',
             color: '#fff',
@@ -442,8 +456,14 @@ export default function HomePage() {
         <span style={{ color: theme.subText, fontSize: 13 }}>WIMPS — Web Interactive MIPS Pocket Simulator</span>
         <div style={{ display: 'flex', gap: 20 }}>
           <Link to="/docs" className="home-link-muted" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13 }}>Docs</Link>
-          <Link to="/login" className="home-link-muted" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13 }}>Sign in</Link>
-          <Link to="/register" className="home-link-muted" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13 }}>Register</Link>
+          {isLoggedIn ? (
+            <button type="button" onClick={handleLogout} className="home-link-muted" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: theme.subText, fontSize: 13, fontFamily: 'inherit' }}>Sign out</button>
+          ) : (
+            <Link to="/login" className="home-link-muted" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13 }}>Sign in</Link>
+          )}
+          {!isLoggedIn && (
+            <Link to="/register" className="home-link-muted" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13 }}>Register</Link>
+          )}
         </div>
       </footer>
     </div>
