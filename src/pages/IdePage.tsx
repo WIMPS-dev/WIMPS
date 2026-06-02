@@ -77,6 +77,7 @@ export default function IdePage() {
   const [showHex, setShowHex] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [hoveredTabId, setHoveredTabId] = useState<string | null>(null);
+  const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
 
   const [rightTab, setRightTab] = useState<'registers' | 'memory'>('registers');
@@ -228,40 +229,34 @@ export default function IdePage() {
     setIsLoggedIn(false);
   };
 
+  // Shared helper: removes a tab from local state and fixes the active tab.
+  const removeTabLocally = useCallback((tabId: string) => {
+    setTabs(prev => {
+      if (prev.length === 1) {
+        const newId = String(Date.now());
+        setActiveTabId(newId);
+        return [{ id: newId, name: 'file1.asm', code: '', isDirty: false }];
+      }
+      const idx = prev.findIndex(t => t.id === tabId);
+      if (idx === -1) return prev;
+      const next = prev[idx === 0 ? 1 : idx - 1];
+      if (activeTabId === tabId) setActiveTabId(next.id);
+      return prev.filter(t => t.id !== tabId);
+    });
+  }, [activeTabId]);
+
   const handleDeleteTab = async (tab: CodeTab, e: React.MouseEvent) => {
     e.stopPropagation();
     const token = getAuthToken();
     if (!token) return;
-
     try {
       const res = await fetch(`${API_BASE}/auth/tabs/${tab.id}`, {
         method: 'DELETE',
         headers: getApiHeaders(token),
       });
-
-      if (res.status === 401) {
-        clearAuthToken();
-        setIsLoggedIn(false);
-        return;
-      }
-
-      if (!res.ok) {
-        setOutput('Delete failed. Check your connection.');
-        return;
-      }
-
-      // Remove from local state; if it was the last tab, start fresh
-      setTabs(prev => {
-        if (prev.length === 1) {
-          const newId = String(Date.now());
-          setActiveTabId(newId);
-          return [{ id: newId, name: 'file1.asm', code: '', isDirty: false }];
-        }
-        const idx = prev.findIndex(t => t.id === tab.id);
-        const next = prev[idx === 0 ? 1 : idx - 1];
-        if (activeTabId === tab.id) setActiveTabId(next.id);
-        return prev.filter(t => t.id !== tab.id);
-      });
+      if (res.status === 401) { clearAuthToken(); setIsLoggedIn(false); return; }
+      if (!res.ok) { setOutput('Delete failed. Check your connection.'); return; }
+      removeTabLocally(tab.id);
     } catch {
       setOutput('Delete failed. Check your connection.');
     }
@@ -477,6 +472,16 @@ export default function IdePage() {
                         {tab.name}{tab.isDirty ? ' •' : ''}
                       </span>
                     )}
+                    {tabs.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={e => closeTab(tab.id, e)}
+                        aria-label={`Close ${tab.name}`}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 14, lineHeight: 1, padding: 2, flexShrink: 0 }}
+                      >
+                        ×
+                      </button>
+                    )}
                     {/* Trash: delete from server, shown on hover for logged-in users */}
                     {isLoggedIn && isHovered && (
                       <button
@@ -497,16 +502,6 @@ export default function IdePage() {
                         }}
                       >
                         <TabTrashIcon />
-                      </button>
-                    )}
-                    {tabs.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={e => closeTab(tab.id, e)}
-                        aria-label={`Close ${tab.name}`}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 14, lineHeight: 1, padding: 2, flexShrink: 0 }}
-                      >
-                        ×
                       </button>
                     )}
                   </button>
@@ -571,6 +566,16 @@ export default function IdePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <ThemeSwitch />
           <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
+          {isLoggedIn && (
+            <button
+              type="button"
+              onClick={() => setFilesDrawerOpen(true)}
+              title="Your cloud files"
+              style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', padding: '4px 10px', fontSize: 13, fontWeight: 500 }}
+            >
+              Files
+            </button>
+          )}
           {isLoggedIn ? (
             <button type="button" onClick={handleLogout} className="ide-sign-out" style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.text, cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}>Sign out</button>
           ) : (
@@ -683,6 +688,17 @@ export default function IdePage() {
           {mobileView === 'memory' && <MemoryView data={memoryData} theme={theme} />}
         </div>
       )}
+
+      <FilesDrawer
+        open={filesDrawerOpen}
+        onClose={() => setFilesDrawerOpen(false)}
+        theme={theme}
+        tabs={tabs}
+        setTabs={setTabs}
+        activeTabId={activeTabId}
+        setActiveTabId={setActiveTabId}
+        removeTabLocally={removeTabLocally}
+      />
     </div>
   );
 }
@@ -699,6 +715,188 @@ function TabTrashIcon() {
       <line x1="4.5" y1="5.5" x2="4.5" y2="9" />
       <line x1="6.5" y1="5.5" x2="6.5" y2="9" />
     </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Files drawer
+// ---------------------------------------------------------------------------
+interface FilesDrawerProps {
+  open: boolean;
+  onClose: () => void;
+  theme: import('../theme/themes').Theme;
+  tabs: CodeTab[];
+  setTabs: React.Dispatch<React.SetStateAction<CodeTab[]>>;
+  activeTabId: string;
+  setActiveTabId: (id: string) => void;
+  removeTabLocally: (tabId: string) => void;
+}
+
+function FilesDrawer({ open, onClose, theme, tabs, setTabs, activeTabId, setActiveTabId, removeTabLocally }: FilesDrawerProps) {
+  const [serverFiles, setServerFiles] = useState<CodeTab[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    const token = getAuthToken();
+    if (!token) { setLoading(false); return; }
+    fetch(`${API_BASE}/auth/tabs`, { headers: getApiHeaders(token) })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { if (Array.isArray(data)) setServerFiles(data.map(normalizeTab)); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [open]);
+
+  const handleOpen = (file: CodeTab) => {
+    const existing = tabs.find(t => t.id === file.id);
+    if (existing) {
+      setActiveTabId(existing.id);
+    } else {
+      setTabs(prev => [...prev, { ...file, isDirty: false }]);
+      setActiveTabId(file.id);
+    }
+    onClose();
+  };
+
+  const handleDelete = async (file: CodeTab) => {
+    const token = getAuthToken();
+    if (!token) return;
+    setDeletingId(file.id);
+    try {
+      const res = await fetch(`${API_BASE}/auth/tabs/${file.id}`, {
+        method: 'DELETE',
+        headers: getApiHeaders(token),
+      });
+      if (!res.ok) return;
+      setServerFiles(prev => prev.filter(f => f.id !== file.id));
+      removeTabLocally(file.id);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  if (!open) return null;
+
+  const openTabIds = new Set(tabs.map(t => t.id));
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', zIndex: 200 }}
+      />
+      {/* Panel */}
+      <div style={{
+        position: 'fixed', top: 0, right: 0, bottom: 0, width: 300,
+        backgroundColor: theme.card, borderLeft: `1px solid ${theme.border}`,
+        zIndex: 201, display: 'flex', flexDirection: 'column',
+        boxShadow: '-12px 0 40px rgba(0,0,0,0.25)',
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
+          <div>
+            <div style={{ color: theme.text, fontWeight: 700, fontSize: 14 }}>Cloud Files</div>
+            <div style={{ color: theme.subText, fontSize: 11, marginTop: 2 }}>
+              {loading ? 'Loading…' : `${serverFiles.length} file${serverFiles.length !== 1 ? 's' : ''} saved`}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close file manager"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 20, lineHeight: 1, padding: 4, borderRadius: 4 }}
+          >×</button>
+        </div>
+
+        {/* File list */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+          {loading ? (
+            <div style={{ color: theme.subText, fontSize: 13, padding: '24px 8px', textAlign: 'center' }}>Loading…</div>
+          ) : serverFiles.length === 0 ? (
+            <div style={{ color: theme.subText, fontSize: 13, padding: '24px 8px', lineHeight: '20px' }}>
+              Nothing saved yet. Hit 💾 Save in the toolbar to sync your tabs here.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {serverFiles.map(file => {
+                const isOpen = openTabIds.has(file.id);
+                const isDeleting = deletingId === file.id;
+                return (
+                  <div
+                    key={file.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '9px 12px', borderRadius: 8,
+                      border: `1px solid ${isOpen ? theme.linkColor + '55' : theme.border}`,
+                      backgroundColor: isOpen ? theme.linkColor + '0d' : 'transparent',
+                      opacity: isDeleting ? 0.5 : 1,
+                      transition: 'opacity 150ms',
+                    }}
+                  >
+                    {/* File info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        color: theme.text, fontSize: 13, fontWeight: 600,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {file.name}
+                      </div>
+                      <div style={{ color: theme.subText, fontSize: 11, marginTop: 1 }}>
+                        {isOpen
+                          ? <span style={{ color: theme.linkColor }}>● open</span>
+                          : `${file.code.split('\n').filter(Boolean).length} lines`}
+                      </div>
+                    </div>
+
+                    {/* Open button — only when not already open */}
+                    {!isOpen && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpen(file)}
+                        disabled={isDeleting}
+                        style={{
+                          background: 'none', border: `1px solid ${theme.border}`, borderRadius: 5,
+                          color: theme.subText, cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                          padding: '3px 9px', flexShrink: 0,
+                        }}
+                      >
+                        Open
+                      </button>
+                    )}
+
+                    {/* Delete */}
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(file)}
+                      disabled={isDeleting}
+                      title="Delete from account"
+                      style={{
+                        background: 'none', border: `1px solid #ef444444`, borderRadius: 5,
+                        color: '#ef4444', cursor: isDeleting ? 'not-allowed' : 'pointer',
+                        fontSize: 11, fontWeight: 600,
+                        padding: '3px 9px', flexShrink: 0, display: 'flex', alignItems: 'center',
+                      }}
+                    >
+                      <TabTrashIcon />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer hint */}
+        <div style={{ padding: '12px 18px', borderTop: `1px solid ${theme.border}`, flexShrink: 0 }}>
+          <p style={{ color: theme.subText, fontSize: 11, lineHeight: '16px', margin: 0 }}>
+            Closing a tab (×) only removes it from this session — it stays in your account. Delete removes it permanently.
+          </p>
+        </div>
+      </div>
+    </>
   );
 }
 
