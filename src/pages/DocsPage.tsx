@@ -174,7 +174,9 @@ done:
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-function Accordion({ title, children, theme, badge }: { title: string; children: React.ReactNode; theme: Theme; badge?: string }) {
+function Accordion({ title, children, theme, badge }: {
+  title: string; children: React.ReactNode; theme: Theme; badge?: string;
+}) {
   const [open, setOpen] = useState(false);
   const panelId = `accordion-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
   const btnId = `${panelId}-btn`;
@@ -188,19 +190,16 @@ function Accordion({ title, children, theme, badge }: { title: string; children:
         onClick={() => setOpen(p => !p)}
         className="docs-accordion-btn"
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          width: '100%',
-          padding: '14px 16px',
-          backgroundColor: theme.card,
-          border: 'none',
-          cursor: 'pointer',
-          gap: 10,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          width: '100%', padding: '14px 16px',
+          backgroundColor: theme.card, border: 'none', cursor: 'pointer', gap: 10,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ color: '#2563eb', fontSize: 20, fontWeight: 700, lineHeight: 1, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 180ms ease-out' }} aria-hidden="true">›</span>
+          <span
+            style={{ color: '#2563eb', fontSize: 20, fontWeight: 700, lineHeight: 1, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 180ms ease-out' }}
+            aria-hidden="true"
+          >›</span>
           <span style={{ color: theme.text, fontSize: 15, fontWeight: 700 }}>{title}</span>
         </div>
         {badge && (
@@ -245,8 +244,77 @@ function MiniTable({ rows, headers, theme }: { rows: [string, string, string?][]
   );
 }
 
-function Body({ children, theme }: { children: string; theme: Theme }) {
-  return <p style={{ color: theme.subText, fontSize: 14, lineHeight: '22px', whiteSpace: 'pre-line', maxWidth: '68ch', textWrap: 'pretty' } as React.CSSProperties}>{children}</p>;
+function Body({ children, theme }: { children: React.ReactNode; theme: Theme }) {
+  return (
+    <p style={{ color: theme.subText, fontSize: 14, lineHeight: '22px', maxWidth: '68ch', textWrap: 'pretty' } as React.CSSProperties}>
+      {children}
+    </p>
+  );
+}
+
+// Toolbar button legend
+function ButtonLegend({ theme }: { theme: Theme }) {
+  const items: [string, string, string][] = [
+    ['⚙', 'Assemble',  'Parse and compile. Errors show up in the Console.'],
+    ['▶', 'Run',       'Start from scratch. Stops at the first breakpoint it hits, or runs to the end.'],
+    ['⏭', 'Continue', 'Resume from where you\'re paused, to the next breakpoint or the end.'],
+    ['←', 'Step Back', 'Undo one instruction and retract its output. Stays dimmed until you\'ve stepped at least once.'],
+    ['→', 'Step',      'Execute one instruction.'],
+    ['↺', 'Reset',     'Clear execution state and output. Breakpoints are preserved.'],
+    ['↑', 'Upload',    'Open a .asm / .s / .txt file from disk into a new tab.'],
+    ['↓', 'Download',  'Export the active tab to disk.'],
+    ['💾', 'Save',     'Sync all tabs to your account. Only visible when signed in.'],
+  ];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 6 }}>
+      {items.map(([sym, name, desc]) => (
+        <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${theme.border}22` }}>
+          <span style={{
+            fontFamily: 'monospace', fontSize: 13, fontWeight: 700,
+            backgroundColor: '#2563eb', color: '#fff',
+            borderRadius: 5, padding: '2px 7px',
+            flexShrink: 0, minWidth: 26, textAlign: 'center',
+          }}>{sym}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: theme.text, flexShrink: 0, minWidth: 82 }}>{name}</span>
+          <span style={{ fontSize: 13, color: theme.subText }}>{desc}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Mini gutter preview showing a breakpoint and active-line highlight
+function BpGuide({ theme }: { theme: Theme }) {
+  const lines: { n: number; bp: boolean; active: boolean; code: string }[] = [
+    { n: 1, bp: false, active: false, code: 'li   $t0, 1' },
+    { n: 2, bp: false, active: false, code: 'li   $t1, 10' },
+    { n: 3, bp: true,  active: false, code: 'loop:' },
+    { n: 4, bp: false, active: true,  code: '    add  $t0, $t0, 1' },
+    { n: 5, bp: false, active: false, code: '    blt  $t0, $t1, loop' },
+  ];
+  return (
+    <div style={{
+      fontFamily: 'monospace', fontSize: 12, lineHeight: '20px',
+      backgroundColor: theme.bg, borderRadius: 8, padding: '8px 0',
+      border: `1px solid ${theme.border}`, display: 'inline-flex',
+      flexDirection: 'column', marginTop: 10, overflow: 'hidden',
+    }}>
+      {lines.map(({ n, bp, active, code }) => (
+        <div key={n} style={{ display: 'flex', alignItems: 'center', height: 22, backgroundColor: active ? '#2563eb22' : 'transparent' }}>
+          <div style={{
+            width: 48, display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+            gap: 4, paddingRight: 8, borderRight: `1px solid ${theme.border}`,
+            color: active ? theme.text : (bp ? '#ef4444' : theme.subText),
+            flexShrink: 0,
+          }}>
+            {bp && <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ef4444', display: 'inline-block', flexShrink: 0 }} />}
+            <span style={{ fontSize: 11, fontWeight: bp || active ? 700 : 400 }}>{n}</span>
+          </div>
+          <span style={{ paddingLeft: 10, color: active ? theme.linkColor : theme.consoleText }}>{code}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 const TYPE_COLOR: Record<string, string> = { R: '#3b82f6', I: '#f59e0b', J: '#10b981', P: '#8b5cf6' };
@@ -303,8 +371,12 @@ export default function DocsPage() {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{ maxWidth: 780, margin: '0 auto', padding: '32px 24px 80px' }}>
-          <h1 style={{ color: theme.text, fontSize: 28, fontWeight: 800, marginBottom: 8, textWrap: 'balance' } as React.CSSProperties}>Documentation</h1>
-          <p style={{ color: theme.subText, fontSize: 14, marginBottom: 28 }}>Everything you need to write MIPS assembly in WIMPS</p>
+
+          {/* Header */}
+          <h1 style={{ color: theme.text, fontSize: 28, fontWeight: 800, marginBottom: 6, textWrap: 'balance' } as React.CSSProperties}>Docs</h1>
+          <p style={{ color: theme.subText, fontSize: 14, marginBottom: 28, maxWidth: '52ch' }}>
+            A reference for using WIMPS and writing MIPS. Use the search below to filter instructions, syscalls, and directives.
+          </p>
 
           {/* Search */}
           <input
@@ -326,47 +398,90 @@ export default function DocsPage() {
             }}
           />
 
-          {/* WIMPS section */}
+          {/* ── WIMPS ────────────────────────────────────────────────────── */}
           {!q && (
             <>
-              <SectionDivider label="WIMPS" theme={theme} />
+              <SectionDivider label="Using WIMPS" theme={theme} />
 
-              <Accordion title="Getting Started" theme={theme}>
-                <Body theme={theme}>
-                  {'Write your MIPS assembly code in the Editor panel. The toolbar gives you four actions:\n\n• Assemble — parses and assembles your source. Errors appear in the Console.\n• Run — executes the assembled program until it terminates or waits for input.\n• Step — executes one instruction at a time so you can watch registers change.\n• Reset — clears execution state and output. You need to Assemble again before running.'}
-                </Body>
+              <Accordion title="Getting started" theme={theme}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Body theme={theme}>
+                    Assemble is the prerequisite for everything else — write your code, hit ⚙, and check the Console for any errors. Once it compiles, the run controls turn blue. The active line gets a blue highlight as you step through; when you stop at a breakpoint you'll see which instruction is up next.
+                  </Body>
+                  <div style={{ marginTop: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: theme.subText, textTransform: 'uppercase', letterSpacing: 1 }}>Toolbar</span>
+                    <ButtonLegend theme={theme} />
+                  </div>
+                </div>
               </Accordion>
 
-              <Accordion title="Editor & Tabs" theme={theme}>
-                <Body theme={theme}>
-                  {'The editor supports multiple files via tabs. Click the + button to open a new tab. Double-click a tab name to rename it. Click ✕ to close a tab (a minimum of one tab stays open).\n\nFiles are saved automatically to browser storage. Log in to sync across devices.'}
-                </Body>
+              <Accordion title="Breakpoint debugging" theme={theme}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <Body theme={theme}>
+                    Click any line number in the gutter to place a breakpoint. A red dot marks it, and the number turns red. Click the same line again to remove it. Breakpoints don't clear on Reset or Assemble — they stay until you remove them.
+                  </Body>
+                  <BpGuide theme={theme} />
+                  <Body theme={theme}>
+                    <strong style={{ color: theme.text }}>Run</strong> always restarts from the top and stops at the first breakpoint it hits. If you're already paused at a breakpoint and want to move to the next one, use <strong style={{ color: theme.text }}>Continue</strong> — it executes the current instruction and keeps going. <strong style={{ color: theme.text }}>Step</strong> moves one instruction at a time regardless of breakpoints.
+                  </Body>
+                  <Body theme={theme}>
+                    <strong style={{ color: theme.text }}>Step Back</strong> rewinds one instruction. Registers revert to exactly how they were before that step, and any output it produced disappears from the Console. After a Run or Continue, the step-back history resets — you can only rewind over instructions you've explicitly stepped through.
+                  </Body>
+                </div>
               </Accordion>
 
-              <Accordion title="Console & Input" theme={theme}>
-                <Body theme={theme}>
-                  {'Program output appears in the Console panel. When your program executes a read syscall (5, 8, 12), the console shows a prompt. Type your input and press Enter or click Submit. WIMPS replays execution with all prior inputs, so every value is always available.'}
-                </Body>
+              <Accordion title="Editor & tabs" theme={theme}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <Body theme={theme}>
+                    Click <strong style={{ color: theme.text }}>+</strong> to open a new tab. Double-click a tab name to rename it. The <strong style={{ color: theme.text }}>×</strong> button closes the tab locally — it doesn't touch anything on the server.
+                  </Body>
+                  <Body theme={theme}>
+                    If you're signed in, hovering a tab shows a red trash icon. That one actually deletes the file from your account. There's no undo, so use it deliberately.
+                  </Body>
+                  <Body theme={theme}>
+                    Upload (↑) opens a .asm, .s, or .txt file from disk into a new tab. Download (↓) exports the active tab back to disk. Syntax is highlighted as you type.
+                  </Body>
+                </div>
               </Accordion>
 
-              <Accordion title="Memory Inspector" theme={theme}>
-                <Body theme={theme}>
-                  {'The Memory panel shows 32 words of the data segment starting at 0x10010000 after each Run or Step. Use this to verify load/store operations and check .data layout.'}
-                </Body>
+              <Accordion title="Console & input" theme={theme}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <Body theme={theme}>
+                    Program output lands in the Console as your code runs. When a read syscall fires ($v0 = 5, 8, or 12), the console goes interactive — a cursor appears and you can start typing. Press Enter to submit.
+                  </Body>
+                  <Body theme={theme}>
+                    Under the hood, WIMPS replays the full execution each time you submit input, threading all accumulated inputs back through the program from the start. That means you don't lose earlier reads if your program needs multiple inputs.
+                  </Body>
+                </div>
               </Accordion>
 
-              <Accordion title="Saving & Syncing" theme={theme}>
-                <Body theme={theme}>
-                  {'Without an account, tabs are saved to localStorage and persist between browser sessions. With an account, press Save to sync up to 15 tabs (1 MB each) to the cloud so you can access them from any device.'}
-                </Body>
+              <Accordion title="Registers & memory" theme={theme}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <Body theme={theme}>
+                    The Registers panel shows all 32 general-purpose registers, updated after each Step or Run. Toggle between hex and decimal display at the top of the panel.
+                  </Body>
+                  <Body theme={theme}>
+                    The Memory panel shows 32 words of the data segment starting at 0x10010000 — the default starting address for .data. Use it to check load/store results and verify how your data is laid out in memory.
+                  </Body>
+                </div>
+              </Accordion>
+
+              <Accordion title="Saving & syncing" theme={theme}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <Body theme={theme}>
+                    No account required. WIMPS writes your tabs to localStorage on every change and restores them when you come back. If you clear browser storage or switch machines, those files are gone.
+                  </Body>
+                  <Body theme={theme}>
+                    Sign in to back files up server-side. Up to 15 files, 1 MB each. The 💾 Save button appears in the toolbar when you're logged in — hit it to push the current state. Files load automatically on your next login from any device.
+                  </Body>
+                </div>
               </Accordion>
             </>
           )}
 
-          {/* MIPS section */}
-          <SectionDivider label="MIPS" theme={theme} />
+          {/* ── MIPS ─────────────────────────────────────────────────────── */}
+          <SectionDivider label="MIPS reference" theme={theme} />
 
-          {/* Instructions */}
           <Accordion title="Instructions" theme={theme} badge={`${filteredInstructions.length}`}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {filteredInstructions.map(([syn, type, desc]) => (
@@ -374,7 +489,8 @@ export default function DocsPage() {
                   <span className="docs-instr-syn" style={{ color: theme.linkColor }}>{syn}</span>
                   <span style={{
                     fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
-                    backgroundColor: `${TYPE_COLOR[type]}22`, color: TYPE_COLOR[type], minWidth: 20, textAlign: 'center', flexShrink: 0,
+                    backgroundColor: `${TYPE_COLOR[type]}22`, color: TYPE_COLOR[type],
+                    minWidth: 20, textAlign: 'center', flexShrink: 0,
                   }}>{type}</span>
                   <span style={{ fontSize: 13, color: theme.subText }}>{desc}</span>
                 </div>
@@ -382,41 +498,43 @@ export default function DocsPage() {
             </div>
           </Accordion>
 
-          {/* Syscalls */}
           <Accordion title="Syscalls" theme={theme} badge={`${filteredSyscalls.length}`}>
             <MiniTable rows={filteredSyscalls} headers={['Code', 'Args / Return', 'Description']} theme={theme} />
           </Accordion>
 
-          {/* Registers */}
           {!q && (
             <Accordion title="Registers" theme={theme}>
               <MiniTable rows={REGISTERS} headers={['Name', 'Number', 'Convention']} theme={theme} />
             </Accordion>
           )}
 
-          {/* Directives */}
-          <Accordion title="Assembler Directives" theme={theme} badge={`${filteredDirectives.length}`}>
+          <Accordion title="Assembler directives" theme={theme} badge={`${filteredDirectives.length}`}>
             <MiniTable rows={filteredDirectives.map(([d, desc]) => [d, desc] as [string, string])} headers={['Directive', 'Description']} theme={theme} />
           </Accordion>
 
-          {/* Example */}
+          {/* ── Example ──────────────────────────────────────────────────── */}
           {!q && (
             <>
               <SectionDivider label="Example" theme={theme} />
-              <Accordion title="QuadHex: like FizzBuzz, but for 4, 6, and 24" theme={theme}>
-                <Body theme={theme}>{'Prints 1–40, replacing multiples of 4 with "Quad", multiples of 6 with "Hex", and multiples of 24 with "QuadHex".'}</Body>
-                <div style={{ overflowX: 'auto', marginTop: 8 }}>
-                  <pre style={{
-                    fontFamily: 'monospace', fontSize: 12, lineHeight: '19px',
-                    backgroundColor: `${theme.border}33`, color: theme.consoleText,
-                    borderRadius: 10, padding: 14,
-                  }}>
-                    {EXAMPLE}
-                  </pre>
+              <Accordion title="QuadHex — like FizzBuzz, but for 4, 6, and 24" theme={theme}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <Body theme={theme}>
+                    Counts from 1 to 40, swapping multiples of 4 for "Quad", multiples of 6 for "Hex", and multiples of 24 for "QuadHex". Good for testing the step debugger — try setting a breakpoint on the loop label and watching <code style={{ fontFamily: 'monospace', fontSize: 12, backgroundColor: `${theme.border}66`, padding: '1px 4px', borderRadius: 3, color: theme.linkColor }}>$t0</code> tick up in the Registers panel.
+                  </Body>
+                  <div style={{ overflowX: 'auto' }}>
+                    <pre style={{
+                      fontFamily: 'monospace', fontSize: 12, lineHeight: '19px',
+                      backgroundColor: `${theme.border}33`, color: theme.consoleText,
+                      borderRadius: 10, padding: 14, margin: 0,
+                    }}>
+                      {EXAMPLE}
+                    </pre>
+                  </div>
                 </div>
               </Accordion>
             </>
           )}
+
         </div>
       </div>
     </div>

@@ -2,107 +2,104 @@
 
 ### The Web Interactive MIPS Pocket Simulator
 
-WIMPS is a browser-based MIPS assembly simulator built for CS students who shouldn't need to download a 20+ year old Java program just to learn computer architecture. Write, assemble, and step through, MIPS programs directly in your browser.
+WIMPS is a browser-based MIPS assembly simulator built for CS students who shouldn't need to download a 20+ year old Java program just to study computer architecture. Write, assemble, step through, and debug MIPS programs directly in your browser — no install required.
 
-WIMPS is designed for convenience as a modern, accessible alternative to MARS, supporting the same instruction set and syscalls, while running natively on desktop, tablet, and mobile.
+It supports the same instruction set and syscalls as MARS, runs in any modern browser, and works on desktop, tablet, and mobile.
 
 ---
 
 ### Basic Usage
 
-Write MIPS Asssembly code in the Code Editor, open the floating dropdown menu on the editor, and click the hammer icon to assemble it. Then, to execute your code, click the arrow icon to run it. Any output will appear in the Console, and the execution will pause if the program is waiting for input, which can be typed directly in the console.
+Write MIPS assembly in the editor, then hit **Assemble** (⚙) in the toolbar. Errors land in the Console immediately. Once your code compiles, the run controls turn blue:
 
-To step through  your program, assemble it, then click the step icon, which will highlight the line that is currently being executed. Register and memory values will update in real time.
+- **Run (▶)** — starts a fresh execution from the top and stops at the first breakpoint, or runs to the end.
+- **Continue (⏭)** — resumes from wherever you're paused to the next breakpoint or the end.
+- **Step (→)** — executes one instruction at a time. The active line is highlighted in the editor.
+- **Step Back (←)** — undoes the last instruction. Registers revert and any output it produced disappears.
+- **Reset (↺)** — clears execution state and output. Breakpoints are preserved.
 
-Any files and their contents are automatically saved into browser data. If you plan to use WIMPS long term, it is recommended to create an account, which will save your files into our backend server, so you never lose them!
+To place a breakpoint, click any line number in the gutter. A red dot appears on that line. Click again to remove it.
 
-If you're tired of your current color scheme, or it doesn't fit your current lighting situation, change your site theme using the switch in the top right. This change will persist across pages.
+Output from `syscall` appears in the Console panel. When a read syscall fires, the console goes interactive — type your input and press Enter. All register and memory state updates in real time in the right panels.
 
-Need a refresher, or new to MIPS? No problem. Visit the documentation page for a fuzzy-searchable MIPS manual that includes instructions, convention, and a tester program.
-
----
-
-## Feature List
-
-- **Full MIPS Instruction Set:** Supports all R-type, I-type, and J-type instructions, as well as the syscalls that MARS supports.
-- **Interactive Register View:** Track the values of all 32 registers in real-time as your program runs. Includes both hex and decimal display modes, switchable at any time.
-- **Step-Through Simulation:** Step instruction-by-instruction through your program and inspect the registers and memory state after every step.
-- **Memory Inspector:** Browse the simulated memory space and inspect individual memory addresses around chunks of memory relevant to your program.
-- **Syntax Coloring:** Assembly syntax is highlighted as you type, just like a real IDE.
-- **Tabbed Editor:** Open and edit multiple `.asm` files simultaneously with a familiar tab-based interface. Tabs can be renamed by double-tapping.
-- **File Upload & Download:** Import `.asm`, `.s`, or `.txt` files directly from your device, and export your work back to disk at any time.
-- **Console I/O:** Full program output is displayed in the console panel. Programs that request input via syscall will pause and wait for you to type a response.
-- **Resizable Panels:** On desktop, all four panels (Editor, Console, Registers, Memory) are independently resizable and can be minimized.
-- **Runs Anywhere:** Pure web: works on desktop, tablet, or mobile. Save files directly to browser storage, or sign in to sync across devices and prevent data loss.
-- **Dark & Light Mode:** A persistent theme toggle is available on every screen, with your preference saved across sessions.
+Files auto-save to browser storage. Sign in to sync to the cloud so you never lose work across sessions or devices.
 
 ---
 
-## Planned Features
+## Features
 
-- Interactive debugging with breakpoints
-- Better, more detailed runtime error outputs
-- Complete UI overhaul
-- Extra MARS-like tools: Bitmap Display, Data Cache Simulator, and more
-- Expand our mongodb's capability with funding
+- **Full MIPS Instruction Set** — R-type, I-type, J-type, and the pseudo-instructions MARS supports.
+- **Breakpoint debugging** — click a line number to place a breakpoint (red dot). Run stops at the first one it hits; Continue advances to the next.
+- **Step Back / Rewind** — undo the last instruction, including any output it produced. Works for however many instructions you've explicitly stepped through.
+- **Live Register View** — all 32 registers update after every step or run. Toggle between hex and decimal at any time.
+- **Memory Inspector** — shows 32 words of the data segment starting at 0x10010000, updated after every step or run.
+- **Tabbed Editor** — open and edit multiple `.asm` files simultaneously. Double-click a tab to rename it.
+- **File Upload & Download** — import `.asm`, `.s`, or `.txt` files from disk, and export them back at any time.
+- **Cloud Sync** — sign in to back up up to 15 files (1 MB each) to a personal account, accessible from any device. Delete individual files from the account via the trash icon that appears on tab hover.
+- **Console I/O** — full program output in the console. Programs that read input pause and wait for you to type.
+- **Syntax Highlighting** — instructions, registers, directives, labels, and comments each get their own color.
+- **Resizable Panels** — drag the dividers between the editor, console, and register/memory panels to fit your screen.
+- **Dark & Light Mode** — persistent theme toggle on every page.
+
+---
+
+## Planned
+
+- Better runtime error messages with more detail on what went wrong
+- MARS-style extra tools: Bitmap Display, Data Cache Simulator
+- Expanded cloud storage
+
 ---
 
 ## Account & File Storage
 
-WIMPS supports two modes of file persistence:
+**Guest (no account):** Files are saved automatically to browser localStorage. Convenient for quick sessions, but clearing browser data or switching devices will lose them.
 
-**Guest (no account):** Files are saved automatically to your browser's local storage. This is convenient for quick sessions, but data may be lost if you clear your browser storage or switch devices.
-
-**Signed in:** Files are saved to a personal account in the cloud, accessible from any device. Up to 15 files can be stored, each up to 1MB. Files auto-save every 10 seconds when changes are detected.
-
-To create an account, click **Sign Up** from the homepage or the IDE. To delete a saved file, open the file browser (📂) and press the **✕** next to the file.
+**Signed in:** Files sync to a personal account in the cloud. Up to 15 files, 1 MB each. Press the 💾 Save button in the toolbar to push the current state. To delete a file from your account, hover over its tab — a red trash icon appears.
 
 ---
 
 ## Technologies
-This website is written using React Native & TypeScript. The simulator uses an open source node package [`@specy/mips`](https://github.com/Specy/mars). The backend is written in JavaScript and uses a mongodb for data storage.
+
+- **Frontend:** React + TypeScript, bundled with Vite
+- **Simulator:** [`@specy/mips`](https://github.com/Specy/mars) — an open-source MIPS simulator
+- **Backend:** Node.js + Express, MongoDB via Mongoose
 
 ---
-## Self Hosting & Personal Development
 
-Feel free to personally edit WIMPS for your own usage, or just play around with it!
+## Self-Hosting
 
-To start out this project, first install all dependencies with the command:
-
-```
+```bash
+# Install all dependencies
 npm install && npm --prefix backend install
 ```
 
-Then, make a new file in `/backend/.env` and fill it in with your database link and credentials like so:
+Create `backend/.env`:
 
 ```
-MONGO_URI=mongodb+srv://someuser:somepassword@somelink
-JWT_SECRET=someencpassword
+MONGO_URI=mongodb+srv://user:password@cluster/dbname
+JWT_SECRET=your_secret_here
 ```
 
-Next, run the backend server in `/backend` with:
+Create `.env` in the project root:
 
 ```
-node server.js
+VITE_API_URL=http://localhost:3001
 ```
 
-To run this server on iOS and Android too, forward this endpoint in a new terminal with:
+Run the backend (one terminal):
 
-```
-ngrok http 3001
-```
-
-Then make a new `.env` file in the base directory with the format:
-
-```
-EXPO_PUBLIC_API_URL=https://somengroklinkyougotinthepreviousstep.ngrok-free.app
+```bash
+node backend/server.js
 ```
 
-Then, you can run the main app with the following command in a 3rd terminal located in the base directory:
+Run the frontend dev server (another terminal):
 
+```bash
+npm run dev
 ```
-npx expo start --tunnel -c
-```
+
+The app will be available at `http://localhost:5173` by default.
 
 ---
 
