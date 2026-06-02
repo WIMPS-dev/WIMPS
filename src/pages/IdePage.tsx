@@ -216,7 +216,11 @@ export default function IdePage() {
         body: JSON.stringify({ tabs: clean }),
       });
       if (res.status === 401) { clearAuthToken(); setIsLoggedIn(false); setOutput('Session expired. Please log in again.'); return; }
-      if (!res.ok) { setOutput('Save failed. Check your connection.'); return; }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setOutput(data?.error || 'Save failed. Check your connection.');
+        return;
+      }
       setTabs(clean);
       setOutput('Saved to account.');
     } catch {

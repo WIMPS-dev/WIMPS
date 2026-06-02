@@ -15,7 +15,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 app.use('/auth', authRoutes);
 
 mongoose.connect(process.env.MONGO_URI)

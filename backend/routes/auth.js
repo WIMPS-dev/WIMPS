@@ -92,17 +92,14 @@ router.post('/tabs', authenticate, async(req, res) => {
             return res.status(400).json({ error: 'tabs must be an array' });
         }
 
-        const MAX_TABS = 15;
-        if (tabs.length > MAX_TABS) {
-            return res.status(400).json({ error: `Cannot save more than ${MAX_TABS} tabs` });
-        }
-
-        const MAX_TAB_SIZE = 1 * 1024 * 1024;
-        for (let i = 0; i < tabs.length; i++) {
-            const tabSize = Buffer.byteLength(JSON.stringify(tabs[i]), 'utf8');
-            if (tabSize > MAX_TAB_SIZE) {
-                return res.status(413).json({ error: `Tab at index ${i} exceeds the 1MB size limit` });
-            }
+        const MAX_TOTAL_SIZE = 1 * 1024 * 1024;
+        const totalSize = Buffer.byteLength(JSON.stringify(tabs), 'utf8');
+        if (totalSize > MAX_TOTAL_SIZE) {
+            return res.status(413).json({
+                error: 'Storage limit reached. Your files total more than 1MB. Free up space and try again.',
+                totalSize,
+                limit: MAX_TOTAL_SIZE,
+            });
         }
 
         const user = await User.findByIdAndUpdate(req.userId, { tabs }, { new: true });
