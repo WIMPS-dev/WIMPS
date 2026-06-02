@@ -176,10 +176,17 @@ done:
 // ---------------------------------------------------------------------------
 function Accordion({ title, children, theme, badge }: { title: string; children: React.ReactNode; theme: Theme; badge?: string }) {
   const [open, setOpen] = useState(false);
+  const panelId = `accordion-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  const btnId = `${panelId}-btn`;
   return (
     <div style={{ border: `1px solid ${theme.border}`, borderRadius: 14, marginBottom: 10, overflow: 'hidden' }}>
       <button
+        id={btnId}
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen(p => !p)}
+        className="docs-accordion-btn"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -193,7 +200,7 @@ function Accordion({ title, children, theme, badge }: { title: string; children:
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ color: '#2563eb', fontSize: 20, fontWeight: 700, lineHeight: 1, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 180ms' }}>›</span>
+          <span style={{ color: '#2563eb', fontSize: 20, fontWeight: 700, lineHeight: 1, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 180ms ease-out' }} aria-hidden="true">›</span>
           <span style={{ color: theme.text, fontSize: 15, fontWeight: 700 }}>{title}</span>
         </div>
         {badge && (
@@ -201,7 +208,7 @@ function Accordion({ title, children, theme, badge }: { title: string; children:
         )}
       </button>
       {open && (
-        <div style={{ padding: '12px 16px 16px', borderTop: `1px solid ${theme.border}`, backgroundColor: theme.card }}>
+        <div id={panelId} role="region" aria-labelledby={btnId} style={{ padding: '12px 16px 16px', borderTop: `1px solid ${theme.border}`, backgroundColor: theme.card }}>
           {children}
         </div>
       )}
@@ -229,7 +236,7 @@ function MiniTable({ rows, headers, theme }: { rows: [string, string, string?][]
       </div>
       {rows.map(([a, b, c], i) => (
         <div key={i} style={{ display: 'flex', padding: '8px 12px', backgroundColor: i % 2 === 1 ? `${theme.border}22` : 'transparent' }}>
-          <span style={{ flex: 1.2, fontFamily: 'monospace', fontSize: 12, color: '#2563eb' }}>{a}</span>
+          <span style={{ flex: 1.2, fontFamily: 'monospace', fontSize: 12, color: theme.linkColor }}>{a}</span>
           <span style={{ flex: 2, fontFamily: 'monospace', fontSize: 12, color: theme.subText }}>{b}</span>
           {c !== undefined && <span style={{ flex: 2, fontSize: 12, color: theme.subText }}>{c}</span>}
         </div>
@@ -239,7 +246,7 @@ function MiniTable({ rows, headers, theme }: { rows: [string, string, string?][]
 }
 
 function Body({ children, theme }: { children: string; theme: Theme }) {
-  return <p style={{ color: theme.subText, fontSize: 14, lineHeight: '22px', whiteSpace: 'pre-line' }}>{children}</p>;
+  return <p style={{ color: theme.subText, fontSize: 14, lineHeight: '22px', whiteSpace: 'pre-line', maxWidth: '68ch', textWrap: 'pretty' } as React.CSSProperties}>{children}</p>;
 }
 
 const TYPE_COLOR: Record<string, string> = { R: '#3b82f6', I: '#f59e0b', J: '#10b981', P: '#8b5cf6' };
@@ -272,17 +279,23 @@ export default function DocsPage() {
   };
 
   return (
-    <div style={{ height: '100vh', backgroundColor: theme.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{
+      height: '100vh', backgroundColor: theme.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      '--ide-ink': theme.text,
+      '--ide-card': theme.card,
+      '--ide-hover': theme.resizer,
+      '--hp-ink': theme.text,
+    } as React.CSSProperties}>
       {/* Nav */}
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-        <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 18 }}>WIMPS</Link>
+        <Link to="/" className="ide-nav-link" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 18 }}>WIMPS</Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <ThemeSwitch />
-          <Link to="/ide" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '6px 14px', border: `1px solid ${theme.border}`, borderRadius: 8 }}>IDE</Link>
+          <Link to="/ide" className="ide-sign-out" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '6px 14px', border: `1px solid ${theme.border}`, borderRadius: 8 }}>IDE</Link>
           {isLoggedIn ? (
-            <button onClick={handleLogout} style={{ backgroundColor: theme.card, color: theme.text, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>Sign out</button>
+            <button type="button" onClick={handleLogout} className="ide-sign-out" style={{ backgroundColor: theme.card, color: theme.text, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>Sign out</button>
           ) : (
-            <Link to="/login" style={{ backgroundColor: '#2563eb', color: '#fff', textDecoration: 'none', padding: '6px 14px', borderRadius: 8, fontSize: 14, fontWeight: 600 }}>Sign in</Link>
+            <Link to="/login" className="ide-sign-in" style={{ backgroundColor: '#2563eb', color: '#fff', textDecoration: 'none', padding: '6px 14px', borderRadius: 8, fontSize: 14, fontWeight: 600 }}>Sign in</Link>
           )}
         </div>
       </nav>
@@ -290,7 +303,7 @@ export default function DocsPage() {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{ maxWidth: 780, margin: '0 auto', padding: '32px 24px 80px' }}>
-          <h1 style={{ color: theme.text, fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Documentation</h1>
+          <h1 style={{ color: theme.text, fontSize: 28, fontWeight: 800, marginBottom: 8, textWrap: 'balance' } as React.CSSProperties}>Documentation</h1>
           <p style={{ color: theme.subText, fontSize: 14, marginBottom: 28 }}>Everything you need to write MIPS assembly in WIMPS</p>
 
           {/* Search */}
@@ -298,6 +311,8 @@ export default function DocsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search instructions, syscalls, directives..."
+            aria-label="Search documentation"
+            className="docs-search"
             style={{
               width: '100%',
               backgroundColor: theme.card,
@@ -355,11 +370,11 @@ export default function DocsPage() {
           <Accordion title="Instructions" theme={theme} badge={`${filteredInstructions.length}`}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {filteredInstructions.map(([syn, type, desc]) => (
-                <div key={syn} style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '6px 0', borderBottom: `1px solid ${theme.border}22` }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#2563eb', minWidth: 180 }}>{syn}</span>
+                <div key={syn} className="docs-instr-row" style={{ borderBottom: `1px solid ${theme.border}22` }}>
+                  <span className="docs-instr-syn" style={{ color: theme.linkColor }}>{syn}</span>
                   <span style={{
                     fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
-                    backgroundColor: `${TYPE_COLOR[type]}22`, color: TYPE_COLOR[type], minWidth: 20, textAlign: 'center',
+                    backgroundColor: `${TYPE_COLOR[type]}22`, color: TYPE_COLOR[type], minWidth: 20, textAlign: 'center', flexShrink: 0,
                   }}>{type}</span>
                   <span style={{ fontSize: 13, color: theme.subText }}>{desc}</span>
                 </div>
@@ -388,7 +403,7 @@ export default function DocsPage() {
           {!q && (
             <>
               <SectionDivider label="Example" theme={theme} />
-              <Accordion title="QuadHex — like FizzBuzz, but for 4, 6, and 24" theme={theme}>
+              <Accordion title="QuadHex: like FizzBuzz, but for 4, 6, and 24" theme={theme}>
                 <Body theme={theme}>{'Prints 1–40, replacing multiples of 4 with "Quad", multiples of 6 with "Hex", and multiples of 24 with "QuadHex".'}</Body>
                 <div style={{ overflowX: 'auto', marginTop: 8 }}>
                   <pre style={{

@@ -6,7 +6,7 @@ import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getApiHeaders, getAuthToken } from '../helpers/authStorage';
-import { assemble, feedInput, getMemoryRange, getState, resetSim, runSim, stepSim } from '../simulator/useMips';
+import { assemble, continueSim, feedInput, getMemoryRange, getState, resetSim, runSim, stepBackSim, stepSim } from '../simulator/useMips';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 const DATA_START = 0x10010000;
@@ -72,6 +72,8 @@ export default function IdePage() {
   const [activeLine, setActiveLine] = useState<number | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
   const [isAssembled, setIsAssembled] = useState(false);
+  const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set());
+  const [canStepBack, setCanStepBack] = useState(false);
   const [showHex, setShowHex] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
@@ -137,6 +139,7 @@ export default function IdePage() {
     setOutput(state.output);
     setActiveLine(state.lineNumber);
     setIsWaiting(state.isWaiting);
+    setCanStepBack(state.canUndo);
     setMemoryData(getMemoryRange(DATA_START, DATA_WORDS));
   };
 
@@ -149,20 +152,28 @@ export default function IdePage() {
       setOutput(`Assembly failed:\n${result.error}`);
       setIsAssembled(false);
     } else {
-      setOutput('');
-      setRegisters(buildInitialRegisters());
-      setMemoryData([]);
       setIsAssembled(true);
+      applyState(getState());
     }
   };
 
   const handleRun = () => {
-    const state = runSim();
+    const state = runSim(Array.from(breakpoints));
+    applyState(state);
+  };
+
+  const handleContinue = () => {
+    const state = continueSim(Array.from(breakpoints));
     applyState(state);
   };
 
   const handleStep = () => {
     const state = stepSim();
+    applyState(state);
+  };
+
+  const handleStepBack = () => {
+    const state = stepBackSim();
     applyState(state);
   };
 
@@ -174,6 +185,16 @@ export default function IdePage() {
     setActiveLine(null);
     setIsWaiting(false);
     setIsAssembled(false);
+    setCanStepBack(false);
+  };
+
+  const handleBreakpointToggle = (line: number) => {
+    setBreakpoints(prev => {
+      const next = new Set(prev);
+      if (next.has(line)) next.delete(line);
+      else next.add(line);
+      return next;
+    });
   };
 
   const handleFeedInput = useCallback((value: string) => {
@@ -304,13 +325,15 @@ export default function IdePage() {
   // ---------------------------------------------------------------------------
   // Editor actions
   // ---------------------------------------------------------------------------
-  const actions = [
-    { label: 'Assemble', symbol: '⚙', onPress: handleAssemble },
-    { label: 'Run',      symbol: '▶', onPress: handleRun },
-    { label: 'Step',     symbol: '→', onPress: handleStep },
-    { label: 'Reset',    symbol: '↺', onPress: handleReset },
-    { label: 'Upload',   symbol: '↑', onPress: handleUpload },
-    { label: 'Download', symbol: '↓', onPress: handleDownload },
+  const actions: { label: string; symbol: string; onPress: () => void; disabled?: boolean }[] = [
+    { label: 'Assemble',  symbol: '⚙',  onPress: handleAssemble },
+    { label: 'Run',       symbol: '▶',  onPress: handleRun },
+    { label: 'Continue',  symbol: '⏭', onPress: handleContinue },
+    { label: 'Step Back', symbol: '←',  onPress: handleStepBack, disabled: !canStepBack },
+    { label: 'Step',      symbol: '→',  onPress: handleStep },
+    { label: 'Reset',     symbol: '↺',  onPress: handleReset },
+    { label: 'Upload',    symbol: '↑',  onPress: handleUpload },
+    { label: 'Download',  symbol: '↓',  onPress: handleDownload },
     ...(isLoggedIn ? [{ label: 'Save', symbol: '💾', onPress: handleSave }] : []),
   ];
 
@@ -336,7 +359,13 @@ export default function IdePage() {
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: theme.bg, overflow: 'hidden' }}>
+    <div style={{
+      height: '100vh', display: 'flex', flexDirection: 'column',
+      backgroundColor: theme.bg, overflow: 'hidden',
+      '--ide-ink': theme.text,
+      '--ide-card': theme.card,
+      '--ide-hover': theme.resizer,
+    } as React.CSSProperties}>
       {/* Top bar */}
       <div style={{
         display: 'flex',
@@ -355,12 +384,21 @@ export default function IdePage() {
         {/* Tabs — scrollable, capped width */}
         <div style={{ display: 'flex', flex: 1, minWidth: 0, alignItems: 'center', gap: 6, overflow: 'hidden' }}>
           {/* Scroll wrapper: plain block so overflow-x actually scrolls */}
-          <div className="tab-scroll" style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}>
+          <div
+            className="tab-scroll"
+            role="tablist"
+            aria-label="Editor files"
+            style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}
+          >
             <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: 'max-content', height: 36 }}>
               {tabs.map(tab => (
-                <div
+                <button
                   key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab.id === activeTabId}
                   onClick={() => setActiveTabId(tab.id)}
+                  className="ide-tab"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -373,11 +411,13 @@ export default function IdePage() {
                     cursor: 'pointer',
                     flexShrink: 0,
                     maxWidth: 160,
+                    fontFamily: 'inherit',
                   }}
                 >
                   {editingTabId === tab.id ? (
                     <input
                       autoFocus
+                      aria-label="Rename tab"
                       value={editTabName}
                       onChange={e => setEditTabName(e.target.value)}
                       onBlur={commitRename}
@@ -395,20 +435,25 @@ export default function IdePage() {
                   )}
                   {tabs.length > 1 && (
                     <button
+                      type="button"
                       onClick={e => closeTab(tab.id, e)}
+                      aria-label={`Close ${tab.name}`}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 14, lineHeight: 1, padding: 2, flexShrink: 0 }}
                     >
                       ×
                     </button>
                   )}
-                </div>
+                </button>
               ))}
             </div>
           </div>
 
           {/* New tab */}
           <button
+            type="button"
             onClick={addTab}
+            aria-label="New tab"
+            className="ide-new-tab"
             style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', width: 28, height: 28, fontSize: 18, flexShrink: 0 }}
           >
             +
@@ -421,19 +466,25 @@ export default function IdePage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0, backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0 6px', height: 34 }}>
             {actions.map(a => {
               const isBlue = isAssembled
-                ? (a.label === 'Run' || a.label === 'Step')
+                ? (['Run', 'Continue', 'Step Back', 'Step'].includes(a.label))
                 : a.label === 'Assemble';
+              const isDisabled = Boolean(a.disabled);
               return (
                 <button
                   key={a.label}
-                  onClick={a.onPress}
+                  type="button"
+                  onClick={isDisabled ? undefined : a.onPress}
                   title={a.label}
+                  aria-label={a.label}
+                  disabled={isDisabled}
+                  className={`ide-action-btn${isBlue ? ' ide-active' : ''}`}
                   style={{
                     backgroundColor: isBlue ? '#2563eb' : 'transparent',
                     border: 'none',
                     borderRadius: 5,
                     color: isBlue ? '#fff' : theme.text,
-                    cursor: 'pointer',
+                    cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    opacity: isDisabled ? 0.35 : 1,
                     width: 28,
                     height: 26,
                     fontSize: 14,
@@ -452,11 +503,11 @@ export default function IdePage() {
         {/* Right controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <ThemeSwitch />
-          <Link to="/docs" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
+          <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
           {isLoggedIn ? (
-            <button onClick={handleLogout} style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.text, cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}>Sign out</button>
+            <button type="button" onClick={handleLogout} className="ide-sign-out" style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.text, cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}>Sign out</button>
           ) : (
-            <Link to="/login" style={{ backgroundColor: '#2563eb', color: '#fff', textDecoration: 'none', padding: '5px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>Sign in</Link>
+            <Link to="/login" className="ide-sign-in" style={{ backgroundColor: '#2563eb', color: '#fff', textDecoration: 'none', padding: '5px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>Sign in</Link>
           )}
         </div>
       </div>
@@ -467,10 +518,12 @@ export default function IdePage() {
           {(['editor', 'console', 'registers', 'memory'] as const).map(view => (
             <button
               key={view}
+              type="button"
               onClick={() => setMobileView(view)}
               style={{
                 flex: 1,
                 padding: '8px 0',
+                minHeight: 44,
                 backgroundColor: mobileView === view ? theme.tabActive : theme.tabInactive,
                 border: 'none',
                 borderRight: `1px solid ${theme.border}`,
@@ -493,7 +546,7 @@ export default function IdePage() {
           {/* Left column: editor + console */}
           <div className="editor-column" style={{ width: `${leftPct}%`, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ height: `${editorHeightPct}%`, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} />
+              <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} />
             </div>
 
             {vDragHandle}
@@ -512,7 +565,11 @@ export default function IdePage() {
               {(['registers', 'memory'] as const).map(tab => (
                 <button
                   key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={rightTab === tab}
                   onClick={() => setRightTab(tab)}
+                  className="ide-panel-tab"
                   style={{
                     flex: 1,
                     height: '100%',
@@ -543,7 +600,7 @@ export default function IdePage() {
         /* Mobile single-panel */
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {mobileView === 'editor' && (
-            <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} />
+            <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} />
           )}
           {mobileView === 'console' && (
             <ConsolePanel
@@ -614,6 +671,10 @@ function ConsolePanel({ output, isWaiting, onSubmit, theme }: ConsolePanelProps)
       <div
         ref={termRef}
         tabIndex={0}
+        role="log"
+        aria-live="polite"
+        aria-label="Program console"
+        aria-relevant="additions"
         onKeyDown={handleKeyDown}
         onClick={() => termRef.current?.focus()}
         style={{
@@ -635,6 +696,11 @@ function ConsolePanel({ output, isWaiting, onSubmit, theme }: ConsolePanelProps)
           cursor: isWaiting ? 'text' : 'default',
         }}
       >
+        {isWaiting && (
+          <span className="sr-only" aria-live="assertive">
+            Program is waiting for input. Type your response and press Enter.
+          </span>
+        )}
         {output ? (
           <span>{output}</span>
         ) : (

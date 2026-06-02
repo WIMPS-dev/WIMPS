@@ -10,9 +10,11 @@ interface CodeEditorProps {
   setCode: (code: string) => void;
   theme: Theme;
   activeLine: number | null;
+  breakpoints: Set<number>;
+  onBreakpointToggle: (line: number) => void;
 }
 
-export function CodeEditor({ code, setCode, theme, activeLine }: CodeEditorProps) {
+export function CodeEditor({ code, setCode, theme, activeLine, breakpoints, onBreakpointToggle }: CodeEditorProps) {
   const lines = code.split('\n');
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -53,7 +55,7 @@ export function CodeEditor({ code, setCode, theme, activeLine }: CodeEditorProps
       }}>
         {/* Gutter */}
         <div style={{
-          width: 45,
+          width: 52,
           backgroundColor: theme.bg,
           borderRight: `1px solid ${theme.border}`,
           paddingTop: 16,
@@ -66,21 +68,49 @@ export function CodeEditor({ code, setCode, theme, activeLine }: CodeEditorProps
           {lines.map((_, i) => {
             const lineNumber = i + 1;
             const isActive = activeLine === lineNumber;
+            const hasBp = breakpoints.has(lineNumber);
             return (
               <div
                 key={i}
+                className="gutter-line"
+                onClick={() => onBreakpointToggle(lineNumber)}
+                title={hasBp ? 'Remove breakpoint' : 'Add breakpoint'}
                 style={{
-                  color: isActive ? theme.text : theme.subText,
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  lineHeight: '22px',
-                  textAlign: 'right',
-                  paddingRight: 10,
-                  fontWeight: isActive ? 700 : 400,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  gap: 4,
+                  paddingLeft: 4,
+                  paddingRight: 8,
+                  height: 22,
+                  cursor: 'pointer',
                   backgroundColor: isActive ? '#2563eb55' : 'transparent',
                 }}
               >
-                {lineNumber}
+                {/* Breakpoint dot / hover hint */}
+                <span
+                  className={hasBp ? undefined : 'bp-hint'}
+                  style={{
+                    flexShrink: 0,
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    backgroundColor: hasBp ? '#ef4444' : 'transparent',
+                    transition: 'background-color 0.1s',
+                  }}
+                />
+                {/* Line number */}
+                <span style={{
+                  color: isActive ? theme.text : (hasBp ? '#ef4444' : theme.subText),
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  lineHeight: '22px',
+                  fontWeight: isActive || hasBp ? 700 : 400,
+                  minWidth: 20,
+                  textAlign: 'right',
+                }}>
+                  {lineNumber}
+                </span>
               </div>
             );
           })}

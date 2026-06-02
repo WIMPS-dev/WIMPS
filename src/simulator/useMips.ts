@@ -10,6 +10,7 @@ export type SimulatorState = {
   lineNumber: number | null;
   isWaiting: boolean;
   terminated: boolean;
+  canUndo: boolean;
 };
 
 const REGISTER_NAMES = [
@@ -19,39 +20,31 @@ const REGISTER_NAMES = [
   '$t8','$t9','$k0','$k1','$gp','$sp','$fp','$ra',
 ] as const;
 
+const UNDO_SIZE = 100;
+
 let source = '';
-let pcToLine = new Map<number, number>();
 let instance: JsMips = makeMipsfromSource('');
 
 let allInputs: string[] = [];
 let inputCursor = 0;
 let isBlockedForInput = false;
 let outputBuffer = '';
+// Parallel stack to the library's undo stack — each entry is the outputBuffer
+// state *before* that step, so stepBack can restore it exactly.
+let outputSnapshots: string[] = [];
 
-function buildPcToLineMap(src: string) {
-  pcToLine = new Map<number, number>();
-  let pc = 0x00400000;
-  let inTextSection = true;
-
-  src.split('\n').forEach((rawLine, index) => {
-    const lineNumber = index + 1;
-    let line = rawLine.split('#')[0].trim();
-    if (!line) return;
-
-    if (line === '.data') { inTextSection = false; return; }
-    if (line === '.text') { inTextSection = true; return; }
-    if (!inTextSection) return;
-
-    line = line.replace(/^[A-Za-z_][\w]*:\s*/, '').trim();
-    if (!line) return;
-
-    pcToLine.set(pc, lineNumber);
-    pc += 4;
-  });
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function getLineNumberForPc(pc: number): number | null {
-  return pcToLine.get(pc) ?? null;
+  if (instance.terminated) return null;
+  try {
+    const stmt = instance.getStatementAtAddress(pc);
+    return stmt?.sourceLine ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function getRegisters(sim: JsMips) {
@@ -125,9 +118,37 @@ function registerHandlers(sim: JsMips) {
   });
 }
 
-function reinitialize(): boolean {
-  buildPcToLineMap(source);
+function buildBreakpointAddresses(lines: number[]): Set<number> {
+  const addresses = new Set<number>();
+  for (const line of lines) {
+    try {
+      const stmt = instance.getStatementAtSourceLine(line);
+      if (stmt) addresses.add(stmt.address);
+    } catch {}
+  }
+  return addresses;
+}
+
+// Full restart: clears all execution state including inputs and output history.
+function restart(): boolean {
+  outputBuffer = '';
+  outputSnapshots = [];
+  allInputs = [];
+  inputCursor = 0;
+  isBlockedForInput = false;
   instance = makeMipsfromSource(source);
+  instance.setUndoSize(UNDO_SIZE);
+  const result = instance.assemble();
+  if (result.hasErrors) return false;
+  instance.initialize(true);
+  registerHandlers(instance);
+  return true;
+}
+
+// Soft restart used by feedInput: keeps accumulated inputs, resets everything else.
+function reinitialize(): boolean {
+  instance = makeMipsfromSource(source);
+  instance.setUndoSize(UNDO_SIZE);
   const result = instance.assemble();
   if (result.hasErrors) return false;
   instance.initialize(true);
@@ -136,23 +157,44 @@ function reinitialize(): boolean {
   return true;
 }
 
-function runLoop(): SimulatorState {
+// Runs from the current PC, checking breakpoints BEFORE each step.
+// Used for fresh starts so a breakpoint on line 1 is respected.
+function executeLoop(breakpointAddresses: Set<number>): SimulatorState {
   isBlockedForInput = false;
   while (!instance.terminated && !isBlockedForInput) {
+    if (breakpointAddresses.size > 0 && breakpointAddresses.has(instance.programCounter)) break;
     instance.step();
   }
   return getState();
 }
 
+// Steps once unconditionally (to move past the current position), then checks
+// breakpoints. Used by continueSim so pausing on the same BP twice in a row
+// does not get stuck.
+function continueLoop(breakpointAddresses: Set<number>): SimulatorState {
+  isBlockedForInput = false;
+  instance.step();
+  while (!instance.terminated && !isBlockedForInput) {
+    if (breakpointAddresses.size > 0 && breakpointAddresses.has(instance.programCounter)) break;
+    instance.step();
+  }
+  return getState();
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 export function assemble(src: string) {
   source = src;
-  buildPcToLineMap(source);
   outputBuffer = '';
+  outputSnapshots = [];
   allInputs = [];
   inputCursor = 0;
   isBlockedForInput = false;
 
   instance = makeMipsfromSource(source);
+  instance.setUndoSize(UNDO_SIZE);
   const result = instance.assemble();
   if (result.hasErrors) return { ok: false, error: result.report };
 
@@ -170,21 +212,50 @@ export function getState(): SimulatorState {
     lineNumber: getLineNumberForPc(pc),
     isWaiting: isBlockedForInput,
     terminated: instance.terminated,
+    // Only advertise undo when both the library stack and our output snapshot
+    // stack are in sync (they're always kept parallel for explicit steps).
+    canUndo: instance.canUndo && outputSnapshots.length > 0,
   };
 }
 
-export function runSim(): SimulatorState {
-  if (!source || instance.terminated) return getState();
-  return runLoop();
+// Restart the program from scratch and run to the first breakpoint (or end).
+// Each call is a completely independent execution.
+export function runSim(breakpointLines: number[] = []): SimulatorState {
+  if (!source) return getState();
+  if (!restart()) return getState();
+  const bpAddresses = buildBreakpointAddresses(breakpointLines);
+  return executeLoop(bpAddresses);
 }
 
+// Resume execution from the current paused position to the next breakpoint (or end).
+// Clears the step-back snapshot stack because we can't cheaply undo a bulk run.
+export function continueSim(breakpointLines: number[] = []): SimulatorState {
+  if (!source || instance.terminated) return getState();
+  outputSnapshots = [];
+  const bpAddresses = buildBreakpointAddresses(breakpointLines);
+  return continueLoop(bpAddresses);
+}
+
+// Execute one instruction. Snapshots output so stepBackSim can retract it.
 export function stepSim(): SimulatorState {
   if (instance.terminated) return getState();
   isBlockedForInput = false;
+  // Snapshot before stepping; cap to UNDO_SIZE to stay in sync with the library.
+  if (outputSnapshots.length >= UNDO_SIZE) outputSnapshots.shift();
+  outputSnapshots.push(outputBuffer);
   instance.step();
   return getState();
 }
 
+// Undo one instruction and retract its output.
+export function stepBackSim(): SimulatorState {
+  if (!instance.canUndo || outputSnapshots.length === 0) return getState();
+  outputBuffer = outputSnapshots.pop()!;
+  instance.undo();
+  return getState();
+}
+
+// Provide input to a waiting program, replay from scratch, and continue.
 export function feedInput(rawInput: string): SimulatorState {
   const tokens = rawInput.trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return getState();
@@ -192,18 +263,19 @@ export function feedInput(rawInput: string): SimulatorState {
   allInputs.push(...tokens);
   const previousOutput = outputBuffer;
   outputBuffer = '';
+  outputSnapshots = [];
 
   if (!reinitialize()) return getState();
 
-  const state = runLoop();
+  const state = executeLoop(new Set());
   if (outputBuffer === '' && previousOutput !== '') outputBuffer = previousOutput;
   return state;
 }
 
 export function resetSim() {
   source = '';
-  pcToLine = new Map<number, number>();
   outputBuffer = '';
+  outputSnapshots = [];
   allInputs = [];
   inputCursor = 0;
   isBlockedForInput = false;

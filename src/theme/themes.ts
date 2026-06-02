@@ -20,6 +20,7 @@ export type Theme = {
   tabInactive: string;
   consoleText: string;
   btnBg: string;
+  linkColor: string;
   syntax: SyntaxColors;
 };
 
@@ -35,6 +36,7 @@ export const THEMES: Record<'dark' | 'light', Theme> = {
     tabInactive: '#111827',
     consoleText: '#cbd5e1',
     btnBg: '#111827',
+    linkColor: '#3b82f6',
     syntax: {
       instruction: '#60a5fa',
       register: '#fb923c',
@@ -57,6 +59,7 @@ export const THEMES: Record<'dark' | 'light', Theme> = {
     tabInactive: '#ffffff',
     consoleText: '#334155',
     btnBg: '#ffffff',
+    linkColor: '#2563eb',
     syntax: {
       instruction: '#2563eb',
       register: '#f97316',
