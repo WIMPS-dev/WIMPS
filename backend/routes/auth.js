@@ -117,4 +117,21 @@ router.post('/tabs', authenticate, async(req, res) => {
     }
 });
 
+// Delete a single tab by its client-side id field
+router.delete('/tabs/:tabId', authenticate, async(req, res) => {
+    try {
+        const { tabId } = req.params;
+        const user = await User.findByIdAndUpdate(
+            req.userId,
+            { $pull: { tabs: { id: tabId } } },
+            { new: true }
+        );
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.status(200).json({ message: 'Tab deleted' });
+    } catch (err) {
+        console.error('Error deleting tab:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 module.exports = router;

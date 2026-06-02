@@ -76,6 +76,7 @@ export default function IdePage() {
   const [canStepBack, setCanStepBack] = useState(false);
   const [showHex, setShowHex] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [hoveredTabId, setHoveredTabId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
 
   const [rightTab, setRightTab] = useState<'registers' | 'memory'>('registers');
@@ -225,6 +226,45 @@ export default function IdePage() {
   const handleLogout = () => {
     clearAuthToken();
     setIsLoggedIn(false);
+  };
+
+  const handleDeleteTab = async (tab: CodeTab, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/tabs/${tab.id}`, {
+        method: 'DELETE',
+        headers: getApiHeaders(token),
+      });
+
+      if (res.status === 401) {
+        clearAuthToken();
+        setIsLoggedIn(false);
+        return;
+      }
+
+      if (!res.ok) {
+        setOutput('Delete failed. Check your connection.');
+        return;
+      }
+
+      // Remove from local state; if it was the last tab, start fresh
+      setTabs(prev => {
+        if (prev.length === 1) {
+          const newId = String(Date.now());
+          setActiveTabId(newId);
+          return [{ id: newId, name: 'file1.asm', code: '', isDirty: false }];
+        }
+        const idx = prev.findIndex(t => t.id === tab.id);
+        const next = prev[idx === 0 ? 1 : idx - 1];
+        if (activeTabId === tab.id) setActiveTabId(next.id);
+        return prev.filter(t => t.id !== tab.id);
+      });
+    } catch {
+      setOutput('Delete failed. Check your connection.');
+    }
   };
 
   const addTab = () => {
@@ -391,60 +431,87 @@ export default function IdePage() {
             style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}
           >
             <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: 'max-content', height: 36 }}>
-              {tabs.map(tab => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab.id === activeTabId}
-                  onClick={() => setActiveTabId(tab.id)}
-                  className="ide-tab"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '0 8px',
-                    height: 32,
-                    borderRadius: 6,
-                    backgroundColor: tab.id === activeTabId ? theme.tabActive : theme.tabInactive,
-                    border: `1px solid ${theme.border}`,
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                    maxWidth: 160,
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  {editingTabId === tab.id ? (
-                    <input
-                      autoFocus
-                      aria-label="Rename tab"
-                      value={editTabName}
-                      onChange={e => setEditTabName(e.target.value)}
-                      onBlur={commitRename}
-                      onKeyDown={e => e.key === 'Enter' && commitRename()}
-                      onClick={e => e.stopPropagation()}
-                      style={{ width: 90, backgroundColor: 'transparent', border: 'none', outline: 'none', color: theme.text, fontSize: 12 }}
-                    />
-                  ) : (
-                    <span
-                      onDoubleClick={e => startRename(tab, e)}
-                      style={{ fontSize: 12, color: theme.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}
-                    >
-                      {tab.name}{tab.isDirty ? ' •' : ''}
-                    </span>
-                  )}
-                  {tabs.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={e => closeTab(tab.id, e)}
-                      aria-label={`Close ${tab.name}`}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 14, lineHeight: 1, padding: 2, flexShrink: 0 }}
-                    >
-                      ×
-                    </button>
-                  )}
-                </button>
-              ))}
+              {tabs.map(tab => {
+                const isHovered = hoveredTabId === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab.id === activeTabId}
+                    onClick={() => setActiveTabId(tab.id)}
+                    onMouseEnter={() => setHoveredTabId(tab.id)}
+                    onMouseLeave={() => setHoveredTabId(null)}
+                    className="ide-tab"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '0 8px',
+                      height: 32,
+                      borderRadius: 6,
+                      backgroundColor: tab.id === activeTabId ? theme.tabActive : theme.tabInactive,
+                      border: `1px solid ${theme.border}`,
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      maxWidth: 180,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {editingTabId === tab.id ? (
+                      <input
+                        autoFocus
+                        aria-label="Rename tab"
+                        value={editTabName}
+                        onChange={e => setEditTabName(e.target.value)}
+                        onBlur={commitRename}
+                        onKeyDown={e => e.key === 'Enter' && commitRename()}
+                        onClick={e => e.stopPropagation()}
+                        style={{ width: 90, backgroundColor: 'transparent', border: 'none', outline: 'none', color: theme.text, fontSize: 12 }}
+                      />
+                    ) : (
+                      <span
+                        onDoubleClick={e => startRename(tab, e)}
+                        style={{ fontSize: 12, color: theme.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}
+                      >
+                        {tab.name}{tab.isDirty ? ' •' : ''}
+                      </span>
+                    )}
+                    {/* Trash: delete from server, shown on hover for logged-in users */}
+                    {isLoggedIn && isHovered && (
+                      <button
+                        type="button"
+                        onClick={e => handleDeleteTab(tab, e)}
+                        aria-label={`Delete ${tab.name} from account`}
+                        title="Delete from account"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: '#ef4444',
+                          padding: 2,
+                          flexShrink: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          borderRadius: 3,
+                        }}
+                      >
+                        <TabTrashIcon />
+                      </button>
+                    )}
+                    {tabs.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={e => closeTab(tab.id, e)}
+                        aria-label={`Close ${tab.name}`}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 14, lineHeight: 1, padding: 2, flexShrink: 0 }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -617,6 +684,21 @@ export default function IdePage() {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Trash icon for tab delete
+// ---------------------------------------------------------------------------
+function TabTrashIcon() {
+  return (
+    <svg width="11" height="12" viewBox="0 0 11 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="1" y1="3" x2="10" y2="3" />
+      <path d="M3.5 3V2a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1" />
+      <path d="M2 3l.6 7.5h5.8L9 3" />
+      <line x1="4.5" y1="5.5" x2="4.5" y2="9" />
+      <line x1="6.5" y1="5.5" x2="6.5" y2="9" />
+    </svg>
   );
 }
 
