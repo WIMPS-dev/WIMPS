@@ -13,6 +13,9 @@ export type SimulatorState = {
   canUndo: boolean;
 };
 
+export type InstrCategory = 'arithmetic' | 'logic' | 'memory' | 'branch' | 'jump' | 'syscall' | 'other';
+export type InstrStats = { counts: Record<InstrCategory, number>; total: number };
+
 const REGISTER_NAMES = [
   '$zero','$at','$v0','$v1','$a0','$a1','$a2','$a3',
   '$t0','$t1','$t2','$t3','$t4','$t5','$t6','$t7',
@@ -22,20 +25,86 @@ const REGISTER_NAMES = [
 
 const UNDO_SIZE = 100;
 
+// ---------------------------------------------------------------------------
+// Instruction classification
+// ---------------------------------------------------------------------------
+const ARITHMETIC_SET = new Set([
+  'add','addi','addu','addiu','sub','subu','mul','mult','multu',
+  'div','divu','mfhi','mflo','neg','negu','abs','rem','remu',
+  'slt','slti','sltu','sltiu',
+]);
+const LOGIC_SET = new Set([
+  'and','andi','or','ori','xor','xori','nor','not',
+  'sll','srl','sra','sllv','srlv','srav','rol','ror',
+]);
+const MEMORY_SET = new Set([
+  'lw','sw','lb','lbu','lh','lhu','sh','sb','ll','sc',
+  'lwl','lwr','swl','swr','la','li','lui','move','ulw','usw',
+  'ldc1','sdc1','lwc1','swc1',
+]);
+const BRANCH_SET = new Set([
+  'beq','bne','blt','bgt','ble','bge','beqz','bnez',
+  'bltz','bgtz','blez','bgez','bltzal','bgezal','bc1t','bc1f',
+]);
+const JUMP_SET = new Set(['j','jr','jal','jalr']);
+
+function categorizeInstr(mnemonic: string): InstrCategory {
+  if (mnemonic === 'syscall' || mnemonic === 'break') return 'syscall';
+  if (ARITHMETIC_SET.has(mnemonic)) return 'arithmetic';
+  if (LOGIC_SET.has(mnemonic)) return 'logic';
+  if (MEMORY_SET.has(mnemonic)) return 'memory';
+  if (BRANCH_SET.has(mnemonic)) return 'branch';
+  if (JUMP_SET.has(mnemonic)) return 'jump';
+  return 'other';
+}
+
+function makeEmptyCounts(): Record<InstrCategory, number> {
+  return { arithmetic: 0, logic: 0, memory: 0, branch: 0, jump: 0, syscall: 0, other: 0 };
+}
+
+// ---------------------------------------------------------------------------
+// Module state
+// ---------------------------------------------------------------------------
 let source = '';
+let sourceLines: string[] = [];
 let instance: JsMips = makeMipsfromSource('');
 
 let allInputs: string[] = [];
 let inputCursor = 0;
 let isBlockedForInput = false;
 let outputBuffer = '';
-// Parallel stack to the library's undo stack — each entry is the outputBuffer
-// state *before* that step, so stepBack can restore it exactly.
 let outputSnapshots: string[] = [];
+
+let instrCounts = makeEmptyCounts();
+let totalInstructions = 0;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function resetInstrStats() {
+  instrCounts = makeEmptyCounts();
+  totalInstructions = 0;
+}
+
+function trackCurrentInstruction(): void {
+  if (instance.terminated) return;
+  try {
+    const stmt = instance.getStatementAtAddress(instance.programCounter);
+    if (!stmt?.sourceLine || stmt.sourceLine < 1) return;
+    const lineText = (sourceLines[stmt.sourceLine - 1] ?? '').trimStart();
+    if (!lineText || lineText.startsWith('#') || lineText.startsWith('.')) return;
+    // Detect and strip label prefix ("loop: add..." → "add...")
+    const colonIdx = lineText.indexOf(':');
+    const firstSpaceIdx = lineText.search(/\s/);
+    const hasLabel = colonIdx >= 0 && (firstSpaceIdx < 0 || colonIdx < firstSpaceIdx);
+    const codePart = hasLabel ? lineText.slice(colonIdx + 1).trimStart() : lineText;
+    const mnemonic = codePart.split(/[\s,\t(]/)[0].toLowerCase();
+    if (!mnemonic) return;
+    instrCounts[categorizeInstr(mnemonic)]++;
+    totalInstructions++;
+  } catch {}
+}
 
 function getLineNumberForPc(pc: number): number | null {
   if (instance.terminated) return null;
@@ -129,13 +198,14 @@ function buildBreakpointAddresses(lines: number[]): Set<number> {
   return addresses;
 }
 
-// Full restart: clears all execution state including inputs and output history.
 function restart(): boolean {
   outputBuffer = '';
   outputSnapshots = [];
   allInputs = [];
   inputCursor = 0;
   isBlockedForInput = false;
+  resetInstrStats();
+  sourceLines = source.split('\n');
   instance = makeMipsfromSource(source);
   instance.setUndoSize(UNDO_SIZE);
   const result = instance.assemble();
@@ -145,8 +215,9 @@ function restart(): boolean {
   return true;
 }
 
-// Soft restart used by feedInput: keeps accumulated inputs, resets everything else.
 function reinitialize(): boolean {
+  resetInstrStats();
+  sourceLines = source.split('\n');
   instance = makeMipsfromSource(source);
   instance.setUndoSize(UNDO_SIZE);
   const result = instance.assemble();
@@ -157,25 +228,25 @@ function reinitialize(): boolean {
   return true;
 }
 
-// Runs from the current PC, checking breakpoints BEFORE each step.
-// Used for fresh starts so a breakpoint on line 1 is respected.
 function executeLoop(breakpointAddresses: Set<number>): SimulatorState {
   isBlockedForInput = false;
   while (!instance.terminated && !isBlockedForInput) {
     if (breakpointAddresses.size > 0 && breakpointAddresses.has(instance.programCounter)) break;
+    trackCurrentInstruction();
     instance.step();
   }
   return getState();
 }
 
-// Steps once unconditionally (to move past the current position), then checks
-// breakpoints. Used by continueSim so pausing on the same BP twice in a row
-// does not get stuck.
 function continueLoop(breakpointAddresses: Set<number>): SimulatorState {
   isBlockedForInput = false;
-  instance.step();
+  if (!instance.terminated) {
+    trackCurrentInstruction();
+    instance.step();
+  }
   while (!instance.terminated && !isBlockedForInput) {
     if (breakpointAddresses.size > 0 && breakpointAddresses.has(instance.programCounter)) break;
+    trackCurrentInstruction();
     instance.step();
   }
   return getState();
@@ -187,11 +258,13 @@ function continueLoop(breakpointAddresses: Set<number>): SimulatorState {
 
 export function assemble(src: string) {
   source = src;
+  sourceLines = src.split('\n');
   outputBuffer = '';
   outputSnapshots = [];
   allInputs = [];
   inputCursor = 0;
   isBlockedForInput = false;
+  resetInstrStats();
 
   instance = makeMipsfromSource(source);
   instance.setUndoSize(UNDO_SIZE);
@@ -212,14 +285,10 @@ export function getState(): SimulatorState {
     lineNumber: getLineNumberForPc(pc),
     isWaiting: isBlockedForInput,
     terminated: instance.terminated,
-    // Only advertise undo when both the library stack and our output snapshot
-    // stack are in sync (they're always kept parallel for explicit steps).
     canUndo: instance.canUndo && outputSnapshots.length > 0,
   };
 }
 
-// Restart the program from scratch and run to the first breakpoint (or end).
-// Each call is a completely independent execution.
 export function runSim(breakpointLines: number[] = []): SimulatorState {
   if (!source) return getState();
   if (!restart()) return getState();
@@ -227,8 +296,6 @@ export function runSim(breakpointLines: number[] = []): SimulatorState {
   return executeLoop(bpAddresses);
 }
 
-// Resume execution from the current paused position to the next breakpoint (or end).
-// Clears the step-back snapshot stack because we can't cheaply undo a bulk run.
 export function continueSim(breakpointLines: number[] = []): SimulatorState {
   if (!source || instance.terminated) return getState();
   outputSnapshots = [];
@@ -236,18 +303,16 @@ export function continueSim(breakpointLines: number[] = []): SimulatorState {
   return continueLoop(bpAddresses);
 }
 
-// Execute one instruction. Snapshots output so stepBackSim can retract it.
 export function stepSim(): SimulatorState {
   if (instance.terminated) return getState();
   isBlockedForInput = false;
-  // Snapshot before stepping; cap to UNDO_SIZE to stay in sync with the library.
   if (outputSnapshots.length >= UNDO_SIZE) outputSnapshots.shift();
   outputSnapshots.push(outputBuffer);
+  trackCurrentInstruction();
   instance.step();
   return getState();
 }
 
-// Undo one instruction and retract its output.
 export function stepBackSim(): SimulatorState {
   if (!instance.canUndo || outputSnapshots.length === 0) return getState();
   outputBuffer = outputSnapshots.pop()!;
@@ -255,7 +320,6 @@ export function stepBackSim(): SimulatorState {
   return getState();
 }
 
-// Provide input to a waiting program, replay from scratch, and continue.
 export function feedInput(rawInput: string): SimulatorState {
   const tokens = rawInput.trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return getState();
@@ -274,11 +338,13 @@ export function feedInput(rawInput: string): SimulatorState {
 
 export function resetSim() {
   source = '';
+  sourceLines = [];
   outputBuffer = '';
   outputSnapshots = [];
   allInputs = [];
   inputCursor = 0;
   isBlockedForInput = false;
+  resetInstrStats();
   instance = makeMipsfromSource('');
 }
 
@@ -289,8 +355,9 @@ export function getMemoryRange(startAddr: number, wordCount: number) {
     const bytes = instance.readMemoryBytes(startAddr, wordCount * 4);
     for (let i = 0; i < wordCount; i++) {
       const addr = startAddr + i * 4;
+      // @specy/mips stores words in little-endian byte order
       const wordValue =
-        ((bytes[i * 4] << 24) | (bytes[i * 4 + 1] << 16) | (bytes[i * 4 + 2] << 8) | bytes[i * 4 + 3]) >>> 0;
+        ((bytes[i * 4 + 3] << 24) | (bytes[i * 4 + 2] << 16) | (bytes[i * 4 + 1] << 8) | bytes[i * 4]) >>> 0;
       memory.push({
         address: '0x' + addr.toString(16).toUpperCase(),
         value: '0x' + wordValue.toString(16).padStart(8, '0').toUpperCase(),
@@ -300,4 +367,26 @@ export function getMemoryRange(startAddr: number, wordCount: number) {
     console.error(e);
   }
   return memory;
+}
+
+export function getInstructionStats(): InstrStats {
+  return { counts: { ...instrCounts }, total: totalInstructions };
+}
+
+// Returns RGBA pixel data for the given memory region.
+// Word format: 0x00RRGGBB (MARS Bitmap Display convention), stored little-endian by @specy/mips.
+// Little-endian layout: byte[0]=BB, byte[1]=GG, byte[2]=RR, byte[3]=00.
+export function getMemoryBitmapData(startAddr: number, width: number, height: number): Uint8ClampedArray {
+  const count = width * height;
+  const rgba = new Uint8ClampedArray(count * 4);
+  try {
+    const bytes = instance.readMemoryBytes(startAddr, count * 4);
+    for (let i = 0; i < count; i++) {
+      rgba[i * 4]     = bytes[i * 4 + 2]; // R (bits 23–16)
+      rgba[i * 4 + 1] = bytes[i * 4 + 1]; // G (bits 15–8)
+      rgba[i * 4 + 2] = bytes[i * 4 + 0]; // B (bits 7–0)
+      rgba[i * 4 + 3] = 255;              // A
+    }
+  } catch {}
+  return rgba;
 }

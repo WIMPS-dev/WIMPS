@@ -1,16 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BitmapDisplay } from '../components/BitmapDisplay';
 import { CodeEditor } from '../components/CodeEditor';
+import { InstructionStats } from '../components/InstructionStats';
 import { MemoryView } from '../components/MemoryView';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getApiHeaders, getAuthToken } from '../helpers/authStorage';
-import { assemble, continueSim, feedInput, getMemoryRange, getState, resetSim, runSim, stepBackSim, stepSim } from '../simulator/useMips';
+import { assemble, continueSim, feedInput, getInstructionStats, getMemoryRange, getState, resetSim, runSim, stepBackSim, stepSim } from '../simulator/useMips';
+import type { InstrStats } from '../simulator/useMips';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 const DATA_START = 0x10010000;
 const DATA_WORDS = 32;
+
+const RIGHT_TABS = [
+  { id: 'registers' as const, label: 'Registers' },
+  { id: 'memory'    as const, label: 'Memory'    },
+  { id: 'stats'     as const, label: 'Stats'     },
+  { id: 'bitmap'    as const, label: 'Bitmap'    },
+] as const;
+
+type RightTab = typeof RIGHT_TABS[number]['id'];
 
 interface CodeTab {
   id: string;
@@ -225,7 +237,9 @@ export default function IdePage() {
   const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
 
-  const [rightTab, setRightTab] = useState<'registers' | 'memory'>('registers');
+  const [rightTab, setRightTab] = useState<RightTab>('registers');
+  const [instrStats, setInstrStats] = useState<InstrStats | null>(null);
+  const [simTick, setSimTick] = useState(0);
 
   // Desktop layout percentages
   const [leftPct, setLeftPct] = useState(75);
@@ -288,6 +302,8 @@ export default function IdePage() {
     setIsWaiting(state.isWaiting);
     setCanStepBack(state.canUndo);
     setMemoryData(getMemoryRange(DATA_START, DATA_WORDS));
+    setInstrStats(getInstructionStats());
+    setSimTick(t => t + 1);
   };
 
   const handleAssemble = () => {
@@ -333,6 +349,8 @@ export default function IdePage() {
     setIsWaiting(false);
     setIsAssembled(false);
     setCanStepBack(false);
+    setInstrStats(null);
+    setSimTick(t => t + 1);
   };
 
   const handleBreakpointToggle = (line: number) => {
@@ -878,29 +896,33 @@ export default function IdePage() {
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* Tab bar */}
             <div style={{ display: 'flex', backgroundColor: theme.card, borderBottom: `1px solid ${theme.border}`, flexShrink: 0, height: 34 }}>
-              {(['registers', 'memory'] as const).map(tab => (
+              {RIGHT_TABS.map(({ id, label }) => (
                 <button
-                  key={tab}
+                  key={id}
                   type="button"
                   role="tab"
-                  aria-selected={rightTab === tab}
-                  onClick={() => setRightTab(tab)}
+                  aria-selected={rightTab === id}
+                  onClick={() => setRightTab(id)}
                   className="ide-panel-tab"
                   style={{
                     flex: 1,
                     height: '100%',
                     border: 'none',
-                    borderBottom: rightTab === tab ? '2px solid #2563eb' : '2px solid transparent',
+                    borderBottom: rightTab === id ? '2px solid #2563eb' : '2px solid transparent',
                     backgroundColor: 'transparent',
-                    color: rightTab === tab ? theme.text : theme.subText,
-                    fontSize: 11,
+                    color: rightTab === id ? theme.text : theme.subText,
+                    fontSize: 10,
                     fontWeight: 600,
                     cursor: 'pointer',
-                    letterSpacing: 0.5,
+                    letterSpacing: 0.4,
                     textTransform: 'uppercase',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    padding: '0 2px',
                   }}
                 >
-                  {tab === 'registers' ? 'Registers' : 'Memory'}
+                  {label}
                 </button>
               ))}
             </div>
@@ -908,7 +930,9 @@ export default function IdePage() {
             {/* Panel content */}
             <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               {rightTab === 'registers' && <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} />}
-              {rightTab === 'memory' && <MemoryView data={memoryData} theme={theme} />}
+              {rightTab === 'memory'    && <MemoryView data={memoryData} theme={theme} />}
+              {rightTab === 'stats'     && <InstructionStats stats={instrStats} theme={theme} />}
+              {rightTab === 'bitmap'    && <BitmapDisplay theme={theme} tick={simTick} />}
             </div>
           </div>
         </div>
