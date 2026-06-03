@@ -405,7 +405,7 @@ export default function DocsPage() {
                     No account required. WIMPS writes your tabs to localStorage on every change and restores them when you come back. If you clear browser storage or switch machines, those files are gone.
                   </Body>
                   <Body theme={theme}>
-                    Sign in to back files up server-side. Up to 15 files, 1 MB each. The 💾 Save button appears when you're logged in. Hit it to sync. Sign in on any device and your files are there.
+                    Sign in to back files up server-side (1 MB total). The 💾 Save button appears when you're logged in. Hit it to sync. Sign in on any device and your files are there.
                   </Body>
                 </div>
               </Accordion>
