@@ -558,131 +558,234 @@ export default function IdePage() {
       '--ide-hover': theme.resizer,
     } as React.CSSProperties}>
       {/* Top bar */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        height: 48,
-        borderBottom: `1px solid ${theme.border}`,
-        backgroundColor: theme.card,
-        flexShrink: 0,
-        gap: 8,
-        padding: '0 12px',
-        overflow: 'hidden',
-      }}>
-        {/* Logo */}
-        <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 16, flexShrink: 0, marginRight: 4 }}>WIMPS</Link>
+      {wide ? (
+        /* ── Desktop top bar ── */
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          height: 48,
+          borderBottom: `1px solid ${theme.border}`,
+          backgroundColor: theme.card,
+          flexShrink: 0,
+          gap: 8,
+          padding: '0 12px',
+          overflow: 'hidden',
+        }}>
+          {/* Logo */}
+          <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 16, flexShrink: 0, marginRight: 4 }}>WIMPS</Link>
 
-        {/* Tabs — scrollable, capped width */}
-        <div style={{ display: 'flex', flex: 1, minWidth: 0, alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-          {/* Scroll wrapper: plain block so overflow-x actually scrolls */}
-          <div
-            className="tab-scroll"
-            role="tablist"
-            aria-label="Editor files"
-            style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}
-          >
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: 'max-content', height: 36 }}>
-              {tabs.map(tab => {
-                const isHovered = hoveredTabId === tab.id;
+          {/* Tabs — scrollable, capped width */}
+          <div style={{ display: 'flex', flex: 1, minWidth: 0, alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+            <div
+              className="tab-scroll"
+              role="tablist"
+              aria-label="Editor files"
+              style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}
+            >
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: 'max-content', height: 36 }}>
+                {tabs.map(tab => {
+                  const isHovered = hoveredTabId === tab.id;
+                  return (
+                    <div
+                      key={tab.id}
+                      role="tab"
+                      tabIndex={0}
+                      aria-selected={tab.id === activeTabId}
+                      onClick={() => setActiveTabId(tab.id)}
+                      onKeyDown={e => e.key === 'Enter' || e.key === ' ' ? setActiveTabId(tab.id) : undefined}
+                      onMouseEnter={() => setHoveredTabId(tab.id)}
+                      onMouseLeave={() => setHoveredTabId(null)}
+                      className="ide-tab"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '0 8px',
+                        height: 32,
+                        borderRadius: 6,
+                        backgroundColor: tab.id === activeTabId ? theme.tabActive : theme.tabInactive,
+                        border: `1px solid ${theme.border}`,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        maxWidth: 180,
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {editingTabId === tab.id ? (
+                        <input
+                          autoFocus
+                          aria-label="Rename tab"
+                          value={editTabName}
+                          onChange={e => setEditTabName(e.target.value)}
+                          onBlur={commitRename}
+                          onKeyDown={e => e.key === 'Enter' && commitRename()}
+                          onClick={e => e.stopPropagation()}
+                          style={{ width: 90, backgroundColor: 'transparent', border: 'none', outline: 'none', color: theme.text, fontSize: 12 }}
+                        />
+                      ) : (
+                        <span
+                          onDoubleClick={e => startRename(tab, e)}
+                          style={{ fontSize: 12, color: theme.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}
+                        >
+                          {tab.name}{tab.isDirty ? ' •' : ''}
+                        </span>
+                      )}
+                      {tabs.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={e => closeTab(tab.id, e)}
+                          aria-label={`Close ${tab.name}`}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 14, lineHeight: 1, padding: 2, flexShrink: 0 }}
+                        >
+                          ×
+                        </button>
+                      )}
+                      {isLoggedIn && isHovered && (
+                        <button
+                          type="button"
+                          onClick={e => handleDeleteTab(tab, e)}
+                          aria-label={`Delete ${tab.name} from account`}
+                          title="Delete from account"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: '#ef4444',
+                            padding: 2,
+                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            borderRadius: 3,
+                          }}
+                        >
+                          <TabTrashIcon />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* New tab */}
+            <button
+              type="button"
+              onClick={addTab}
+              aria-label="New tab"
+              className="ide-new-tab"
+              style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', width: 28, height: 28, fontSize: 18, flexShrink: 0 }}
+            >
+              +
+            </button>
+
+            {/* Divider */}
+            <div style={{ width: 1, height: 20, backgroundColor: theme.border, flexShrink: 0 }} />
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0, backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0 6px', height: 34 }}>
+              {actions.map(a => {
+                const isBlue = isAssembled
+                  ? (['Run', 'Continue', 'Step Back', 'Step'].includes(a.label))
+                  : a.label === 'Assemble';
+                const isDisabled = Boolean(a.disabled);
                 return (
-                  <div
-                    key={tab.id}
-                    role="tab"
-                    tabIndex={0}
-                    aria-selected={tab.id === activeTabId}
-                    onClick={() => setActiveTabId(tab.id)}
-                    onKeyDown={e => e.key === 'Enter' || e.key === ' ' ? setActiveTabId(tab.id) : undefined}
-                    onMouseEnter={() => setHoveredTabId(tab.id)}
-                    onMouseLeave={() => setHoveredTabId(null)}
-                    className="ide-tab"
+                  <button
+                    key={a.label}
+                    type="button"
+                    onClick={isDisabled ? undefined : a.onPress}
+                    title={a.label}
+                    aria-label={a.label}
+                    disabled={isDisabled}
+                    className={`ide-action-btn${isBlue ? ' ide-active' : ''}`}
                     style={{
+                      backgroundColor: isBlue ? '#2563eb' : 'transparent',
+                      border: 'none',
+                      borderRadius: 5,
+                      color: isBlue ? '#fff' : theme.text,
+                      cursor: isDisabled ? 'not-allowed' : 'pointer',
+                      opacity: isDisabled ? 0.35 : 1,
+                      width: 28,
+                      height: 26,
+                      fontSize: 14,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 4,
-                      padding: '0 8px',
-                      height: 32,
-                      borderRadius: 6,
-                      backgroundColor: tab.id === activeTabId ? theme.tabActive : theme.tabInactive,
-                      border: `1px solid ${theme.border}`,
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                      maxWidth: 180,
-                      fontFamily: 'inherit',
+                      justifyContent: 'center',
                     }}
                   >
-                    {editingTabId === tab.id ? (
-                      <input
-                        autoFocus
-                        aria-label="Rename tab"
-                        value={editTabName}
-                        onChange={e => setEditTabName(e.target.value)}
-                        onBlur={commitRename}
-                        onKeyDown={e => e.key === 'Enter' && commitRename()}
-                        onClick={e => e.stopPropagation()}
-                        style={{ width: 90, backgroundColor: 'transparent', border: 'none', outline: 'none', color: theme.text, fontSize: 12 }}
-                      />
-                    ) : (
-                      <span
-                        onDoubleClick={e => startRename(tab, e)}
-                        style={{ fontSize: 12, color: theme.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}
-                      >
-                        {tab.name}{tab.isDirty ? ' •' : ''}
-                      </span>
-                    )}
-                    {tabs.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={e => closeTab(tab.id, e)}
-                        aria-label={`Close ${tab.name}`}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 14, lineHeight: 1, padding: 2, flexShrink: 0 }}
-                      >
-                        ×
-                      </button>
-                    )}
-                    {/* Trash: delete from server, shown on hover for logged-in users */}
-                    {isLoggedIn && isHovered && (
-                      <button
-                        type="button"
-                        onClick={e => handleDeleteTab(tab, e)}
-                        aria-label={`Delete ${tab.name} from account`}
-                        title="Delete from account"
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: '#ef4444',
-                          padding: 2,
-                          flexShrink: 0,
-                          display: 'flex',
-                          alignItems: 'center',
-                          borderRadius: 3,
-                        }}
-                      >
-                        <TabTrashIcon />
-                      </button>
-                    )}
-                  </div>
+                    {a.symbol ?? a.label}
+                  </button>
                 );
               })}
             </div>
           </div>
 
-          {/* New tab */}
-          <button
-            type="button"
-            onClick={addTab}
-            aria-label="New tab"
-            className="ide-new-tab"
-            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', width: 28, height: 28, fontSize: 18, flexShrink: 0 }}
+          {/* Right controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <ThemeSwitch />
+            <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
+            <button
+              type="button"
+              onClick={() => setFilesDrawerOpen(true)}
+              title="Files"
+              style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', padding: '4px 10px', fontSize: 13, fontWeight: 500 }}
+            >
+              Files
+            </button>
+            {isLoggedIn ? (
+              <button type="button" onClick={handleLogout} className="ide-sign-out" style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.text, cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}>Sign out</button>
+            ) : (
+              <Link to="/login" className="ide-sign-in" style={{ backgroundColor: '#2563eb', color: '#fff', textDecoration: 'none', padding: '5px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>Sign in</Link>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* ── Mobile top bar: nav row + action row ── */
+        <>
+          {/* Row 1: logo + right controls */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            height: 52,
+            borderBottom: `1px solid ${theme.border}`,
+            backgroundColor: theme.card,
+            flexShrink: 0,
+            padding: '0 14px',
+            gap: 10,
+          }}>
+            <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 17, flexShrink: 0 }}>WIMPS</Link>
+            <div style={{ flex: 1 }} />
+            <ThemeSwitch />
+            <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Docs</Link>
+            <button
+              type="button"
+              onClick={() => setFilesDrawerOpen(true)}
+              title="Files"
+              style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', padding: '6px 12px', fontSize: 14, fontWeight: 500 }}
+            >
+              Files
+            </button>
+            {isLoggedIn ? (
+              <button type="button" onClick={handleLogout} className="ide-sign-out" style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.text, cursor: 'pointer', padding: '6px 12px', fontSize: 14 }}>Sign out</button>
+            ) : (
+              <Link to="/login" className="ide-sign-in" style={{ backgroundColor: '#2563eb', color: '#fff', textDecoration: 'none', padding: '7px 14px', borderRadius: 6, fontSize: 14, fontWeight: 600 }}>Sign in</Link>
+            )}
+          </div>
+
+          {/* Row 2: scrollable action buttons */}
+          <div
+            className="tab-scroll"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              height: 48,
+              borderBottom: `1px solid ${theme.border}`,
+              backgroundColor: theme.bg,
+              flexShrink: 0,
+              overflowX: 'auto',
+              padding: '0 10px',
+              gap: 6,
+            }}
           >
-            +
-          </button>
-
-          {/* Divider */}
-          <div style={{ width: 1, height: 20, backgroundColor: theme.border, flexShrink: 0 }} />
-
-          {/* Action buttons grouped in a toolbar pill */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0, backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0 6px', height: 34 }}>
             {actions.map(a => {
               const isBlue = isAssembled
                 ? (['Run', 'Continue', 'Step Back', 'Step'].includes(a.label))
@@ -698,46 +801,32 @@ export default function IdePage() {
                   disabled={isDisabled}
                   className={`ide-action-btn${isBlue ? ' ide-active' : ''}`}
                   style={{
-                    backgroundColor: isBlue ? '#2563eb' : 'transparent',
-                    border: 'none',
-                    borderRadius: 5,
+                    backgroundColor: isBlue ? '#2563eb' : theme.card,
+                    border: `1px solid ${isBlue ? '#2563eb' : theme.border}`,
+                    borderRadius: 8,
                     color: isBlue ? '#fff' : theme.text,
                     cursor: isDisabled ? 'not-allowed' : 'pointer',
                     opacity: isDisabled ? 0.35 : 1,
-                    width: 28,
-                    height: 26,
-                    fontSize: 14,
+                    minWidth: 44,
+                    height: 36,
+                    fontSize: 16,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    flexShrink: 0,
+                    gap: 4,
+                    padding: '0 10px',
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  {a.symbol ?? a.label}
+                  <span style={{ fontSize: 16 }}>{a.symbol}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600 }}>{a.label}</span>
                 </button>
               );
             })}
           </div>
-        </div>
-
-        {/* Right controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <ThemeSwitch />
-          <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
-          <button
-            type="button"
-            onClick={() => setFilesDrawerOpen(true)}
-            title="Files"
-            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', padding: '4px 10px', fontSize: 13, fontWeight: 500 }}
-          >
-            Files
-          </button>
-          {isLoggedIn ? (
-            <button type="button" onClick={handleLogout} className="ide-sign-out" style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.text, cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}>Sign out</button>
-          ) : (
-            <Link to="/login" className="ide-sign-in" style={{ backgroundColor: '#2563eb', color: '#fff', textDecoration: 'none', padding: '5px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>Sign in</Link>
-          )}
-        </div>
-      </div>
+        </>
+      )}
 
       {/* Mobile nav */}
       {!wide && (
@@ -749,13 +838,13 @@ export default function IdePage() {
               onClick={() => setMobileView(view)}
               style={{
                 flex: 1,
-                padding: '8px 0',
-                minHeight: 44,
+                padding: '10px 0',
+                minHeight: 48,
                 backgroundColor: mobileView === view ? theme.tabActive : theme.tabInactive,
                 border: 'none',
                 borderRight: `1px solid ${theme.border}`,
                 color: mobileView === view ? theme.text : theme.subText,
-                fontSize: 11,
+                fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
                 textTransform: 'capitalize',
