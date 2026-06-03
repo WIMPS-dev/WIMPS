@@ -23,12 +23,12 @@ const SYSCALLS: [string, string, string][] = [
 ];
 
 const REGISTERS: [string, string, string][] = [
-  ['$zero / $0', '0',          'Always zero — writes ignored'],
+  ['$zero / $0', '0',          'Always zero. Writes are discarded.'],
   ['$at / $1',   'Assembler',  'Reserved for assembler'],
   ['$v0–$v1',    '2–3',        'Function return values / syscall code'],
   ['$a0–$a3',    '4–7',        'Function arguments'],
-  ['$t0–$t9',    '8–15,24–25', 'Temporaries — not preserved across calls'],
-  ['$s0–$s7',    '16–23',      'Saved temporaries — preserved across calls'],
+  ['$t0–$t9',    '8–15,24–25', 'Temporaries; caller-saved'],
+  ['$s0–$s7',    '16–23',      'Saved temporaries; callee-saved'],
   ['$k0–$k1',    '26–27',      'Reserved for OS kernel'],
   ['$gp',        '28',         'Global pointer'],
   ['$sp',        '29',         'Stack pointer'],
@@ -80,7 +80,7 @@ const INSTRUCTIONS: [string, string, string][] = [
   ['beqz $s,lbl',    'I',  'Branch if $s == 0 (pseudo)'],
   ['bnez $s,lbl',    'I',  'Branch if $s != 0 (pseudo)'],
   ['j label',        'J',  'Unconditional jump'],
-  ['jal label',      'J',  'Jump and link — saves PC+4 to $ra'],
+  ['jal label',      'J',  'Jump and link; saves PC+4 to $ra'],
   ['jr $s',          'R',  'Jump to address in register'],
   ['jalr $s',        'R',  'Jump and link via register'],
   ['li $t,imm',      'P',  'Load immediate (pseudo)'],
@@ -260,10 +260,10 @@ function ButtonLegend({ theme }: { theme: Theme }) {
     ['⏭', 'Continue', 'Resume from where you\'re paused, to the next breakpoint or the end.'],
     ['←', 'Step Back', 'Undo one instruction and retract its output. Stays dimmed until you\'ve stepped at least once.'],
     ['→', 'Step',      'Execute one instruction.'],
-    ['↺', 'Reset',     'Clear execution state and output. Breakpoints are preserved.'],
+    ['↺', 'Reset',     'Clear execution state and output. Breakpoints survive.'],
     ['↑', 'Upload',    'Open a .asm / .s / .txt file from disk into a new tab.'],
     ['↓', 'Download',  'Export the active tab to disk.'],
-    ['💾', 'Save',     'Sync all tabs to your account. Only visible when signed in.'],
+    ['💾', 'Save',     'Sync all tabs to your account. Appears when signed in.'],
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 6 }}>
@@ -375,7 +375,7 @@ export default function DocsPage() {
           {/* Header */}
           <h1 style={{ color: theme.text, fontSize: 28, fontWeight: 800, marginBottom: 6, textWrap: 'balance' } as React.CSSProperties}>Docs</h1>
           <p style={{ color: theme.subText, fontSize: 14, marginBottom: 28, maxWidth: '52ch' }}>
-            A reference for using WIMPS and writing MIPS. Use the search below to filter instructions, syscalls, and directives.
+            WIMPS and MIPS reference. Search to filter instructions, syscalls, and directives.
           </p>
 
           {/* Search */}
@@ -406,7 +406,7 @@ export default function DocsPage() {
               <Accordion title="Getting started" theme={theme}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <Body theme={theme}>
-                    Assemble is the prerequisite for everything else — write your code, hit ⚙, and check the Console for any errors. Once it compiles, the run controls turn blue. The active line gets a blue highlight as you step through; when you stop at a breakpoint you'll see which instruction is up next.
+                    Write your code, hit ⚙, and check the Console for errors. Once assembled, the run controls turn blue. The editor highlights the current line in blue as you step through.
                   </Body>
                   <div style={{ marginTop: 4 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: theme.subText, textTransform: 'uppercase', letterSpacing: 1 }}>Toolbar</span>
@@ -418,14 +418,14 @@ export default function DocsPage() {
               <Accordion title="Breakpoint debugging" theme={theme}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <Body theme={theme}>
-                    Click any line number in the gutter to place a breakpoint. A red dot marks it, and the number turns red. Click the same line again to remove it. Breakpoints don't clear on Reset or Assemble — they stay until you remove them.
+                    Click any line number in the gutter to place a breakpoint. A red dot marks it and the number turns red. Click the same line again to remove it. Breakpoints survive Reset and Assemble.
                   </Body>
                   <BpGuide theme={theme} />
                   <Body theme={theme}>
-                    <strong style={{ color: theme.text }}>Run</strong> always restarts from the top and stops at the first breakpoint it hits. If you're already paused at a breakpoint and want to move to the next one, use <strong style={{ color: theme.text }}>Continue</strong> — it executes the current instruction and keeps going. <strong style={{ color: theme.text }}>Step</strong> moves one instruction at a time regardless of breakpoints.
+                    <strong style={{ color: theme.text }}>Run</strong> always restarts from the top and stops at the first breakpoint it hits. If you're paused at a breakpoint and want to move to the next one, use <strong style={{ color: theme.text }}>Continue</strong>. It executes the current instruction and keeps going. <strong style={{ color: theme.text }}>Step</strong> moves one instruction at a time regardless of breakpoints.
                   </Body>
                   <Body theme={theme}>
-                    <strong style={{ color: theme.text }}>Step Back</strong> rewinds one instruction. Registers revert to exactly how they were before that step, and any output it produced disappears from the Console. After a Run or Continue, the step-back history resets — you can only rewind over instructions you've explicitly stepped through.
+                    <strong style={{ color: theme.text }}>Step Back</strong> rewinds one instruction. Registers revert to how they were before that step, and any output it produced disappears from the Console. After a Run or Continue, the step-back history resets. You can only rewind over instructions you've stepped through.
                   </Body>
                 </div>
               </Accordion>
@@ -433,13 +433,13 @@ export default function DocsPage() {
               <Accordion title="Editor & tabs" theme={theme}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <Body theme={theme}>
-                    Click <strong style={{ color: theme.text }}>+</strong> to open a new tab. Double-click a tab name to rename it. The <strong style={{ color: theme.text }}>×</strong> button closes the tab locally — it doesn't touch anything on the server.
+                    Click <strong style={{ color: theme.text }}>+</strong> to open a new tab. Double-click a tab name to rename it. <strong style={{ color: theme.text }}>×</strong> closes the tab. It doesn't delete the file from your account.
                   </Body>
                   <Body theme={theme}>
-                    If you're signed in, hovering a tab shows a red trash icon. That one actually deletes the file from your account. There's no undo, so use it deliberately.
+                    If you're signed in, hovering a tab shows a red trash icon. Clicking it deletes the file from your account. No undo.
                   </Body>
                   <Body theme={theme}>
-                    Upload (↑) opens a .asm, .s, or .txt file from disk into a new tab. Download (↓) exports the active tab back to disk. Syntax is highlighted as you type.
+                    Upload (↑) opens a .asm, .s, or .txt file from disk into a new tab. Download (↓) exports the active tab to disk. The editor highlights syntax as you type.
                   </Body>
                 </div>
               </Accordion>
@@ -447,10 +447,10 @@ export default function DocsPage() {
               <Accordion title="Console & input" theme={theme}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <Body theme={theme}>
-                    Program output lands in the Console as your code runs. When a read syscall fires ($v0 = 5, 8, or 12), the console goes interactive — a cursor appears and you can start typing. Press Enter to submit.
+                    Program output lands in the Console as your code runs. When a read syscall fires ($v0 = 5, 8, or 12), a cursor appears and you can start typing. Press Enter to submit.
                   </Body>
                   <Body theme={theme}>
-                    Under the hood, WIMPS replays the full execution each time you submit input, threading all accumulated inputs back through the program from the start. That means you don't lose earlier reads if your program needs multiple inputs.
+                    WIMPS replays execution from the start each time you submit input, threading all prior inputs back through. Programs that need several inputs keep every earlier read.
                   </Body>
                 </div>
               </Accordion>
@@ -461,7 +461,7 @@ export default function DocsPage() {
                     The Registers panel shows all 32 general-purpose registers, updated after each Step or Run. Toggle between hex and decimal display at the top of the panel.
                   </Body>
                   <Body theme={theme}>
-                    The Memory panel shows 32 words of the data segment starting at 0x10010000 — the default starting address for .data. Use it to check load/store results and verify how your data is laid out in memory.
+                    The Memory panel shows 32 words of the data segment starting at 0x10010000, the default .data address. Use it to check load/store results and verify your data layout.
                   </Body>
                 </div>
               </Accordion>
@@ -472,7 +472,7 @@ export default function DocsPage() {
                     No account required. WIMPS writes your tabs to localStorage on every change and restores them when you come back. If you clear browser storage or switch machines, those files are gone.
                   </Body>
                   <Body theme={theme}>
-                    Sign in to back files up server-side. Up to 15 files, 1 MB each. The 💾 Save button appears in the toolbar when you're logged in — hit it to push the current state. Files load automatically on your next login from any device.
+                    Sign in to back files up server-side. Up to 15 files, 1 MB each. The 💾 Save button appears when you're logged in. Hit it to sync. Sign in on any device and your files are there.
                   </Body>
                 </div>
               </Accordion>
@@ -519,7 +519,7 @@ export default function DocsPage() {
               <Accordion title="QuadHex — like FizzBuzz, but for 4, 6, and 24" theme={theme}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <Body theme={theme}>
-                    Counts from 1 to 40, swapping multiples of 4 for "Quad", multiples of 6 for "Hex", and multiples of 24 for "QuadHex". Good for testing the step debugger — try setting a breakpoint on the loop label and watching <code style={{ fontFamily: 'monospace', fontSize: 12, backgroundColor: `${theme.border}66`, padding: '1px 4px', borderRadius: 3, color: theme.linkColor }}>$t0</code> tick up in the Registers panel.
+                    Counts from 1 to 40, swapping multiples of 4 for "Quad", multiples of 6 for "Hex", and multiples of 24 for "QuadHex". Try setting a breakpoint on the loop label and watching <code style={{ fontFamily: 'monospace', fontSize: 12, backgroundColor: `${theme.border}66`, padding: '1px 4px', borderRadius: 3, color: theme.linkColor }}>$t0</code> tick up in the Registers panel.
                   </Body>
                   <div style={{ overflowX: 'auto' }}>
                     <pre style={{

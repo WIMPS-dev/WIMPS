@@ -36,11 +36,11 @@ const CAPABILITIES = [
   },
   {
     title: 'Syntax highlighting and tabbed files',
-    body: 'Instructions, registers, directives, and comments highlighted as you type. Open multiple .asm files in tabs and rename them by double-clicking.',
+    body: 'The editor highlights instructions, registers, directives, and comments as you type. Open multiple .asm files in tabs and rename by double-clicking.',
   },
   {
     title: 'Works without an account',
-    body: 'Files auto-save to browser storage. Sign in to sync across devices — never required to start writing code.',
+    body: 'Files auto-save to browser storage. Sign in to sync across devices. No account required.',
   },
 ];
 
@@ -120,7 +120,7 @@ export default function HomePage() {
           margin: '0 auto 40px',
           lineHeight: 1.6,
         }}>
-          A full-featured MIPS simulator with syntax highlighting, step-through execution, register and memory inspection — no install needed.
+          A MIPS simulator with step-through debugging and live register inspection. No install, no account.
         </p>
 
         {/* Single primary CTA */}
@@ -193,8 +193,7 @@ export default function HomePage() {
               maxWidth: '42ch',
             }}>
               Assemble your program, then step through it one instruction at a time.
-              All 32 registers update after each step, in hex or decimal,
-              switchable at any point during execution.
+              All 32 registers update after each step. Switch between hex and decimal at any point.
             </p>
             <p style={{
               color: theme.subText,
@@ -203,8 +202,7 @@ export default function HomePage() {
               marginBottom: 36,
               maxWidth: '42ch',
             }}>
-              The active line stays highlighted throughout. Run to completion or
-              stop at any instruction and inspect the full register and memory state.
+              The active line stays highlighted. Run to completion or stop at any instruction to inspect registers and memory.
             </p>
             <Link
               to="/ide"
@@ -424,9 +422,9 @@ export default function HomePage() {
         padding: '60px 24px 100px',
         borderTop: `1px solid ${theme.border}`,
       }}>
-        <h2 style={{ color: theme.text, fontSize: 28, fontWeight: 700, marginBottom: 16 }}>Ready to start?</h2>
+        <h2 style={{ color: theme.text, fontSize: 28, fontWeight: 700, marginBottom: 16 }}>Start writing</h2>
         <p style={{ color: theme.subText, fontSize: 16, marginBottom: 32 }}>
-          Jump into the IDE — no account needed.
+          No account needed.
         </p>
         <Link to="/ide" className="home-cta-primary" style={{
           backgroundColor: '#2563eb',
@@ -453,7 +451,7 @@ export default function HomePage() {
         flexWrap: 'wrap',
         gap: 12,
       }}>
-        <span style={{ color: theme.subText, fontSize: 13 }}>WIMPS — Web Interactive MIPS Pocket Simulator</span>
+        <span style={{ color: theme.subText, fontSize: 13 }}>WIMPS · Web Interactive MIPS Pocket Simulator</span>
         <div style={{ display: 'flex', gap: 20 }}>
           <Link to="/docs" className="home-link-muted" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13 }}>Docs</Link>
           {isLoggedIn ? (
