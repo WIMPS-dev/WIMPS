@@ -4,6 +4,7 @@ import { AuthSkeleton } from '../components/PageSkeletons';
 import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
+import { migrateGuestFiles, saveAuthToken } from '../helpers/authStorage';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
@@ -31,7 +32,19 @@ export default function RegisterPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Registration failed');
-      navigate('/login');
+
+      // Auto-login so guest work migrates immediately
+      const loginRes = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      const loginData = await loginRes.json();
+      if (!loginRes.ok) throw new Error(loginData.message ?? 'Login failed after registration');
+
+      saveAuthToken(loginData.token);
+      await migrateGuestFiles(loginData.token, API_BASE);
+      navigate('/ide');
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong');
     } finally {

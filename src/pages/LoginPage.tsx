@@ -4,7 +4,7 @@ import { AuthSkeleton } from '../components/PageSkeletons';
 import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
-import { saveAuthToken } from '../helpers/authStorage';
+import { migrateGuestFiles, saveAuthToken } from '../helpers/authStorage';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
@@ -31,6 +31,7 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? 'Login failed');
       saveAuthToken(data.token);
+      await migrateGuestFiles(data.token, API_BASE);
       navigate('/ide');
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong');

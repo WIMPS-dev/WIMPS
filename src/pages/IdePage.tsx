@@ -235,7 +235,7 @@ export default function IdePage() {
   const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set());
   const [canStepBack, setCanStepBack] = useState(false);
   const [showHex, setShowHex] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => !!getAuthToken());
   const [hoveredTabId, setHoveredTabId] = useState<string | null>(null);
   const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
@@ -270,13 +270,8 @@ export default function IdePage() {
   // Reset assembled state when switching tabs
   useEffect(() => { setIsAssembled(false); }, [activeTabId]);
 
-  // Auth check on mount
-  useEffect(() => {
-    const token = getAuthToken();
-    setIsLoggedIn(!!token);
-  }, []);
-
-  // Load tabs from server on mount (logged-in users only)
+  // Load tabs from server on mount (logged-in users only).
+  // Always apply the server response — never let stale localStorage bleed through.
   useEffect(() => {
     const token = getAuthToken();
     if (!token) return;
@@ -286,10 +281,15 @@ export default function IdePage() {
         return r.json();
       })
       .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
+        if (!Array.isArray(data)) return;
+        if (data.length > 0) {
           const loaded = data.map(normalizeTab);
           setTabs(loaded);
           setActiveTabId(loaded[0].id);
+        } else {
+          // Logged in but no server files — clear any guest localStorage files
+          setTabs(DEFAULT_TABS);
+          setActiveTabId(DEFAULT_TABS[0].id);
         }
       })
       .catch(() => {});
