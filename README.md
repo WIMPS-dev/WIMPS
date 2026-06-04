@@ -8,6 +8,7 @@ WIMPS is a browser-based MIPS assembly simulator built for CS students who shoul
 
 It supports the same instruction set and syscalls as MARS, runs in any modern browser, and works on desktop, tablet, and mobile.
 
+Visit the WIMPS at [wimps.dev](https://wimps.dev)
 ---
 
 ### Basic Usage
