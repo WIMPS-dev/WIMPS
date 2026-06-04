@@ -92,11 +92,11 @@ router.post('/tabs', authenticate, async(req, res) => {
             return res.status(400).json({ error: 'tabs must be an array' });
         }
 
-        const MAX_TOTAL_SIZE = 1 * 1024 * 1024;
+        const MAX_TOTAL_SIZE = 256 * 1024;
         const totalSize = Buffer.byteLength(JSON.stringify(tabs), 'utf8');
         if (totalSize > MAX_TOTAL_SIZE) {
             return res.status(413).json({
-                error: 'Storage limit reached. Your files total more than 1MB. Free up space and try again.',
+                error: 'Storage limit reached. Your files total more than 256KB. Free up space and try again.',
                 totalSize,
                 limit: MAX_TOTAL_SIZE,
             });
