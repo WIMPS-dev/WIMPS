@@ -1,6 +1,6 @@
 # WIMPS
 
-### The Web Interactive MIPS Pocket Simulator
+### The Web Interactive MIPS Playground & Simulator
 
 WIMPS is a browser-based MIPS assembly simulator built for CS students who shouldn't need to download a 20-year-old Java program just to study computer architecture. Write, assemble, step through, and debug MIPS programs in your browser. No install required.
 

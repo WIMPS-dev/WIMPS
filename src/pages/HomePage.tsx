@@ -454,7 +454,7 @@ export default function HomePage() {
         flexWrap: 'wrap',
         gap: 12,
       }}>
-        <span style={{ color: theme.subText, fontSize: 13 }}>WIMPS · Web Interactive MIPS Pocket Simulator</span>
+        <span style={{ color: theme.subText, fontSize: 13 }}>WIMPS · Web Interactive MIPS Playground & Simulator</span>
         <div style={{ display: 'flex', gap: 20 }}>
           <Link to="/docs" className="home-link-muted" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13 }}>Docs</Link>
           {isLoggedIn ? (
