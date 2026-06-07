@@ -30,15 +30,15 @@ export function RegisterPanel({ registers, theme, showHex = true, toggleFormat }
 
   return (
     <div style={{ flex: 1, minHeight: 0, backgroundColor: theme.bg, padding: 10, display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 10, paddingRight: 28, paddingBottom: 6, gap: 8 }}>
+      {/* Header — columns mirror data rows: flex:1.2 | width:30 | flex:1.4 */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '0 10px', paddingBottom: 6 }}>
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="Filter registers..."
           aria-label="Filter registers"
           style={{
-            flex: 1,
+            flex: 1.2,
             backgroundColor: theme.card,
             border: `1px solid ${theme.border}`,
             borderRadius: 6,
@@ -46,25 +46,28 @@ export function RegisterPanel({ registers, theme, showHex = true, toggleFormat }
             fontSize: 12,
             color: theme.text,
             outline: 'none',
+            minWidth: 0,
           }}
         />
-        <span style={{ color: theme.subText, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', width: 30, textAlign: 'center' }}>#</span>
-        <button
-          onClick={toggleFormat}
-          style={{
-            backgroundColor: '#2563eb',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            padding: '3px 6px',
-            fontSize: 9,
-            fontWeight: 600,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {showHex ? 'HEX VALUE' : 'INT VALUE'}
-        </button>
+        <span style={{ width: 30, flexShrink: 0, textAlign: 'center', color: theme.subText, fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>#</span>
+        <div style={{ flex: 1.4, display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            onClick={toggleFormat}
+            style={{
+              backgroundColor: '#2563eb',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '3px 6px',
+              fontSize: 9,
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {showHex ? 'HEX VALUE' : 'INT VALUE'}
+          </button>
+        </div>
       </div>
 
       {/* Table */}
