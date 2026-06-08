@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Logo } from '../components/Logo';
 import { HomeSkeleton } from '../components/PageSkeletons';
 import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
-import { Logo } from '../components/Logo';
 import { clearAuthToken, getAuthToken } from '../helpers/authStorage';
 
 interface MockPart { text: string; color: string; }
@@ -48,6 +48,10 @@ const CAPABILITIES = [
 ];
 
 const ACTIVE_LINE = 4;
+
+const prefersReducedMotion =
+  typeof window !== 'undefined' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export default function HomePage() {
   const { theme } = useTheme();
@@ -169,6 +173,29 @@ export default function HomePage() {
           >
             Browse docs
           </Link>
+        </div>
+      </section>
+
+      {/* Demo video */}
+      <section style={{ padding: '0 32px 80px', maxWidth: 960, margin: '0 auto' }}>
+        <div style={{
+          borderRadius: 12,
+          overflow: 'hidden',
+          border: '1px solid #1f2937',
+          backgroundColor: '#0b1020',
+          lineHeight: 0,
+          boxShadow: 'none',
+        }}>
+          <video
+            src="/WIMPS%20Demo%20Video.mp4"
+            autoPlay={!prefersReducedMotion}
+            muted
+            loop
+            playsInline
+            controls
+            style={{ width: '100%', display: 'block' }}
+            aria-label="WIMPS IDE demo: assembling and stepping through a MIPS program"
+          />
         </div>
       </section>
 
