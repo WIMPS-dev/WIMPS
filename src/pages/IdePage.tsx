@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ActionIcon } from '../components/ActionIcons';
+import { FileExplorer } from '../components/FileExplorer';
 import { BitmapDisplay } from '../components/BitmapDisplay';
 import { CodeEditor } from '../components/CodeEditor';
 import { InstructionStats } from '../components/InstructionStats';
 import { Logo } from '../components/Logo';
 import { MemoryView } from '../components/MemoryView';
-import { FileRowSkeleton, IdeSkeleton } from '../components/PageSkeletons';
+import { IdeSkeleton } from '../components/PageSkeletons';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { SaveStatus } from '../components/SaveStatus';
 import { usePageReady } from '../components/Skeleton';
@@ -16,208 +17,24 @@ import { clearAuthToken, getApiHeaders, getAuthToken, uniquifyName } from '../he
 import { useAutosave } from '../hooks/useAutosave';
 import type { InstrStats } from '../simulator/useMips';
 import { assemble, continueSim, feedInput, getInstructionStats, getMemoryRange, getState, resetSim, runSim, stepBackSim, stepSim } from '../simulator/useMips';
+import type { CodeTab } from '../types';
+import { normalizeTab, readSavedFiles, writeSavedFiles } from '../helpers/tabUtils';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 const DATA_START = 0x10010000;
 const DATA_WORDS = 32;
 
-type SidebarPanel = 'registers' | 'memory' | 'stats' | 'bitmap';
+type SidebarPanel = 'files' | 'registers' | 'memory' | 'stats' | 'bitmap';
 
 const SIDEBAR_PANELS: { id: SidebarPanel; label: string; icon: string }[] = [
+  { id: 'files',     label: 'Files',  icon: 'Files'  },
   { id: 'registers', label: 'Regs',   icon: 'Regs'   },
   { id: 'memory',    label: 'Memory', icon: 'Memory' },
   { id: 'stats',     label: 'Stats',  icon: 'Stats'  },
   { id: 'bitmap',    label: 'Bitmap', icon: 'Bitmap' },
 ];
 
-interface CodeTab {
-  id: string;
-  name: string;
-  code: string;
-  isDirty?: boolean;
-  _id?: string;
-}
-
 const DEFAULT_TABS: CodeTab[] = [{ id: '1', name: 'file1.asm', code: '', isDirty: false }];
-
-// ---------------------------------------------------------------------------
-// Example files shown in the Files drawer for all users
-// ---------------------------------------------------------------------------
-interface ExampleFile { name: string; description: string; code: string; }
-const EXAMPLE_FILES: ExampleFile[] = [
-  {
-    name: 'hello.asm',
-    description: 'Hello, World!',
-    code:
-`# Hello, World!
-.data
-msg: .asciiz "Hello, World!\\n"
-
-.text
-main:
-    li   $v0, 4
-    la   $a0, msg
-    syscall
-
-    li   $v0, 10
-    syscall`,
-  },
-  {
-    name: 'quadhex.asm',
-    description: 'QuadHex — like FizzBuzz, but for 4, 6, and 24',
-    code:
-`# QuadHex — like FizzBuzz, but for 4, 6, and 24
-.data
-str_quad:    .asciiz "Quad"
-str_hex:     .asciiz "Hex"
-str_quadhex: .asciiz "QuadHex"
-str_newline: .asciiz "\\n"
-
-.text
-main:
-    li   $t0, 1          # counter
-    li   $t1, 40         # limit
-
-loop:
-    bgt  $t0, $t1, done
-
-    # divisible by 24?
-    li   $t2, 24
-    div  $t0, $t2
-    mfhi $t3
-    beqz $t3, print_quadhex
-
-    # divisible by 6?
-    li   $t2, 6
-    div  $t0, $t2
-    mfhi $t3
-    beqz $t3, print_hex
-
-    # divisible by 4?
-    li   $t2, 4
-    div  $t0, $t2
-    mfhi $t3
-    beqz $t3, print_quad
-
-    # otherwise: print the number
-    li   $v0, 1
-    move $a0, $t0
-    syscall
-    j    next
-
-print_quadhex:
-    li   $v0, 4
-    la   $a0, str_quadhex
-    syscall
-    j    next
-
-print_hex:
-    li   $v0, 4
-    la   $a0, str_hex
-    syscall
-    j    next
-
-print_quad:
-    li   $v0, 4
-    la   $a0, str_quad
-    syscall
-
-next:
-    li   $v0, 4
-    la   $a0, str_newline
-    syscall
-    addi $t0, $t0, 1
-    j    loop
-
-done:
-    li   $v0, 10
-    syscall`,
-  },
-  {
-    name: 'smile.asm',
-    description: 'Smiley face — open the Bitmap tab (64×64, scale 4)',
-    code:
-`# smile.asm — smiley face drawn pixel by pixel
-# Open the Bitmap tab, set 64x64 at scale 4, then run.
-# Pixel format: 0x00RRGGBB stored at base + (y*64 + x)*4
-.text
-main:
-    li   $s0, 0x10010000   # bitmap base address
-
-    li   $t0, 0            # y = 0
-yloop:
-    li   $t1, 0            # x = 0
-xloop:
-    # Squared distance from face center (32, 32)
-    addi $t2, $t0, -32
-    addi $t3, $t1, -32
-    mul  $t4, $t2, $t2     # dy^2
-    mul  $t5, $t3, $t3     # dx^2
-    add  $t6, $t4, $t5     # face r^2
-
-    # Default: steel-blue background
-    li   $s1, 0x006699CC
-    li   $t9, 576          # 24^2 — face outer edge
-    bgt  $t6, $t9, write
-
-    # Dark outline ring: 22^2 < r^2 <= 24^2
-    li   $s1, 0x00222222
-    li   $t9, 484          # 22^2
-    bgt  $t6, $t9, write
-
-    # Yellow face fill
-    li   $s1, 0x00FFD700
-
-    # Left eye: center (24, 24), radius 4
-    addi $t2, $t0, -24
-    addi $t3, $t1, -24
-    mul  $t4, $t2, $t2
-    mul  $t5, $t3, $t3
-    add  $t7, $t4, $t5
-    li   $t9, 16
-    ble  $t7, $t9, feature
-
-    # Right eye: center (40, 24), radius 4
-    addi $t2, $t0, -24
-    addi $t3, $t1, -40
-    mul  $t4, $t2, $t2
-    mul  $t5, $t3, $t3
-    add  $t7, $t4, $t5
-    ble  $t7, $t9, feature
-
-    # Smile arc: center (32, 36), ring r=10..13, lower arc only
-    addi $t2, $t0, -36
-    addi $t3, $t1, -32
-    mul  $t4, $t2, $t2
-    mul  $t5, $t3, $t3
-    add  $t7, $t4, $t5
-    blt  $t0, 36, write
-    li   $t9, 100
-    blt  $t7, $t9, write
-    li   $t9, 169
-    bgt  $t7, $t9, write
-feature:
-    li   $s1, 0x00222222
-
-write:
-    sll  $t2, $t0, 6       # y * 64
-    add  $t2, $t2, $t1     # + x
-    sll  $t2, $t2, 2       # * 4
-    add  $t2, $t2, $s0     # + base
-    sw   $s1, 0($t2)
-
-    addi $t1, $t1, 1
-    slti $t9, $t1, 64
-    bnez $t9, xloop
-
-    addi $t0, $t0, 1
-    slti $t9, $t0, 64
-    bnez $t9, yloop
-
-    li   $v0, 10
-    syscall`,
-  },
-];
 
 const buildInitialRegisters = (): RegisterValue[] =>
   ['$zero','$at','$v0','$v1','$a0','$a1','$a2','$a3',
@@ -225,15 +42,6 @@ const buildInitialRegisters = (): RegisterValue[] =>
    '$s0','$s1','$s2','$s3','$s4','$s5','$s6','$s7',
    '$t8','$t9','$k0','$k1','$gp','$sp','$fp','$ra']
   .map((name, i) => ({ name, number: i, hexValue: '0x00000000' }));
-
-const normalizeTab = (item: any): CodeTab => ({
-  ...item,
-  id: item?.id ?? item?._id ?? String(Date.now() + Math.random()),
-  _id: item?._id ? String(item._id) : undefined,
-  name: item?.name || 'untitled.asm',
-  code: item?.code || '',
-  isDirty: Boolean(item?.isDirty),
-});
 
 function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
   try {
@@ -257,21 +65,6 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
 
 function writeLocalState(tabs: CodeTab[], activeTabId: string) {
   try { localStorage.setItem('saved_tabs', JSON.stringify({ tabs, activeTabId })); } catch {}
-}
-
-// Separate store for explicitly saved guest files (distinct from the live session state).
-// Only written when the user hits Save — closing a tab doesn't touch this store.
-function readSavedFiles(): CodeTab[] {
-  try {
-    const raw = localStorage.getItem('saved_files');
-    const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed)) return parsed.map(normalizeTab);
-  } catch {}
-  return [];
-}
-
-function writeSavedFiles(files: CodeTab[]) {
-  try { localStorage.setItem('saved_files', JSON.stringify(files)); } catch {}
 }
 
 // ---------------------------------------------------------------------------
@@ -301,7 +94,6 @@ export default function IdePage() {
   // TEMP: login disabled
   // useState(() => !!getAuthToken())`
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
   const [closedFileNames, setClosedFileNames] = useState<Set<string>>(new Set());
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
 
@@ -314,7 +106,7 @@ export default function IdePage() {
   const [activeSidebarPanel, setActiveSidebarPanel] = useState<SidebarPanel>(() => {
     try {
       const v = localStorage.getItem('sidebar_panel');
-      return (['registers', 'memory', 'stats', 'bitmap'] as const).includes(v as SidebarPanel) ? v as SidebarPanel : 'registers';
+      return (['files', 'registers', 'memory', 'stats', 'bitmap'] as const).includes(v as SidebarPanel) ? v as SidebarPanel : 'registers';
     } catch { return 'registers'; }
   });
   const [instrStats, setInstrStats] = useState<InstrStats | null>(null);
@@ -714,8 +506,9 @@ export default function IdePage() {
   const commitRename = () => {
     if (!editingTabId) return;
     const raw = editTabName.trim() || 'untitled.asm';
+    const currentName = tabsRef.current.find(t => t.id === editingTabId)?.name;
     const otherTabNames = new Set(tabsRef.current.filter(t => t.id !== editingTabId).map(t => t.name));
-    const allNames = new Set([...otherTabNames, ...closedFileNames]);
+    const allNames = new Set([...otherTabNames, ...[...closedFileNames].filter(n => n !== currentName)]);
     const name = uniquifyName(raw, allNames);
     setTabs(prev => prev.map(t => t.id === editingTabId ? { ...t, name, isDirty: true } : t));
     setEditingTabId(null);
@@ -995,14 +788,6 @@ export default function IdePage() {
               <div style={{ width: 1, height: 20, backgroundColor: theme.border }} />
               <SaveStatus status={saveStatus} guestStatus={guestSaveStatus} lastSavedAt={isLoggedIn ? lastSavedAt : guestSavedAt} isLoggedIn={isLoggedIn} onRetry={() => flushNow()} />
               <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
-              <button
-                type="button"
-                onClick={() => setFilesDrawerOpen(true)}
-                title="Files"
-                style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', padding: '4px 10px', fontSize: 13, fontWeight: 500 }}
-              >
-                Files
-              </button>
               <ThemeSwitch />
             </div>
           </div>
@@ -1116,14 +901,6 @@ export default function IdePage() {
             <SaveStatus status={saveStatus} guestStatus={guestSaveStatus} lastSavedAt={isLoggedIn ? lastSavedAt : guestSavedAt} isLoggedIn={isLoggedIn} onRetry={() => flushNow()} compact />
             <ThemeSwitch />
             <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Docs</Link>
-            <button
-              type="button"
-              onClick={() => setFilesDrawerOpen(true)}
-              title="Files"
-              style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', padding: '6px 12px', fontSize: 14, fontWeight: 500 }}
-            >
-              Files
-            </button>
             {/* TEMP: login disabled
             {isLoggedIn ? (
               <button type="button" onClick={handleLogout} className="ide-sign-out" style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.text, cursor: 'pointer', padding: '6px 12px', fontSize: 14 }}>Sign out</button>
@@ -1290,6 +1067,7 @@ export default function IdePage() {
                   {SIDEBAR_PANELS.find(p => p.id === activeSidebarPanel)?.label.toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  {activeSidebarPanel === 'files'     && <FileExplorer theme={theme} isLoggedIn={isLoggedIn} tabs={tabs} setTabs={setTabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} removeTabLocally={removeTabLocally} onFilesLoaded={setClosedFileNames} onUpload={handleUpload} onDownload={handleDownload} />}
                   {activeSidebarPanel === 'registers' && <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} changedRegisters={changedRegisters} />}
                   {activeSidebarPanel === 'memory'    && <MemoryView data={memoryData} theme={theme} />}
                   {activeSidebarPanel === 'stats'     && <InstructionStats stats={instrStats} theme={theme} />}
@@ -1335,341 +1113,7 @@ export default function IdePage() {
         </div>
       )}
 
-      <FilesDrawer
-        open={filesDrawerOpen}
-        onClose={() => setFilesDrawerOpen(false)}
-        theme={theme}
-        isLoggedIn={isLoggedIn}
-        tabs={tabs}
-        setTabs={setTabs}
-        activeTabId={activeTabId}
-        setActiveTabId={setActiveTabId}
-        removeTabLocally={removeTabLocally}
-        onFilesLoaded={setClosedFileNames}
-        onUpload={handleUpload}
-        onDownload={handleDownload}
-      />
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Trash icon for tab delete
-// ---------------------------------------------------------------------------
-function TabTrashIcon() {
-  return (
-    <svg width="11" height="12" viewBox="0 0 11 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="1" y1="3" x2="10" y2="3" />
-      <path d="M3.5 3V2a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1" />
-      <path d="M2 3l.6 7.5h5.8L9 3" />
-      <line x1="4.5" y1="5.5" x2="4.5" y2="9" />
-      <line x1="6.5" y1="5.5" x2="6.5" y2="9" />
-    </svg>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Files drawer
-// ---------------------------------------------------------------------------
-interface FilesDrawerProps {
-  open: boolean;
-  onClose: () => void;
-  theme: import('../theme/themes').Theme;
-  isLoggedIn: boolean;
-  tabs: CodeTab[];
-  setTabs: React.Dispatch<React.SetStateAction<CodeTab[]>>;
-  activeTabId: string;
-  setActiveTabId: (id: string) => void;
-  removeTabLocally: (tabId: string) => void;
-  onFilesLoaded: (names: Set<string>) => void;
-  onUpload: () => void;
-  onDownload: () => void;
-}
-
-function FilesDrawer({ open, onClose, theme, isLoggedIn, tabs, setTabs, activeTabId, setActiveTabId, removeTabLocally, onFilesLoaded, onUpload, onDownload }: FilesDrawerProps) {
-  const [serverFiles, setServerFiles] = useState<CodeTab[]>([]);
-  const [localFiles, setLocalFiles] = useState<CodeTab[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    if (isLoggedIn) {
-      setLoading(true);
-      const token = getAuthToken();
-      if (!token) { setLoading(false); return; }
-      fetch(`${API_BASE}/auth/tabs`, { headers: getApiHeaders(token) })
-        .then(r => r.ok ? r.json() : [])
-        .then(data => {
-          if (Array.isArray(data)) {
-            const files = data.map(normalizeTab);
-            setServerFiles(files);
-            onFilesLoaded(new Set(files.map((f: CodeTab) => f.name)));
-          }
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    } else {
-      const files = readSavedFiles();
-      setLocalFiles(files);
-      onFilesLoaded(new Set(files.map(f => f.name)));
-    }
-  }, [open, isLoggedIn]);
-
-  // Open any file into tabs (cloud or local — same logic)
-  const handleOpen = (file: CodeTab) => {
-    const existing = tabs.find(t => t.id === file.id);
-    if (existing) {
-      setActiveTabId(existing.id);
-    } else {
-      setTabs(prev => [...prev, { ...file, isDirty: false }]);
-      setActiveTabId(file.id);
-    }
-    onClose();
-  };
-
-  // Open an example file — always creates a fresh tab with a new ID
-  const handleOpenExample = (ex: ExampleFile) => {
-    const id = String(Date.now());
-    setTabs(prev => {
-      const allNames = new Set([
-        ...prev.map(t => t.name),
-        ...serverFiles.map(f => f.name),
-        ...localFiles.map(f => f.name),
-      ]);
-      const name = uniquifyName(ex.name, allNames);
-      return [...prev, { id, name, code: ex.code, isDirty: false }];
-    });
-    setActiveTabId(id);
-    onClose();
-  };
-
-  // Delete a cloud file
-  const handleDeleteCloud = async (file: CodeTab) => {
-    const token = getAuthToken();
-    if (!token) return;
-    setDeletingId(file.id);
-    try {
-      const res = await fetch(`${API_BASE}/auth/tabs/${file.id}`, {
-        method: 'DELETE',
-        headers: getApiHeaders(token),
-      });
-      if (!res.ok) return;
-      setServerFiles(prev => prev.filter(f => f.id !== file.id));
-      removeTabLocally(file.id);
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  // Delete a saved local file (guests only) — removes from saved_files store and closes tab if open
-  const handleDeleteLocal = (file: CodeTab) => {
-    const updated = localFiles.filter(f => f.id !== file.id);
-    setLocalFiles(updated);
-    writeSavedFiles(updated);
-    removeTabLocally(file.id);
-  };
-
-  if (!open) return null;
-
-  const openTabIds = new Set(tabs.map(t => t.id));
-
-  // Shared row renderer
-  const renderFileRow = (
-    file: CodeTab,
-    onOpenFile: () => void,
-    onDeleteFile: (() => void) | null,
-    deleteTitle: string,
-  ) => {
-    const isOpen = openTabIds.has(file.id);
-    const isDeleting = deletingId === file.id;
-    return (
-      <div
-        key={file.id}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '9px 12px', borderRadius: 8,
-          border: `1px solid ${isOpen ? theme.linkColor + '55' : theme.border}`,
-          backgroundColor: isOpen ? theme.linkColor + '0d' : 'transparent',
-          opacity: isDeleting ? 0.5 : 1,
-          transition: 'opacity 150ms',
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: theme.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {file.name}
-          </div>
-          <div style={{ color: theme.subText, fontSize: 11, marginTop: 1 }}>
-            {isOpen
-              ? <span style={{ color: theme.linkColor }}>● open</span>
-              : `${file.code.split('\n').filter(Boolean).length} lines`}
-          </div>
-        </div>
-        {!isOpen && (
-          <button
-            type="button"
-            onClick={onOpenFile}
-            disabled={isDeleting}
-            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.subText, cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '3px 9px', flexShrink: 0 }}
-          >
-            Open
-          </button>
-        )}
-        {onDeleteFile && (
-          <button
-            type="button"
-            onClick={onDeleteFile}
-            disabled={isDeleting}
-            title={deleteTitle}
-            style={{ background: 'none', border: '1px solid #ef444444', borderRadius: 5, color: '#ef4444', cursor: isDeleting ? 'not-allowed' : 'pointer', fontSize: 11, fontWeight: 600, padding: '3px 9px', flexShrink: 0, display: 'flex', alignItems: 'center' }}
-          >
-            <TabTrashIcon />
-          </button>
-        )}
-      </div>
-    );
-  };
-
-  const sectionLabel = (label: string) => (
-    <div style={{ color: theme.subText, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '14px 4px 6px' }}>
-      {label}
-    </div>
-  );
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', zIndex: 200 }} />
-      {/* Panel */}
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 300,
-        backgroundColor: theme.card, borderLeft: `1px solid ${theme.border}`,
-        zIndex: 201, display: 'flex', flexDirection: 'column',
-        boxShadow: '-12px 0 40px rgba(0,0,0,0.25)',
-      }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px 0 18px', height: 48, borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-          <div style={{ color: theme.text, fontWeight: 700, fontSize: 14, flex: 1 }}>Files</div>
-          <button
-            type="button"
-            onClick={onUpload}
-            title="Import file from disk"
-            aria-label="Import file from disk"
-            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, cursor: 'pointer', color: theme.subText, height: 28, padding: '0 8px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
-          >↑ Import</button>
-          <button
-            type="button"
-            onClick={onDownload}
-            title="Download active file"
-            aria-label="Download active file"
-            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, cursor: 'pointer', color: theme.subText, height: 28, padding: '0 8px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
-          >↓ Export</button>
-          <div style={{ width: 1, height: 16, backgroundColor: theme.border, flexShrink: 0, margin: '0 2px' }} />
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close file manager"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 20, lineHeight: 1, width: 30, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, flexShrink: 0 }}
-          >×</button>
-        </div>
-
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 12px' }}>
-
-          {/* ── Your Files ─────────────────────────────────────────────── */}
-          {isLoggedIn ? (
-            <>
-              {sectionLabel('Cloud Files')}
-              {loading ? (
-                <FileRowSkeleton theme={theme} count={3} />
-              ) : serverFiles.length === 0 ? (
-                <div style={{ color: theme.subText, fontSize: 13, padding: '8px 4px', lineHeight: '20px' }}>
-                  Nothing saved yet. Hit 💾 Save in the toolbar to sync your tabs here.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {serverFiles.map(file => renderFileRow(
-                    file,
-                    () => handleOpen(file),
-                    () => handleDeleteCloud(file),
-                    'Delete from account',
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              {sectionLabel('Local Files')}
-              {/* Login nudge */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 12px', borderRadius: 8, marginBottom: 8,
-                backgroundColor: theme.linkColor + '12',
-                border: `1px solid ${theme.linkColor}33`,
-              }}>
-                <div style={{ flex: 1, color: theme.subText, fontSize: 12, lineHeight: '17px' }}>
-                  <Link to="/login" style={{ color: theme.linkColor, fontWeight: 600, textDecoration: 'none' }} onClick={onClose}>Sign in</Link>
-                  {' '}to save your files to the cloud and access them anywhere.
-                </div>
-              </div>
-              {localFiles.length === 0 ? (
-                <div style={{ color: theme.subText, fontSize: 13, padding: '8px 4px', lineHeight: '20px' }}>
-                  Nothing saved yet. Hit 💾 Save in the toolbar to keep a file here.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {localFiles.map(file => renderFileRow(
-                    file,
-                    () => handleOpen(file),
-                    () => handleDeleteLocal(file),
-                    'Delete from local storage',
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ── Examples ───────────────────────────────────────────────── */}
-          {sectionLabel('Examples')}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {EXAMPLE_FILES.map(ex => (
-              <div
-                key={ex.name}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '9px 12px', borderRadius: 8,
-                  border: `1px solid ${theme.border}`,
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: theme.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ex.name}
-                  </div>
-                  <div style={{ color: theme.subText, fontSize: 11, marginTop: 1 }}>{ex.description}</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleOpenExample(ex)}
-                  style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.subText, cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '3px 9px', flexShrink: 0 }}
-                >
-                  Open
-                </button>
-              </div>
-            ))}
-          </div>
-
-        </div>
-
-        {/* Footer */}
-        <div style={{ padding: '12px 18px', borderTop: `1px solid ${theme.border}`, flexShrink: 0 }}>
-          <p style={{ color: theme.subText, fontSize: 11, lineHeight: '16px', margin: 0 }}>
-            {isLoggedIn
-              ? 'Closing a tab (×) removes it from this session only — it stays in your account. Delete removes it permanently.'
-              : 'Files are stored in your browser. Sign in to back them up to the cloud.'}
-          </p>
-        </div>
-      </div>
-    </>
   );
 }
 
