@@ -19,6 +19,7 @@ interface CodeEditorProps {
   onBreakpointToggle: (line: number) => void;
   errorLines?: { line: number; message: string }[];
   onAssemble?: () => void;
+  onToggleSidebar?: () => void;
 }
 
 export function CodeEditor({
@@ -30,6 +31,7 @@ export function CodeEditor({
   onBreakpointToggle,
   errorLines = [],
   onAssemble,
+  onToggleSidebar,
 }: CodeEditorProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
@@ -42,8 +44,10 @@ export function CodeEditor({
   // Keep callbacks fresh without re-binding Monaco commands/listeners
   const onAssembleRef = useRef(onAssemble);
   const onBreakpointToggleRef = useRef(onBreakpointToggle);
+  const onToggleSidebarRef = useRef(onToggleSidebar);
   useEffect(() => { onAssembleRef.current = onAssemble; }, [onAssemble]);
   useEffect(() => { onBreakpointToggleRef.current = onBreakpointToggle; }, [onBreakpointToggle]);
+  useEffect(() => { onToggleSidebarRef.current = onToggleSidebar; }, [onToggleSidebar]);
 
   const isDark = theme.bg === THEMES.dark.bg;
 
@@ -59,6 +63,9 @@ export function CodeEditor({
 
     // Ctrl/Cmd+Enter → assemble (Monaco captures this key, so route via command)
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => onAssembleRef.current?.());
+
+    // Ctrl/Cmd+B → toggle sidebar
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB, () => onToggleSidebarRef.current?.());
 
     // Click the glyph margin to toggle a breakpoint
     editor.onMouseDown((e) => {

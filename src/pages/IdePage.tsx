@@ -21,14 +21,14 @@ const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 const DATA_START = 0x10010000;
 const DATA_WORDS = 32;
 
-const RIGHT_TABS = [
-  { id: 'registers' as const, label: 'Registers' },
-  { id: 'memory'    as const, label: 'Memory'    },
-  { id: 'stats'     as const, label: 'Stats'     },
-  { id: 'bitmap'    as const, label: 'Bitmap'    },
-] as const;
+type SidebarPanel = 'registers' | 'memory' | 'stats' | 'bitmap';
 
-type RightTab = typeof RIGHT_TABS[number]['id'];
+const SIDEBAR_PANELS: { id: SidebarPanel; label: string; icon: string }[] = [
+  { id: 'registers', label: 'Regs',   icon: 'Regs'   },
+  { id: 'memory',    label: 'Memory', icon: 'Memory' },
+  { id: 'stats',     label: 'Stats',  icon: 'Stats'  },
+  { id: 'bitmap',    label: 'Bitmap', icon: 'Bitmap' },
+];
 
 interface CodeTab {
   id: string;
@@ -305,7 +305,18 @@ export default function IdePage() {
   const [closedFileNames, setClosedFileNames] = useState<Set<string>>(new Set());
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
 
-  const [rightTab, setRightTab] = useState<RightTab>('registers');
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    try { const v = localStorage.getItem('sidebar_open'); return v === null ? true : v === 'true'; } catch { return true; }
+  });
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    try { const v = localStorage.getItem('sidebar_width'); return v ? Math.max(160, Math.min(480, Number(v))) : 260; } catch { return 260; }
+  });
+  const [activeSidebarPanel, setActiveSidebarPanel] = useState<SidebarPanel>(() => {
+    try {
+      const v = localStorage.getItem('sidebar_panel');
+      return (['registers', 'memory', 'stats', 'bitmap'] as const).includes(v as SidebarPanel) ? v as SidebarPanel : 'registers';
+    } catch { return 'registers'; }
+  });
   const [instrStats, setInstrStats] = useState<InstrStats | null>(null);
   const [simTick, setSimTick] = useState(0);
 
@@ -313,8 +324,6 @@ export default function IdePage() {
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [changedRegisters, setChangedRegisters] = useState<Set<string>>(new Set());
 
-  // Desktop layout percentages
-  const [leftPct, setLeftPct] = useState(75);
   const [editorHeightPct, setEditorHeightPct] = useState(70);
 
   const isWide = typeof window !== 'undefined' && window.innerWidth >= 900;
@@ -348,6 +357,10 @@ export default function IdePage() {
     if (guestDebounceRef.current !== null) clearTimeout(guestDebounceRef.current);
     if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current);
   }, []);
+
+  useEffect(() => { try { localStorage.setItem('sidebar_open',  String(sidebarOpen));      } catch {} }, [sidebarOpen]);
+  useEffect(() => { try { localStorage.setItem('sidebar_width', String(sidebarWidth));      } catch {} }, [sidebarWidth]);
+  useEffect(() => { try { localStorage.setItem('sidebar_panel', activeSidebarPanel);        } catch {} }, [activeSidebarPanel]);
 
   const markGuestSaved = useCallback(() => {
     setGuestSaveStatus('saved');
@@ -623,6 +636,13 @@ export default function IdePage() {
         return;
       }
 
+      // Ctrl/Cmd+B — toggle sidebar
+      if (metaOrCtrl && e.key === 'b') {
+        e.preventDefault();
+        setSidebarOpen(o => !o);
+        return;
+      }
+
       // F-keys and Escape: skip when a plain input field has focus or when
       // the simulator is waiting for console input (user is typing into console)
       if (inInput || isWaiting) return;
@@ -747,21 +767,25 @@ export default function IdePage() {
   // ---------------------------------------------------------------------------
   // Drag-to-resize
   // ---------------------------------------------------------------------------
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const startHDrag = (e: React.MouseEvent) => {
+  const startSidebarDrag = (e: React.MouseEvent) => {
     e.preventDefault();
     const startX = e.clientX;
-    const startPct = leftPct;
+    const startWidth = sidebarWidth;
     const onMove = (ev: MouseEvent) => {
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const pct = ((ev.clientX - rect.left) / rect.width) * 100;
-      setLeftPct(Math.max(30, Math.min(80, pct)));
+      setSidebarWidth(Math.max(160, Math.min(480, startWidth + (ev.clientX - startX))));
     };
     const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+  };
+
+  const handleSidebarIconClick = (panel: SidebarPanel) => {
+    if (panel === activeSidebarPanel) {
+      setSidebarOpen(o => !o);
+    } else {
+      setActiveSidebarPanel(panel);
+      setSidebarOpen(true);
+    }
   };
 
   const startEditorVDrag = (e: React.MouseEvent) => {
@@ -812,15 +836,6 @@ export default function IdePage() {
     { label: 'Export', onPress: handleDownload, title: 'Export the active file' },
   ];
 
-  const hDragHandle = (
-    <div
-      onMouseDown={startHDrag}
-      style={{ width: 5, flexShrink: 0, cursor: 'col-resize', backgroundColor: theme.border, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-    >
-      <div style={{ width: 1, height: 28, backgroundColor: theme.subText, opacity: 0.35, borderRadius: 1 }} />
-    </div>
-  );
-
   const vDragHandle = (
     <div
       onMouseDown={startEditorVDrag}
@@ -842,6 +857,7 @@ export default function IdePage() {
       '--ide-ink': theme.text,
       '--ide-card': theme.card,
       '--ide-hover': theme.resizer,
+      '--ide-border': theme.border,
     } as React.CSSProperties}>
       {/* Top bar */}
       {wide ? (
@@ -1246,11 +1262,48 @@ export default function IdePage() {
 
       {/* Main layout */}
       {wide ? (
-        <div ref={containerRef} style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
-          {/* Left column: editor + console */}
-          <div className="editor-column" style={{ width: `${leftPct}%`, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+
+          {/* Activity bar */}
+          <div className="ide-activity-bar">
+            {SIDEBAR_PANELS.map(({ id, label, icon }) => (
+              <button
+                key={id}
+                type="button"
+                className={`ide-activity-icon${activeSidebarPanel === id && sidebarOpen ? ' ide-activity-icon--active' : ''}`}
+                onClick={() => handleSidebarIconClick(id)}
+                title={label}
+                aria-label={label}
+                aria-pressed={activeSidebarPanel === id && sidebarOpen}
+              >
+                <ActionIcon name={icon} size={16} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Sidebar panel (hidden when collapsed) */}
+          {sidebarOpen && (
+            <>
+              <div className="ide-sidebar" style={{ width: sidebarWidth }}>
+                <div className="ide-sidebar-header">
+                  {SIDEBAR_PANELS.find(p => p.id === activeSidebarPanel)?.label.toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  {activeSidebarPanel === 'registers' && <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} changedRegisters={changedRegisters} />}
+                  {activeSidebarPanel === 'memory'    && <MemoryView data={memoryData} theme={theme} />}
+                  {activeSidebarPanel === 'stats'     && <InstructionStats stats={instrStats} theme={theme} />}
+                  {activeSidebarPanel === 'bitmap'    && <BitmapDisplay theme={theme} tick={simTick} />}
+                </div>
+              </div>
+              <div className="ide-sidebar-handle" onMouseDown={startSidebarDrag} />
+            </>
+          )}
+
+          {/* Editor + console column */}
+          <div className="editor-column" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ height: `${editorHeightPct}%`, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} errorLines={errorLines} onAssemble={handleAssemble} />
+              <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} />
             </div>
 
             {vDragHandle}
@@ -1260,51 +1313,6 @@ export default function IdePage() {
             </div>
           </div>
 
-          {hDragHandle}
-
-          {/* Right column: tabbed registers / memory */}
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* Tab bar */}
-            <div style={{ display: 'flex', backgroundColor: theme.card, borderBottom: `1px solid ${theme.border}`, flexShrink: 0, height: 34 }}>
-              {RIGHT_TABS.map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  aria-selected={rightTab === id}
-                  onClick={() => setRightTab(id)}
-                  className="ide-panel-tab"
-                  style={{
-                    flex: 1,
-                    height: '100%',
-                    border: 'none',
-                    borderBottom: rightTab === id ? '2px solid #2563eb' : '2px solid transparent',
-                    backgroundColor: 'transparent',
-                    color: rightTab === id ? theme.text : theme.subText,
-                    fontSize: 10,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    letterSpacing: 0.4,
-                    textTransform: 'uppercase',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    padding: '0 2px',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Panel content */}
-            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              {rightTab === 'registers' && <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} changedRegisters={changedRegisters} />}
-              {rightTab === 'memory'    && <MemoryView data={memoryData} theme={theme} />}
-              {rightTab === 'stats'     && <InstructionStats stats={instrStats} theme={theme} />}
-              {rightTab === 'bitmap'    && <BitmapDisplay theme={theme} tick={simTick} />}
-            </div>
-          </div>
         </div>
       ) : (
         /* Mobile single-panel */
