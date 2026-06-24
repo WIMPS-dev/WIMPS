@@ -497,12 +497,12 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
         />
         {filesExpanded && (
           <>
-            {!isLoggedIn && (
+            {/* !isLoggedIn && (
               <div style={{ padding: '2px 24px 6px', fontSize: 11, color: theme.subText, lineHeight: '16px' }}>
                 <Link to="/login" style={{ color: theme.linkColor, fontWeight: 600, textDecoration: 'none' }}>Sign in</Link>
                 {' '}to sync files to the cloud.
               </div>
-            )}
+            ) */}
             {loading ? (
               <div style={{ padding: '0 8px' }}>
                 <FileRowSkeleton theme={theme} count={3} />

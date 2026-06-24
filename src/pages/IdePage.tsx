@@ -396,9 +396,8 @@ export default function IdePage() {
       const idx = prev.findIndex(t => t.id === tabId);
       if (idx === -1) return prev;
       if (prev.length === 1) {
-        const newId = String(Date.now());
-        setActiveTabId(newId);
-        return [{ id: newId, name: 'file1.asm', code: '', isDirty: false }];
+        setActiveTabId('');
+        return [];
       }
       const next = prev[idx === 0 ? 1 : idx - 1];
       if (activeTabId === tabId) setActiveTabId(next.id);
@@ -1081,7 +1080,20 @@ export default function IdePage() {
           {/* Editor + console column */}
           <div className="editor-column" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ height: `${editorHeightPct}%`, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} />
+              {tabs.length === 0 ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: theme.subText }}>
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.35 }}>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                  <div style={{ fontSize: 13, opacity: 0.6 }}>No file open</div>
+                  <div style={{ fontSize: 12, opacity: 0.45, textAlign: 'center', lineHeight: '18px' }}>
+                    Create a new file or open one<br />from the Files panel
+                  </div>
+                </div>
+              ) : (
+                <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} />
+              )}
             </div>
 
             {vDragHandle}
