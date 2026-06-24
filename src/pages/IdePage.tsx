@@ -76,7 +76,7 @@ function writeLocalState(tabs: CodeTab[], activeTabId: string) {
 
 // ---------------------------------------------------------------------------
 export default function IdePage() {
-  const { theme } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
   const ready = usePageReady();
 
   // Read once — two separate readLocalState() calls would generate divergent
@@ -121,6 +121,9 @@ export default function IdePage() {
   const [fontSize, setFontSize] = useState<number>(() => {
     try { const v = localStorage.getItem('editor_font_size'); return v ? Math.max(10, Math.min(24, Number(v))) : 15; } catch { return 15; }
   });
+  const [tabSize, setTabSize] = useState<2 | 4>(() => {
+    try { const v = localStorage.getItem('editor_tab_size'); return v === '2' ? 2 : 4; } catch { return 4; }
+  });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -158,6 +161,7 @@ export default function IdePage() {
   useEffect(() => { try { localStorage.setItem('sidebar_width',      String(sidebarWidth));      } catch {} }, [sidebarWidth]);
   useEffect(() => { try { localStorage.setItem('sidebar_panel',      activeSidebarPanel);        } catch {} }, [activeSidebarPanel]);
   useEffect(() => { try { localStorage.setItem('editor_font_size',   String(fontSize));           } catch {} }, [fontSize]);
+  useEffect(() => { try { localStorage.setItem('editor_tab_size',    String(tabSize));            } catch {} }, [tabSize]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -681,11 +685,10 @@ export default function IdePage() {
               </button>
             </div>
 
-            {/* Nav + theme */}
+            {/* Nav */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <div style={{ width: 1, height: 20, backgroundColor: theme.border }} />
               <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
-              <ThemeSwitch />
             </div>
           </div>
 
@@ -975,10 +978,29 @@ export default function IdePage() {
                     zIndex: 100,
                   }}
                 >
-                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 8, textTransform: 'uppercase' }}>
-                    Editor Font Size
+                  {/* Theme */}
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Theme</div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                    {(['dark', 'light'] as const).map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => { if ((t === 'dark') !== isDark) toggleTheme(); }}
+                        style={{
+                          flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          border: `1px solid ${(t === 'dark') === isDark ? '#2563eb' : theme.border}`,
+                          backgroundColor: (t === 'dark') === isDark ? '#2563eb22' : 'transparent',
+                          color: (t === 'dark') === isDark ? '#2563eb' : theme.subText,
+                        }}
+                      >
+                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                      </button>
+                    ))}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+                  {/* Font size */}
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Font Size</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <button
                       type="button"
                       onClick={() => setFontSize(s => Math.max(10, s - 1))}
@@ -1000,10 +1022,30 @@ export default function IdePage() {
                   <button
                     type="button"
                     onClick={() => setFontSize(15)}
-                    style={{ marginTop: 8, width: '100%', padding: '4px 0', borderRadius: 6, border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.subText, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                    style={{ width: '100%', padding: '4px 0', borderRadius: 6, border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.subText, cursor: 'pointer', fontSize: 11, fontWeight: 600, marginBottom: 14 }}
                   >
                     Reset to default
                   </button>
+
+                  {/* Tab size */}
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Tab Size</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {([2, 4] as const).map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setTabSize(t)}
+                        style={{
+                          flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          border: `1px solid ${tabSize === t ? '#2563eb' : theme.border}`,
+                          backgroundColor: tabSize === t ? '#2563eb22' : 'transparent',
+                          color: tabSize === t ? '#2563eb' : theme.subText,
+                        }}
+                      >
+                        {t} spaces
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
               <button
@@ -1054,7 +1096,7 @@ export default function IdePage() {
                   </div>
                 </div>
               ) : (
-                <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} fontSize={fontSize} />
+                <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} fontSize={fontSize} tabSize={tabSize} />
               )}
             </div>
 
@@ -1070,7 +1112,7 @@ export default function IdePage() {
         /* Mobile single-panel */
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {mobileView === 'editor' && (
-            <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onAssemble={handleAssemble} fontSize={fontSize} />
+            <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onAssemble={handleAssemble} fontSize={fontSize} tabSize={tabSize} />
           )}
           {mobileView === 'console' && (
             <ConsolePanel

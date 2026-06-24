@@ -21,6 +21,7 @@ interface CodeEditorProps {
   onAssemble?: () => void;
   onToggleSidebar?: () => void;
   fontSize?: number;
+  tabSize?: number;
 }
 
 export function CodeEditor({
@@ -34,6 +35,7 @@ export function CodeEditor({
   onAssemble,
   onToggleSidebar,
   fontSize = 15,
+  tabSize = 4,
 }: CodeEditorProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
@@ -139,6 +141,10 @@ export function CodeEditor({
     editorRef.current?.updateOptions({ fontSize, lineHeight: Math.round(fontSize * 1.5) });
   }, [fontSize]);
 
+  useEffect(() => {
+    editorRef.current?.updateOptions({ tabSize });
+  }, [tabSize]);
+
   return (
     <div style={{
       flex: 1,
@@ -179,7 +185,7 @@ export function CodeEditor({
             lineDecorationsWidth: 12,
             folding: false,
             renderLineHighlight: 'none',
-            tabSize: 4,
+            tabSize,
             insertSpaces: true,
             wordWrap: 'off',
             padding: { top: 12, bottom: 12 },
