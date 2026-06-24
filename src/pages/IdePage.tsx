@@ -547,11 +547,6 @@ export default function IdePage() {
   } as const;
 
   // File toolbar: Save + import/export
-  const fileActions: { label: string; onPress: () => void; title: string }[] = [
-    { label: 'Save',   onPress: handleSaveLocal, title: 'Save (Ctrl+S)' },
-    { label: 'Import', onPress: handleUpload,   title: 'Import a file from disk' },
-    { label: 'Export', onPress: handleDownload, title: 'Export the active file' },
-  ];
 
   const vDragHandle = (
     <div
@@ -672,39 +667,6 @@ export default function IdePage() {
               >
                 +
               </button>
-            </div>
-
-            {/* File actions: Save / Import / Export */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-              <div style={{ width: 1, height: 20, backgroundColor: theme.border, marginRight: 4 }} />
-              {fileActions.map(a => (
-                <button
-                  key={a.label}
-                  type="button"
-                  onClick={a.onPress}
-                  title={a.title}
-                  aria-label={a.label}
-                  className="ide-action-btn"
-                  style={{
-                    background: 'none',
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: 6,
-                    color: theme.text,
-                    cursor: 'pointer',
-                    padding: '3px 10px',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    whiteSpace: 'nowrap',
-                    height: 28,
-                  }}
-                >
-                  <ActionIcon name={a.label} size={13} />
-                  <span>{a.label}</span>
-                </button>
-              ))}
             </div>
 
             {/* Nav + theme */}
@@ -857,7 +819,6 @@ export default function IdePage() {
               { label: 'Step Back', onPress: handleStepBack,  disabled: !canStepBack },
               { label: 'Step',      onPress: handleStep,      disabled: isTerminated },
               { label: 'Reset',     onPress: handleReset,     disabled: false },
-              { label: 'Save',      onPress: handleSaveLocal, disabled: false },
             ].map(a => {
               const isBlue = isAssembled
                 ? (['Run', 'Continue', 'Step Back', 'Step'].includes(a.label))
