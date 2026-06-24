@@ -86,11 +86,13 @@ export default function HomePage() {
         <span style={{ color: theme.text, fontWeight: 800, fontSize: 20 }}><Logo size={24} /></span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           <Link to="/docs" className="home-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Docs</Link>
+          {/* TEMP: login disabled
           {isLoggedIn ? (
             <button type="button" onClick={handleLogout} className="home-nav-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: theme.subText, fontSize: 14, fontWeight: 500, fontFamily: 'inherit' }}>Sign out</button>
           ) : (
             <Link to="/login" className="home-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Sign in</Link>
           )}
+          */}
           <Link to="/ide" className="home-nav-btn" style={{
             backgroundColor: '#2563eb',
             color: '#fff',
@@ -471,6 +473,71 @@ export default function HomePage() {
         </Link>
       </section>
 
+      {/* About / Team */}
+      <section style={{
+        maxWidth: 880,
+        margin: '0 auto',
+        padding: '72px 24px 96px',
+        borderTop: `1px solid ${theme.border}`,
+      }}>
+        <h2 style={{ color: theme.text, fontSize: 28, fontWeight: 700, marginBottom: 16, textAlign: 'center' }}>
+          About the team
+        </h2>
+        <p style={{ color: theme.subText, fontSize: 16, lineHeight: 1.7, maxWidth: 680, margin: '0 auto 40px', textAlign: 'center' }}>
+          We built WIMPS to make learning MIPS assembly both accessible and approachable. Most simulators are
+          desktop-only, inconvenient to install, and discouraging to use for students taking their first
+          computer-architecture course. WIMPS runs entirely in the browser, with write, assemble,
+          and step through code with live registers, memory, and a bitmap display, no setup required.
+        </p>
+        <p style={{ color: theme.subText, fontSize: 16, lineHeight: 1.7, maxWidth: 680, margin: '0 auto 40px', textAlign: 'center' }}>
+
+          Our focus is on meeting needs without being overwhelming,
+          and giving students a truly convenient experience in a world of forced signups and borderline bloatware.
+        </p>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 16,
+          marginBottom: 40,
+        }}>
+          {[
+            { name: 'Dashell Finn', role: '' },
+            { name: 'Tarran Thomas', role: '' },
+            { name: 'Matthew Wang', role: '' },
+          ].map((member, i) => (
+            <div key={i} style={{
+              border: `1px solid ${theme.border}`,
+              borderRadius: 12,
+              padding: '18px 20px',
+              backgroundColor: theme.card,
+            }}>
+              <div style={{ color: theme.text, fontSize: 16, fontWeight: 700 }}>{member.name}</div>
+              <div style={{ color: theme.subText, fontSize: 14, marginTop: 4 }}>{member.role}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <p style={{ color: theme.subText, fontSize: 14 }}>
+            Faculty advisor: <span style={{ color: theme.text, fontWeight: 600 }}>Professor Dominic Dabish</span>
+          </p>
+          <p style={{ color: theme.subText, fontSize: 14 }}>
+            Built on the{' '}
+            <a
+              href="https://github.com/specy/mips"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="home-nav-link"
+              style={{ color: theme.linkColor, textDecoration: 'none', fontWeight: 600 }}
+            >
+              @specy/mips
+            </a>{' '}
+            library — a MARS-compatible MIPS simulator that powers assembly and execution under the hood.
+          </p>
+        </div>
+      </section>
+
       </main>
 
       <footer style={{
@@ -485,6 +552,7 @@ export default function HomePage() {
         <span style={{ color: theme.subText, fontSize: 13 }}>WIMPS · Web Interactive MIPS Playground & Simulator</span>
         <div style={{ display: 'flex', gap: 20 }}>
           <Link to="/docs" className="home-link-muted" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13 }}>Docs</Link>
+          {/* TEMP: login disabled per advisor (data privacy) — re-enable later
           {isLoggedIn ? (
             <button type="button" onClick={handleLogout} className="home-link-muted" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: theme.subText, fontSize: 13, fontFamily: 'inherit' }}>Sign out</button>
           ) : (
@@ -493,6 +561,7 @@ export default function HomePage() {
           {!isLoggedIn && (
             <Link to="/register" className="home-link-muted" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13 }}>Register</Link>
           )}
+          */}
         </div>
       </footer>
     </div>

@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Logo } from '../components/Logo';
 import { DocsSkeleton } from '../components/PageSkeletons';
 import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
-import { Logo } from '../components/Logo';
 import { clearAuthToken, getAuthToken } from '../helpers/authStorage';
+import { DIRECTIVES, INSTRUCTIONS, REGISTERS, SYSCALLS } from '../helpers/mipsSyntax';
 import type { Theme } from '../theme/themes';
-import { INSTRUCTIONS, SYSCALLS, REGISTERS, DIRECTIVES } from '../helpers/mipsSyntax';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -238,11 +238,13 @@ export default function DocsPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <ThemeSwitch />
           <Link to="/ide" className="ide-sign-out" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '6px 14px', border: `1px solid ${theme.border}`, borderRadius: 8 }}>IDE</Link>
+          {/* TEMP: login disabled
           {isLoggedIn ? (
             <button type="button" onClick={handleLogout} className="ide-sign-out" style={{ backgroundColor: theme.card, color: theme.text, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>Sign out</button>
           ) : (
             <Link to="/login" className="ide-sign-in" style={{ backgroundColor: '#2563eb', color: '#fff', textDecoration: 'none', padding: '6px 14px', borderRadius: 8, fontSize: 14, fontWeight: 600 }}>Sign in</Link>
           )}
+          */}
         </div>
       </nav>
 

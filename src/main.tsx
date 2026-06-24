@@ -6,8 +6,8 @@ import './global.css';
 import DocsPage from './pages/DocsPage';
 import HomePage from './pages/HomePage';
 import IdePage from './pages/IdePage';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
+// import LoginPage from './pages/LoginPage';
+// import RegisterPage from './pages/RegisterPage';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -15,8 +15,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <BrowserRouter basename="/">
         <Routes>
           <Route path="/" element={<HomePage />} />
+          {/* TEMP: login disabled
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          */}
           <Route path="/docs" element={<DocsPage />} />
           <Route path="/ide" element={<IdePage />} />
         </Routes>

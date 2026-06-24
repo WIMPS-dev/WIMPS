@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ActionIcon } from '../components/ActionIcons';
 import { BitmapDisplay } from '../components/BitmapDisplay';
 import { CodeEditor } from '../components/CodeEditor';
 import { InstructionStats } from '../components/InstructionStats';
@@ -7,12 +8,12 @@ import { Logo } from '../components/Logo';
 import { MemoryView } from '../components/MemoryView';
 import { FileRowSkeleton, IdeSkeleton } from '../components/PageSkeletons';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
+import { SaveStatus } from '../components/SaveStatus';
 import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getApiHeaders, getAuthToken, uniquifyName } from '../helpers/authStorage';
 import { useAutosave } from '../hooks/useAutosave';
-import { SaveStatus } from '../components/SaveStatus';
 import type { InstrStats } from '../simulator/useMips';
 import { assemble, continueSim, feedInput, getInstructionStats, getMemoryRange, getState, resetSim, runSim, stepBackSim, stepSim } from '../simulator/useMips';
 
@@ -289,7 +290,9 @@ export default function IdePage() {
   const [isTerminated, setIsTerminated] = useState(false);
   const [errorLines, setErrorLines] = useState<{ line: number; message: string }[]>([]);
   const [showHex, setShowHex] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(() => !!getAuthToken());
+  // TEMP: login disabled
+  // useState(() => !!getAuthToken())`
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
   const [closedFileNames, setClosedFileNames] = useState<Set<string>>(new Set());
   const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
@@ -382,6 +385,8 @@ export default function IdePage() {
   // Load tabs from server on mount (logged-in users only).
   // Always apply the server response — never let stale localStorage bleed through.
   useEffect(() => {
+    // TEMP: login disabled
+    /*
     const token = getAuthToken();
     if (!token) return;
     fetch(`${API_BASE}/auth/tabs`, { headers: getApiHeaders(token) })
@@ -402,6 +407,7 @@ export default function IdePage() {
         }
       })
       .catch(() => {});
+    */
   }, []);
 
   // Auto-persist to localStorage whenever tabs or active tab change
@@ -755,6 +761,11 @@ export default function IdePage() {
     { label: 'Save', symbol: '💾', onPress: isLoggedIn ? () => { flushNow(); } : handleSaveLocal },
   ];
 
+  const ioActions: { label: string; symbol: string; onPress: () => void }[] = [
+    { label: 'Import', symbol: '↑', onPress: handleUpload },
+    { label: 'Export', symbol: '↓', onPress: handleDownload },
+  ];
+
   const hDragHandle = (
     <div
       onMouseDown={startHDrag}
@@ -909,22 +920,55 @@ export default function IdePage() {
                       color: isBlue ? '#fff' : theme.text,
                       cursor: isDisabled ? 'not-allowed' : 'pointer',
                       opacity: isDisabled ? 0.35 : 1,
-                      width: 28,
                       height: 26,
-                      fontSize: 14,
+                      padding: '0 8px',
+                      fontSize: 12,
+                      fontWeight: 600,
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      gap: 5,
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    {a.symbol ?? a.label}
+                    <ActionIcon name={a.label} size={14} />
+                    <span style={{ lineHeight: 1 }}>{a.label}</span>
                   </button>
                 );
               })}
+
+              <div style={{ width: 1, height: 18, backgroundColor: theme.border, flexShrink: 0, margin: '0 3px' }} />
+
+              {ioActions.map(a => (
+                <button
+                  key={a.label}
+                  type="button"
+                  onClick={a.onPress}
+                  title={a.label === 'Import' ? 'Import a file from disk' : 'Export the active file'}
+                  aria-label={a.label}
+                  className="ide-action-btn"
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderRadius: 5,
+                    color: theme.text,
+                    cursor: 'pointer',
+                    height: 26,
+                    padding: '0 8px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <ActionIcon name={a.label} size={14} />
+                  <span style={{ lineHeight: 1 }}>{a.label}</span>
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Right controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <SaveStatus status={saveStatus} guestStatus={guestSaveStatus} lastSavedAt={isLoggedIn ? lastSavedAt : guestSavedAt} isLoggedIn={isLoggedIn} onRetry={() => flushNow()} />
             <ThemeSwitch />
@@ -937,11 +981,13 @@ export default function IdePage() {
             >
               Files
             </button>
+            {/* TEMP: login disabled
             {isLoggedIn ? (
               <button type="button" onClick={handleLogout} className="ide-sign-out" style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.text, cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}>Sign out</button>
             ) : (
               <Link to="/login" className="ide-sign-in" style={{ backgroundColor: '#2563eb', color: '#fff', textDecoration: 'none', padding: '5px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>Sign in</Link>
             )}
+            */}
           </div>
         </div>
       ) : (
@@ -971,11 +1017,13 @@ export default function IdePage() {
             >
               Files
             </button>
+            {/* TEMP: login disabled
             {isLoggedIn ? (
               <button type="button" onClick={handleLogout} className="ide-sign-out" style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.text, cursor: 'pointer', padding: '6px 12px', fontSize: 14 }}>Sign out</button>
             ) : (
               <Link to="/login" className="ide-sign-in" style={{ backgroundColor: '#2563eb', color: '#fff', textDecoration: 'none', padding: '7px 14px', borderRadius: 6, fontSize: 14, fontWeight: 600 }}>Sign in</Link>
             )}
+            */}
           </div>
 
           {/* Row 2: scrollable action buttons */}
@@ -1026,11 +1074,42 @@ export default function IdePage() {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  <span style={{ fontSize: 16 }}>{a.symbol}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>{a.label}</span>
+                  <ActionIcon name={a.label} size={16} />
+                  <span style={{ fontSize: 11, fontWeight: 600, lineHeight: 1 }}>{a.label}</span>
                 </button>
               );
             })}
+
+            {ioActions.map(a => (
+              <button
+                key={a.label}
+                type="button"
+                onClick={a.onPress}
+                title={a.label}
+                aria-label={a.label}
+                className="ide-action-btn"
+                style={{
+                  backgroundColor: theme.card,
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: 8,
+                  color: theme.text,
+                  cursor: 'pointer',
+                  minWidth: 44,
+                  height: 36,
+                  fontSize: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  gap: 4,
+                  padding: '0 10px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <ActionIcon name={a.label} size={16} />
+                <span style={{ fontSize: 11, fontWeight: 600, lineHeight: 1 }}>{a.label}</span>
+              </button>
+            ))}
           </div>
         </>
       )}
@@ -1366,15 +1445,15 @@ function FilesDrawer({ open, onClose, theme, isLoggedIn, tabs, setTabs, activeTa
             onClick={onUpload}
             title="Import file from disk"
             aria-label="Import file from disk"
-            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, cursor: 'pointer', color: theme.subText, width: 30, height: 28, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-          >↑</button>
+            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, cursor: 'pointer', color: theme.subText, height: 28, padding: '0 8px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
+          >↑ Import</button>
           <button
             type="button"
             onClick={onDownload}
             title="Download active file"
             aria-label="Download active file"
-            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, cursor: 'pointer', color: theme.subText, width: 30, height: 28, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-          >↓</button>
+            style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, cursor: 'pointer', color: theme.subText, height: 28, padding: '0 8px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
+          >↓ Export</button>
           <div style={{ width: 1, height: 16, backgroundColor: theme.border, flexShrink: 0, margin: '0 2px' }} />
           <button
             type="button"
