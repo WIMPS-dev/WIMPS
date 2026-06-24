@@ -9,13 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@specy/mips": "^1.2.8",
     "expo": "^56.0.8",
     "js-cookie": "^3.0.5",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "react-router-dom": "^7.0.0",
-    "react-simple-code-editor": "^0.14.1"
+    "react-router-dom": "^7.0.0"
   },
   "devDependencies": {
     "@types/js-cookie": "^3.0.6",

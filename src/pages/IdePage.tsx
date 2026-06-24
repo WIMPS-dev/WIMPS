@@ -240,11 +240,16 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
     const raw = localStorage.getItem('saved_tabs');
     const parsed = raw ? JSON.parse(raw) : null;
     if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
-      return { tabs: parsed.tabs.map(normalizeTab), activeTabId: parsed.activeTabId ?? parsed.tabs[0].id };
+      const tabs: CodeTab[] = parsed.tabs.map(normalizeTab);
+      // activeTabId must reference a real (post-normalize) tab id, otherwise
+      // activeCode never matches and the editor desyncs from React state.
+      const activeTabId = tabs.some(t => t.id === parsed.activeTabId) ? parsed.activeTabId : tabs[0].id;
+      return { tabs, activeTabId };
     }
     // legacy: plain array
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return { tabs: parsed.map(normalizeTab), activeTabId: parsed[0].id };
+      const tabs = parsed.map(normalizeTab);
+      return { tabs, activeTabId: tabs[0].id };
     }
   } catch {}
   return { tabs: DEFAULT_TABS, activeTabId: '1' };
@@ -274,8 +279,11 @@ export default function IdePage() {
   const { theme } = useTheme();
   const ready = usePageReady();
 
-  const [tabs, setTabs] = useState<CodeTab[]>(() => readLocalState().tabs);
-  const [activeTabId, setActiveTabId] = useState<string>(() => readLocalState().activeTabId);
+  // Read once — two separate readLocalState() calls would generate divergent
+  // random ids for any tab missing one, desyncing tabs[0].id from activeTabId.
+  const [initialState] = useState(readLocalState);
+  const [tabs, setTabs] = useState<CodeTab[]>(initialState.tabs);
+  const [activeTabId, setActiveTabId] = useState<string>(initialState.activeTabId);
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editTabName, setEditTabName] = useState('');
 
@@ -300,6 +308,10 @@ export default function IdePage() {
   const [rightTab, setRightTab] = useState<RightTab>('registers');
   const [instrStats, setInstrStats] = useState<InstrStats | null>(null);
   const [simTick, setSimTick] = useState(0);
+
+  const prevRegistersRef = useRef<RegisterValue[]>([]);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [changedRegisters, setChangedRegisters] = useState<Set<string>>(new Set());
 
   // Desktop layout percentages
   const [leftPct, setLeftPct] = useState(75);
@@ -334,6 +346,7 @@ export default function IdePage() {
   useEffect(() => () => {
     if (guestSavedTimerRef.current !== null) clearTimeout(guestSavedTimerRef.current);
     if (guestDebounceRef.current !== null) clearTimeout(guestDebounceRef.current);
+    if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current);
   }, []);
 
   const markGuestSaved = useCallback(() => {
@@ -434,7 +447,18 @@ export default function IdePage() {
   }, [isLoggedIn, flushNow, guestFlushNow]);
 
   const applyState = (state: ReturnType<typeof getState>) => {
-    setRegisters(state.registers);
+    const prev = prevRegistersRef.current;
+    const next = state.registers;
+    if (prev.length > 0) {
+      const changed = new Set(
+        next.filter((r, i) => prev[i]?.hexValue !== r.hexValue).map(r => r.name)
+      );
+      setChangedRegisters(changed);
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = setTimeout(() => setChangedRegisters(new Set()), 800);
+    }
+    prevRegistersRef.current = next;
+    setRegisters(next);
     setOutput(state.output);
     setActiveLine(state.lineNumber);
     setIsWaiting(state.isWaiting);
@@ -449,6 +473,8 @@ export default function IdePage() {
     resetSim();
     setActiveLine(null);
     setIsWaiting(false);
+    setChangedRegisters(new Set());
+    prevRegistersRef.current = [];
     const result = assemble(activeCode);
     if (!result.ok) {
       setOutput(`Assembly failed:\n${result.error}`);
@@ -458,6 +484,7 @@ export default function IdePage() {
       setIsAssembled(true);
       setErrorLines([]);
       applyState(getState());
+      setActiveLine(null);
     }
   };
 
@@ -484,6 +511,9 @@ export default function IdePage() {
   const handleReset = () => {
     resetSim();
     setRegisters(buildInitialRegisters());
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    setChangedRegisters(new Set());
+    prevRegistersRef.current = [];
     setOutput('');
     setMemoryData([]);
     setActiveLine(null);
@@ -751,19 +781,35 @@ export default function IdePage() {
   // ---------------------------------------------------------------------------
   // Editor actions
   // ---------------------------------------------------------------------------
-  const actions: { label: string; symbol: string; onPress: () => void; disabled?: boolean }[] = [
-    { label: 'Assemble',  symbol: '⚙',  onPress: handleAssemble },
-    { label: 'Run',       symbol: '▶',  onPress: handleRun },
-    { label: 'Continue',  symbol: '⏭', onPress: handleContinue },
-    { label: 'Step Back', symbol: '←',  onPress: handleStepBack, disabled: !canStepBack },
-    { label: 'Step',      symbol: '→',  onPress: handleStep },
-    { label: 'Reset',     symbol: '↺',  onPress: handleReset },
-    { label: 'Save', symbol: '💾', onPress: isLoggedIn ? () => { flushNow(); } : handleSaveLocal },
+  // Debug toolbar: Assemble + step controls. Assemble always enabled; rest require isAssembled.
+  const debugActions: { label: string; onPress: () => void; enabled: boolean; title: string }[] = [
+    { label: 'Run',       onPress: handleRun,       enabled: isAssembled && !isTerminated,               title: 'Run (F5)' },
+    { label: 'Continue',  onPress: handleContinue,  enabled: isAssembled && !isTerminated,               title: 'Continue (F8)' },
+    { label: 'Step Back', onPress: handleStepBack,  enabled: isAssembled && canStepBack,                 title: 'Step Back (F9)' },
+    { label: 'Step',      onPress: handleStep,      enabled: isAssembled && !isTerminated,               title: 'Step (F10)' },
+    { label: 'Reset',     onPress: handleReset,     enabled: isAssembled,                                title: 'Reset (Escape)' },
   ];
 
-  const ioActions: { label: string; symbol: string; onPress: () => void }[] = [
-    { label: 'Import', symbol: '↑', onPress: handleUpload },
-    { label: 'Export', symbol: '↓', onPress: handleDownload },
+  const simStatus =
+    errorLines.length > 0 ? 'error'     as const
+    : !isAssembled        ? 'idle'      as const
+    : isTerminated        ? 'done'      as const
+    : activeLine !== null ? 'stepping'  as const
+    :                       'assembled' as const;
+
+  const STATUS_CONFIG = {
+    idle:      { label: '● Not assembled',                   color: '#f59e0b', bg: '#78350f22', border: '#92400e' },
+    assembled: { label: '✓ Assembled',                       color: '#6ee7b7', bg: '#06574422', border: '#065f46' },
+    stepping:  { label: '▶ Stepping',                        color: '#7dd3fc', bg: '#0c4a6e22', border: '#0c4a6e' },
+    done:      { label: '◼ Done',                            color: '#94a3b8', bg: '#1e29381a', border: '#334155' },
+    error:     { label: `✕ Error (${errorLines.length})`,    color: '#f87171', bg: '#7f1d1d22', border: '#7f1d1d' },
+  } as const;
+
+  // File toolbar: Save + import/export
+  const fileActions: { label: string; onPress: () => void; title: string }[] = [
+    { label: 'Save',   onPress: isLoggedIn ? () => { flushNow(); } : handleSaveLocal, title: 'Save (Ctrl+S)' },
+    { label: 'Import', onPress: handleUpload,   title: 'Import a file from disk' },
+    { label: 'Export', onPress: handleDownload, title: 'Export the active file' },
   ];
 
   const hDragHandle = (
@@ -799,32 +845,33 @@ export default function IdePage() {
     } as React.CSSProperties}>
       {/* Top bar */}
       {wide ? (
-        /* ── Desktop top bar ── */
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          height: 48,
-          borderBottom: `1px solid ${theme.border}`,
-          backgroundColor: theme.card,
-          flexShrink: 0,
-          gap: 8,
-          padding: '0 12px',
-          overflow: 'hidden',
-        }}>
-          {/* Logo */}
-          <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 16, flexShrink: 0, marginRight: 4 }}><Logo size={20} /></Link>
+        /* ── Desktop: file toolbar + debug toolbar ── */
+        <>
+          {/* Row 1 — file toolbar: logo, tabs, file ops, nav */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            height: 44,
+            borderBottom: `1px solid ${theme.border}`,
+            backgroundColor: theme.card,
+            flexShrink: 0,
+            gap: 8,
+            padding: '0 12px',
+            overflow: 'hidden',
+          }}>
+            {/* Logo */}
+            <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 16, flexShrink: 0, marginRight: 4 }}><Logo size={20} /></Link>
 
-          {/* Tabs — scrollable, capped width */}
-          <div style={{ display: 'flex', flex: 1, minWidth: 0, alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-            <div
-              className="tab-scroll"
-              role="tablist"
-              aria-label="Editor files"
-              style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}
-            >
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: 'max-content', height: 36 }}>
-                {tabs.map(tab => {
-                  return (
+            {/* Tabs */}
+            <div style={{ display: 'flex', flex: 1, minWidth: 0, alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+              <div
+                className="tab-scroll"
+                role="tablist"
+                aria-label="Editor files"
+                style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}
+              >
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: 'max-content', height: 36 }}>
+                  {tabs.map(tab => (
                     <div
                       key={tab.id}
                       role="tab"
@@ -878,118 +925,162 @@ export default function IdePage() {
                         </button>
                       )}
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
+
+              {/* New tab */}
+              <button
+                type="button"
+                onClick={addTab}
+                aria-label="New tab"
+                className="ide-new-tab"
+                style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', width: 28, height: 28, fontSize: 18, flexShrink: 0 }}
+              >
+                +
+              </button>
             </div>
 
-            {/* New tab */}
-            <button
-              type="button"
-              onClick={addTab}
-              aria-label="New tab"
-              className="ide-new-tab"
-              style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', width: 28, height: 28, fontSize: 18, flexShrink: 0 }}
-            >
-              +
-            </button>
-
-            {/* Divider */}
-            <div style={{ width: 1, height: 20, backgroundColor: theme.border, flexShrink: 0 }} />
-
-            {/* Action buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0, backgroundColor: theme.bg, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0 6px', height: 34 }}>
-              {actions.map(a => {
-                const isBlue = (isAssembled && !isTerminated)
-                  ? (['Run', 'Continue', 'Step Back', 'Step'].includes(a.label))
-                  : a.label === 'Assemble';
-                const isDisabled = Boolean(a.disabled);
-                return (
-                  <button
-                    key={a.label}
-                    type="button"
-                    onClick={isDisabled ? undefined : a.onPress}
-                    title={a.label}
-                    aria-label={a.label}
-                    disabled={isDisabled}
-                    className={`ide-action-btn${isBlue ? ' ide-active' : ''}`}
-                    style={{
-                      backgroundColor: isBlue ? '#2563eb' : 'transparent',
-                      border: 'none',
-                      borderRadius: 5,
-                      color: isBlue ? '#fff' : theme.text,
-                      cursor: isDisabled ? 'not-allowed' : 'pointer',
-                      opacity: isDisabled ? 0.35 : 1,
-                      height: 26,
-                      padding: '0 8px',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    <ActionIcon name={a.label} size={14} />
-                    <span style={{ lineHeight: 1 }}>{a.label}</span>
-                  </button>
-                );
-              })}
-
-              <div style={{ width: 1, height: 18, backgroundColor: theme.border, flexShrink: 0, margin: '0 3px' }} />
-
-              {ioActions.map(a => (
+            {/* File actions: Save / Import / Export */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+              <div style={{ width: 1, height: 20, backgroundColor: theme.border, marginRight: 4 }} />
+              {fileActions.map(a => (
                 <button
                   key={a.label}
                   type="button"
                   onClick={a.onPress}
-                  title={a.label === 'Import' ? 'Import a file from disk' : 'Export the active file'}
+                  title={a.title}
                   aria-label={a.label}
                   className="ide-action-btn"
                   style={{
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    borderRadius: 5,
+                    background: 'none',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 6,
                     color: theme.text,
                     cursor: 'pointer',
-                    height: 26,
-                    padding: '0 8px',
+                    padding: '3px 10px',
                     fontSize: 12,
                     fontWeight: 600,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 5,
+                    gap: 4,
                     whiteSpace: 'nowrap',
+                    height: 28,
                   }}
                 >
-                  <ActionIcon name={a.label} size={14} />
-                  <span style={{ lineHeight: 1 }}>{a.label}</span>
+                  <ActionIcon name={a.label} size={13} />
+                  <span>{a.label}</span>
                 </button>
               ))}
             </div>
+
+            {/* Nav + save status + theme */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <div style={{ width: 1, height: 20, backgroundColor: theme.border }} />
+              <SaveStatus status={saveStatus} guestStatus={guestSaveStatus} lastSavedAt={isLoggedIn ? lastSavedAt : guestSavedAt} isLoggedIn={isLoggedIn} onRetry={() => flushNow()} />
+              <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
+              <button
+                type="button"
+                onClick={() => setFilesDrawerOpen(true)}
+                title="Files"
+                style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', padding: '4px 10px', fontSize: 13, fontWeight: 500 }}
+              >
+                Files
+              </button>
+              <ThemeSwitch />
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <SaveStatus status={saveStatus} guestStatus={guestSaveStatus} lastSavedAt={isLoggedIn ? lastSavedAt : guestSavedAt} isLoggedIn={isLoggedIn} onRetry={() => flushNow()} />
-            <ThemeSwitch />
-            <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
+          {/* Row 2 — debug toolbar: Assemble + step controls + status pill placeholder */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            height: 40,
+            borderBottom: `1px solid ${theme.border}`,
+            backgroundColor: theme.bg,
+            flexShrink: 0,
+            padding: '0 12px',
+            gap: 6,
+          }}>
+            {/* Assemble — always enabled, always blue */}
             <button
               type="button"
-              onClick={() => setFilesDrawerOpen(true)}
-              title="Files"
-              style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', padding: '4px 10px', fontSize: 13, fontWeight: 500 }}
+              onClick={handleAssemble}
+              title="Assemble (Ctrl+Enter)"
+              aria-label="Assemble"
+              className="ide-action-btn ide-active"
+              style={{
+                backgroundColor: '#2563eb',
+                border: 'none',
+                borderRadius: 6,
+                color: '#fff',
+                cursor: 'pointer',
+                height: 28,
+                padding: '0 12px',
+                fontSize: 12,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                whiteSpace: 'nowrap',
+              }}
             >
-              Files
+              <ActionIcon name="Assemble" size={13} />
+              <span>Assemble</span>
             </button>
-            {/* TEMP: login disabled
-            {isLoggedIn ? (
-              <button type="button" onClick={handleLogout} className="ide-sign-out" style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.text, cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}>Sign out</button>
-            ) : (
-              <Link to="/login" className="ide-sign-in" style={{ backgroundColor: '#2563eb', color: '#fff', textDecoration: 'none', padding: '5px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>Sign in</Link>
-            )}
-            */}
+
+            <div style={{ width: 1, height: 20, backgroundColor: theme.border, flexShrink: 0 }} />
+
+            {/* Step controls — dimmed until assembled */}
+            {debugActions.map(a => (
+              <button
+                key={a.label}
+                type="button"
+                onClick={a.enabled ? a.onPress : undefined}
+                title={a.title}
+                aria-label={a.label}
+                aria-disabled={!a.enabled}
+                className="ide-action-btn"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  borderRadius: 5,
+                  color: theme.text,
+                  cursor: a.enabled ? 'pointer' : 'not-allowed',
+                  opacity: a.enabled ? 1 : 0.35,
+                  height: 28,
+                  padding: '0 8px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  whiteSpace: 'nowrap',
+                  transition: 'opacity 0.15s',
+                }}
+              >
+                <ActionIcon name={a.label} size={13} />
+                <span>{a.label}</span>
+              </button>
+            ))}
+
+            <div style={{ flex: 1 }} />
+            {/* Status pill */}
+            <div
+              className="sim-status-pill"
+              role="status"
+              aria-live="polite"
+              style={{
+                color: STATUS_CONFIG[simStatus].color,
+                backgroundColor: STATUS_CONFIG[simStatus].bg,
+                borderColor: STATUS_CONFIG[simStatus].border,
+              }}
+            >
+              {STATUS_CONFIG[simStatus].label}
+            </div>
           </div>
-        </div>
+        </>
+
       ) : (
         /* ── Mobile top bar: nav row + action row ── */
         <>
@@ -1041,7 +1132,15 @@ export default function IdePage() {
               gap: 6,
             }}
           >
-            {actions.map(a => {
+            {[
+              { label: 'Assemble',  onPress: handleAssemble,  disabled: false },
+              { label: 'Run',       onPress: handleRun,       disabled: isTerminated },
+              { label: 'Continue',  onPress: handleContinue,  disabled: isTerminated },
+              { label: 'Step Back', onPress: handleStepBack,  disabled: !canStepBack },
+              { label: 'Step',      onPress: handleStep,      disabled: isTerminated },
+              { label: 'Reset',     onPress: handleReset,     disabled: false },
+              { label: 'Save',      onPress: isLoggedIn ? () => { flushNow(); } : handleSaveLocal, disabled: false },
+            ].map(a => {
               const isBlue = isAssembled
                 ? (['Run', 'Continue', 'Step Back', 'Step'].includes(a.label))
                 : a.label === 'Assemble';
@@ -1080,7 +1179,10 @@ export default function IdePage() {
               );
             })}
 
-            {ioActions.map(a => (
+            {[
+              { label: 'Import', onPress: handleUpload },
+              { label: 'Export', onPress: handleDownload },
+            ].map(a => (
               <button
                 key={a.label}
                 type="button"
@@ -1148,7 +1250,7 @@ export default function IdePage() {
           {/* Left column: editor + console */}
           <div className="editor-column" style={{ width: `${leftPct}%`, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ height: `${editorHeightPct}%`, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} errorLines={errorLines} />
+              <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} errorLines={errorLines} onAssemble={handleAssemble} />
             </div>
 
             {vDragHandle}
@@ -1197,7 +1299,7 @@ export default function IdePage() {
 
             {/* Panel content */}
             <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              {rightTab === 'registers' && <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} />}
+              {rightTab === 'registers' && <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} changedRegisters={changedRegisters} />}
               {rightTab === 'memory'    && <MemoryView data={memoryData} theme={theme} />}
               {rightTab === 'stats'     && <InstructionStats stats={instrStats} theme={theme} />}
               {rightTab === 'bitmap'    && <BitmapDisplay theme={theme} tick={simTick} />}
@@ -1208,7 +1310,7 @@ export default function IdePage() {
         /* Mobile single-panel */
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {mobileView === 'editor' && (
-            <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} />
+            <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onAssemble={handleAssemble} />
           )}
           {mobileView === 'console' && (
             <ConsolePanel
@@ -1219,7 +1321,7 @@ export default function IdePage() {
             />
           )}
           {mobileView === 'registers' && (
-            <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} />
+            <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} changedRegisters={changedRegisters} />
           )}
           {mobileView === 'memory' && <MemoryView data={memoryData} theme={theme} />}
         </div>

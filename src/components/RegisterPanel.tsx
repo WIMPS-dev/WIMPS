@@ -13,9 +13,10 @@ interface RegisterPanelProps {
   theme: Theme;
   showHex?: boolean;
   toggleFormat?: () => void;
+  changedRegisters?: Set<string>;
 }
 
-export function RegisterPanel({ registers, theme, showHex = true, toggleFormat }: RegisterPanelProps) {
+export function RegisterPanel({ registers, theme, showHex = true, toggleFormat, changedRegisters }: RegisterPanelProps) {
   const [query, setQuery] = useState('');
 
   const filteredRegisters = useMemo(() => {
@@ -87,11 +88,14 @@ export function RegisterPanel({ registers, theme, showHex = true, toggleFormat }
           {filteredRegisters.map(reg => (
             <div
               key={reg.name}
+              className={changedRegisters?.has(reg.name) ? 'reg-row-changed' : ''}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 padding: '8px 10px',
                 borderBottom: `1px solid ${theme.border}22`,
+                borderLeft: '2px solid transparent',
+                transition: 'border-left-color 0.8s ease-out',
               }}
             >
               <span style={{ flex: 1.2, fontWeight: 700, fontSize: 12, color: theme.text }}>{reg.name}</span>

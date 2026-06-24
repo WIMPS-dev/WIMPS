@@ -1,16 +1,14 @@
-import { highlightMipsCode, INSTRUCTION_LIST, REGISTER_LIST, DIRECTIVE_LIST } from '@/helpers/mipsSyntax';
-import React, { useMemo, useRef, useState } from 'react';
-import Editor from 'react-simple-code-editor';
+import Editor, { type BeforeMount, type OnMount } from '@monaco-editor/react';
+import type * as Monaco from 'monaco-editor';
+import { useEffect, useRef, useState } from 'react';
+import {
+  MIPS_LANGUAGE_ID,
+  defineMipsThemes,
+  mipsThemeName,
+  registerMipsLanguage,
+} from '../helpers/mipsMonaco';
 import type { Theme } from '../theme/themes';
-
-const TAB = '    ';
-
-interface CompletionState {
-  candidates: string[];
-  activeIdx: number;
-  tokenStart: number;
-  lineIdx: number;
-}
+import { THEMES } from '../theme/themes';
 
 interface CodeEditorProps {
   code: string;
@@ -20,140 +18,112 @@ interface CodeEditorProps {
   breakpoints: Set<number>;
   onBreakpointToggle: (line: number) => void;
   errorLines?: { line: number; message: string }[];
+  onAssemble?: () => void;
 }
 
-export function CodeEditor({ code, setCode, theme, activeLine, breakpoints, onBreakpointToggle, errorLines = [] }: CodeEditorProps) {
-  const lines = code.split('\n');
-  const editorWrapperRef = useRef<HTMLDivElement>(null);
-  const [completion, setCompletion] = useState<CompletionState | null>(null);
+export function CodeEditor({
+  code,
+  setCode,
+  theme,
+  activeLine,
+  breakpoints,
+  onBreakpointToggle,
+  errorLines = [],
+  onAssemble,
+}: CodeEditorProps) {
+  const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<typeof Monaco | null>(null);
+  const activeDecoRef = useRef<string[]>([]);
+  const bpDecoRef = useRef<string[]>([]);
+  const [ready, setReady] = useState(false);
+  // Left offset of the text content area (gutter width) — for placeholder alignment
+  const [contentLeft, setContentLeft] = useState(40);
 
-  const errorMap = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const e of errorLines) m.set(e.line, e.message);
-    return m;
-  }, [errorLines]);
+  // Keep callbacks fresh without re-binding Monaco commands/listeners
+  const onAssembleRef = useRef(onAssemble);
+  const onBreakpointToggleRef = useRef(onBreakpointToggle);
+  useEffect(() => { onAssembleRef.current = onAssemble; }, [onAssemble]);
+  useEffect(() => { onBreakpointToggleRef.current = onBreakpointToggle; }, [onBreakpointToggle]);
 
-  const getTextarea = (): HTMLTextAreaElement | null =>
-    editorWrapperRef.current?.querySelector('textarea') ?? null;
+  const isDark = theme.bg === THEMES.dark.bg;
 
-  const computeCompletion = (value: string, selStart: number) => {
-    const before = value.slice(0, selStart);
-    const match = before.match(/[$.\w]*$/);
-    const token = match ? match[0] : '';
-    if (!token) { setCompletion(null); return; }
+  const beforeMount: BeforeMount = (monaco) => {
+    registerMipsLanguage(monaco);
+    defineMipsThemes(monaco);
+  };
 
-    const tokenStart = selStart - token.length;
-    const lineIdx = (before.match(/\n/g) ?? []).length;
-    const tokenLower = token.toLowerCase();
+  const onMount: OnMount = (editor, monaco) => {
+    editorRef.current = editor;
+    monacoRef.current = monaco;
+    monaco.editor.setTheme(mipsThemeName(isDark));
 
-    let pool: string[];
-    if (token.startsWith('$')) {
-      pool = REGISTER_LIST;
-    } else if (token.startsWith('.')) {
-      pool = DIRECTIVE_LIST;
-    } else {
-      // Only suggest instructions when the token is at instruction position on the line
-      const lineStart = before.lastIndexOf('\n', tokenStart - 1) + 1;
-      const lineBeforeToken = before.slice(lineStart, tokenStart);
-      if (!/^(\s*[A-Za-z_]\w*:\s*|\s*)$/.test(lineBeforeToken)) {
-        setCompletion(null); return;
+    // Ctrl/Cmd+Enter → assemble (Monaco captures this key, so route via command)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => onAssembleRef.current?.());
+
+    // Click the glyph margin to toggle a breakpoint
+    editor.onMouseDown((e) => {
+      if (e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) {
+        const ln = e.target.position?.lineNumber;
+        if (ln) onBreakpointToggleRef.current(ln);
       }
-      pool = INSTRUCTION_LIST;
-    }
+    });
 
-    const startsWith = pool.filter(c => c.toLowerCase().startsWith(tokenLower));
-    const includes = pool.filter(c => !c.toLowerCase().startsWith(tokenLower) && c.toLowerCase().includes(tokenLower));
-    const candidates = [...startsWith, ...includes].slice(0, 8);
+    // Track the content-area left offset so the placeholder lines up with text
+    setContentLeft(editor.getLayoutInfo().contentLeft);
+    editor.onDidLayoutChange((info) => setContentLeft(info.contentLeft));
 
-    if (candidates.length === 0 || (candidates.length === 1 && candidates[0].toLowerCase() === tokenLower)) {
-      setCompletion(null); return;
-    }
+    setReady(true);
+  };
 
-    setCompletion(prev => ({
-      candidates,
-      activeIdx: prev && prev.candidates[0] === candidates[0] ? Math.min(prev.activeIdx, candidates.length - 1) : 0,
-      tokenStart,
-      lineIdx,
+  // Active-line highlight
+  useEffect(() => {
+    const ed = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!ed || !monaco) return;
+    const decos: Monaco.editor.IModelDeltaDecoration[] = activeLine
+      ? [{ range: new monaco.Range(activeLine, 1, activeLine, 1), options: { isWholeLine: true, className: 'mips-active-line' } }]
+      : [];
+    activeDecoRef.current = ed.deltaDecorations(activeDecoRef.current, decos);
+    if (activeLine) ed.revealLineInCenterIfOutsideViewport(activeLine);
+  }, [activeLine, ready]);
+
+  // Breakpoint glyph dots
+  useEffect(() => {
+    const ed = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!ed || !monaco) return;
+    const decos: Monaco.editor.IModelDeltaDecoration[] = [...breakpoints].map(ln => ({
+      range: new monaco.Range(ln, 1, ln, 1),
+      options: { glyphMarginClassName: 'mips-bp-glyph' },
     }));
-  };
+    bpDecoRef.current = ed.deltaDecorations(bpDecoRef.current, decos);
+  }, [breakpoints, ready]);
 
-  const acceptCompletion = (candidate: string) => {
-    const ta = getTextarea();
-    if (!ta || !completion) return;
-    const selStart = ta.selectionStart;
-    const newCode = code.slice(0, completion.tokenStart) + candidate + code.slice(selStart);
-    setCode(newCode);
-    const newCaret = completion.tokenStart + candidate.length;
-    requestAnimationFrame(() => {
-      ta.selectionStart = newCaret;
-      ta.selectionEnd = newCaret;
-    });
-    setCompletion(null);
-  };
+  // Error squiggles
+  useEffect(() => {
+    const ed = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!ed || !monaco) return;
+    const model = ed.getModel();
+    if (!model) return;
+    const lineCount = model.getLineCount();
+    const markers: Monaco.editor.IMarkerData[] = errorLines
+      .filter(e => e.line >= 1 && e.line <= lineCount)
+      .map(e => ({
+        startLineNumber: e.line,
+        endLineNumber: e.line,
+        startColumn: 1,
+        endColumn: model.getLineMaxColumn(e.line),
+        message: e.message,
+        severity: monaco.MarkerSeverity.Error,
+      }));
+    monaco.editor.setModelMarkers(model, 'mips', markers);
+  }, [errorLines, ready]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      return;
-    }
-
-    if (completion) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setCompletion(c => c ? { ...c, activeIdx: (c.activeIdx + 1) % c.candidates.length } : null);
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setCompletion(c => c ? { ...c, activeIdx: (c.activeIdx - 1 + c.candidates.length) % c.candidates.length } : null);
-        return;
-      }
-      if (e.key === 'Enter' || e.key === 'Tab') {
-        e.preventDefault();
-        acceptCompletion(completion.candidates[completion.activeIdx]);
-        return;
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setCompletion(null);
-        return;
-      }
-      if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
-        setCompletion(null);
-      }
-    }
-
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const target = e.currentTarget;
-      const start = target.selectionStart;
-      const end = target.selectionEnd;
-      const newText = code.slice(0, start) + TAB + code.slice(end);
-      setCode(newText);
-      requestAnimationFrame(() => {
-        target.selectionStart = start + TAB.length;
-        target.selectionEnd = start + TAB.length;
-      });
-    }
-  };
-
-  const handleValueChange = (value: string) => {
-    setCode(value);
-    requestAnimationFrame(() => {
-      const ta = getTextarea();
-      if (ta) computeCompletion(value, ta.selectionStart);
-    });
-  };
-
-  const dropdownPos = (() => {
-    if (!completion) return null;
-    const lineStart = code.slice(0, completion.tokenStart).lastIndexOf('\n') + 1;
-    const charsBeforeToken = completion.tokenStart - lineStart;
-    return {
-      top: (completion.lineIdx + 1) * 22 + 16 + 2,
-      left: 16 + charsBeforeToken * 9,
-    };
-  })();
+  // Theme switch
+  useEffect(() => {
+    monacoRef.current?.editor.setTheme(mipsThemeName(isDark));
+  }, [isDark]);
 
   return (
     <div style={{
@@ -169,180 +139,60 @@ export function CodeEditor({ code, setCode, theme, activeLine, breakpoints, onBr
       <div style={{
         flex: 1,
         minHeight: 0,
+        position: 'relative',
         backgroundColor: theme.card,
         borderRadius: 12,
         border: `1px solid ${theme.border}`,
-        overflow: 'auto',
-        display: 'flex',
-        flexDirection: 'row',
+        overflow: 'hidden',
       }}>
-        {/* Gutter */}
-        <div style={{
-          width: 52,
-          backgroundColor: theme.bg,
-          borderRight: `1px solid ${theme.border}`,
-          paddingTop: 16,
-          paddingBottom: 100,
-          flexShrink: 0,
-          alignSelf: 'flex-start',
-          minHeight: '100%',
-          userSelect: 'none',
-        }}>
-          {lines.map((_, i) => {
-            const lineNumber = i + 1;
-            const isActive = activeLine === lineNumber;
-            const hasBp = breakpoints.has(lineNumber);
-            const errorMsg = errorMap.get(lineNumber);
-            const hasError = errorMsg !== undefined;
-            return (
-              <div
-                key={i}
-                className="gutter-line"
-                onClick={() => onBreakpointToggle(lineNumber)}
-                title={hasError ? errorMsg : (hasBp ? 'Remove breakpoint' : 'Add breakpoint')}
-                aria-label={hasError ? `Line ${lineNumber}: ${errorMsg}` : undefined}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'flex-end',
-                  gap: 4,
-                  paddingLeft: 1,
-                  paddingRight: 8,
-                  height: 22,
-                  cursor: 'pointer',
-                  backgroundColor: isActive ? '#2563eb55' : 'transparent',
-                  borderLeft: hasError ? '3px solid #ef4444' : '3px solid transparent',
-                }}
-              >
-                {/* Breakpoint dot / hover hint */}
-                <span
-                  className={hasBp ? undefined : 'bp-hint'}
-                  style={{
-                    flexShrink: 0,
-                    width: 10,
-                    height: 10,
-                    borderRadius: '50%',
-                    backgroundColor: hasBp ? '#ef4444' : 'transparent',
-                    transition: 'background-color 0.1s',
-                  }}
-                />
-                {/* Line number */}
-                <span style={{
-                  color: isActive ? theme.text : (hasBp || hasError ? '#ef4444' : theme.subText),
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  lineHeight: '22px',
-                  fontWeight: isActive || hasBp || hasError ? 700 : 400,
-                  minWidth: 20,
-                  textAlign: 'right',
-                }}>
-                  {lineNumber}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Editor input wrapper */}
-        <div
-          ref={editorWrapperRef}
-          style={{ flex: 1, position: 'relative', minWidth: 0, '--editor-caret': theme.text, '--editor-placeholder': theme.subText } as React.CSSProperties}
-          onBlur={e => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-              setCompletion(null);
-            }
+        <Editor
+          language={MIPS_LANGUAGE_ID}
+          theme={mipsThemeName(isDark)}
+          value={code}
+          onChange={(v) => setCode(v ?? '')}
+          beforeMount={beforeMount}
+          onMount={onMount}
+          loading=""
+          options={{
+            fontSize: 15,
+            fontFamily: 'monospace',
+            lineHeight: 22,
+            minimap: { enabled: false },
+            automaticLayout: true,
+            scrollBeyondLastLine: false,
+            glyphMargin: true,
+            lineNumbers: 'on',
+            lineNumbersMinChars: 2,
+            lineDecorationsWidth: 12,
+            folding: false,
+            renderLineHighlight: 'none',
+            tabSize: 4,
+            insertSpaces: true,
+            wordWrap: 'off',
+            padding: { top: 12, bottom: 12 },
+            scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
+            overviewRulerLanes: 2,
+            fixedOverflowWidgets: true,
           }}
-        >
-          {/* Active line overlay */}
-          <div style={{ position: 'absolute', top: 16, left: 0, right: 0, pointerEvents: 'none', zIndex: 0 }}>
-            {lines.map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  height: 22,
-                  backgroundColor: activeLine === i + 1 ? '#2563eb33' : 'transparent',
-                }}
-              />
-            ))}
+        />
+
+        {/* Placeholder — Monaco has no native one */}
+        {code === '' && (
+          <div style={{
+            position: 'absolute',
+            top: 12,
+            left: contentLeft,
+            pointerEvents: 'none',
+            color: theme.subText,
+            fontFamily: 'monospace',
+            fontSize: 15,
+            lineHeight: '22px',
+            opacity: 0.7,
+            userSelect: 'none',
+          }}>
+            # Write MIPS assembly here...
           </div>
-
-          {/* Error underline overlay */}
-          {errorMap.size > 0 && (
-            <div style={{ position: 'absolute', top: 16, left: 0, right: 0, pointerEvents: 'none', zIndex: 1 }}>
-              {lines.map((_, i) => (
-                <div
-                  key={i}
-                  style={{
-                    height: 22,
-                    borderBottom: errorMap.has(i + 1) ? '2px solid #ef4444' : 'none',
-                  }}
-                />
-              ))}
-            </div>
-          )}
-
-          <Editor
-            value={code}
-            onValueChange={handleValueChange}
-            highlight={value => highlightMipsCode(value, theme.syntax)}
-            padding={16}
-            onKeyDown={handleKeyDown as any}
-            placeholder="# Write MIPS assembly here..."
-            textareaClassName="mips-editor-textarea"
-            preClassName="mips-editor-highlight"
-            style={{
-              fontFamily: 'monospace',
-              fontSize: 15,
-              lineHeight: '22px',
-              color: 'transparent',
-              backgroundColor: 'transparent',
-              outline: 'none',
-              minHeight: '100%',
-            }}
-          />
-
-          {/* Autocomplete dropdown */}
-          {completion && dropdownPos && (
-            <div
-              role="listbox"
-              aria-label="Autocomplete suggestions"
-              style={{
-                position: 'absolute',
-                top: dropdownPos.top,
-                left: dropdownPos.left,
-                zIndex: 10,
-                backgroundColor: theme.card,
-                border: `1px solid ${theme.border}`,
-                borderRadius: 8,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-                minWidth: 120,
-                overflow: 'hidden',
-              }}
-            >
-              {completion.candidates.map((c, idx) => (
-                <div
-                  key={c}
-                  id={`completion-option-${idx}`}
-                  role="option"
-                  aria-selected={idx === completion.activeIdx}
-                  onMouseDown={e => { e.preventDefault(); acceptCompletion(c); }}
-                  style={{
-                    padding: '4px 10px',
-                    fontSize: 13,
-                    fontFamily: 'monospace',
-                    cursor: 'pointer',
-                    backgroundColor: idx === completion.activeIdx ? '#2563eb33' : 'transparent',
-                    color: idx === completion.activeIdx ? theme.text : theme.subText,
-                    borderBottom: idx < completion.candidates.length - 1 ? `1px solid ${theme.border}22` : 'none',
-                    userSelect: 'none',
-                  }}
-                >
-                  {c}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

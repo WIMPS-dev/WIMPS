@@ -502,9 +502,9 @@ export default function HomePage() {
           marginBottom: 40,
         }}>
           {[
-            { name: 'Dashell Finn', role: '' },
-            { name: 'Tarran Thomas', role: '' },
-            { name: 'Matthew Wang', role: '' },
+            { name: 'Dashell Finn', role: 'Backend & Systems' },
+            { name: 'Matthew Wang', role: 'Lead Developer' },
+            { name: 'Tarran Thomas', role: 'UI & UX' },
           ].map((member, i) => (
             <div key={i} style={{
               border: `1px solid ${theme.border}`,
@@ -525,7 +525,7 @@ export default function HomePage() {
           <p style={{ color: theme.subText, fontSize: 14 }}>
             Built on the{' '}
             <a
-              href="https://github.com/specy/mips"
+              href="https://github.com/specy/mars"
               target="_blank"
               rel="noopener noreferrer"
               className="home-nav-link"
