@@ -82,7 +82,7 @@ export function BitmapDisplay({ theme, tick }: BitmapDisplayProps) {
             spellCheck={false}
             style={{
               width: 104, backgroundColor: theme.bg,
-              border: `1px solid ${theme.border}`, borderRadius: 5,
+              border: `1px solid ${theme.border}`, borderRadius: 6,
               padding: '3px 7px', fontSize: 11, fontFamily: 'monospace',
               color: theme.text, outline: 'none',
             }}
@@ -102,7 +102,7 @@ export function BitmapDisplay({ theme, tick }: BitmapDisplayProps) {
                   backgroundColor: active ? '#2563eb' : theme.bg,
                   color: active ? '#fff' : theme.subText,
                   border: `1px solid ${active ? '#2563eb' : theme.border}`,
-                  borderRadius: 5, fontSize: 10, fontWeight: 600,
+                  borderRadius: 6, fontSize: 10, fontWeight: 600,
                   padding: '3px 7px', cursor: 'pointer', whiteSpace: 'nowrap',
                 }}
               >
@@ -121,7 +121,7 @@ export function BitmapDisplay({ theme, tick }: BitmapDisplayProps) {
             aria-label="Display scale"
             style={{
               backgroundColor: theme.bg, border: `1px solid ${theme.border}`,
-              borderRadius: 5, padding: '3px 6px', fontSize: 11,
+              borderRadius: 6, padding: '3px 6px', fontSize: 11,
               color: theme.text, outline: 'none', cursor: 'pointer',
             }}
           >
@@ -136,7 +136,7 @@ export function BitmapDisplay({ theme, tick }: BitmapDisplayProps) {
             onClick={() => { setAddrStr(DEFAULT_ADDR); setWidth(64); setHeight(64); setScale(4); }}
             style={{
               background: 'none', border: `1px solid ${theme.border}`,
-              borderRadius: 5, fontSize: 10, fontWeight: 600,
+              borderRadius: 6, fontSize: 10, fontWeight: 600,
               color: theme.subText, cursor: 'pointer', padding: '3px 7px',
             }}
           >
@@ -171,7 +171,6 @@ export function BitmapDisplay({ theme, tick }: BitmapDisplayProps) {
             border: `1px solid ${theme.border}`,
             borderRadius: 6,
             overflow: 'hidden',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.18)',
             lineHeight: 0,
           }}>
             <canvas

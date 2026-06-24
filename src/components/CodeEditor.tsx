@@ -147,7 +147,6 @@ export function CodeEditor({
       flexDirection: 'column',
       backgroundColor: theme.bg,
       padding: 14,
-      border: `1px solid ${theme.border}`,
     }}>
       {/* Editor shell */}
       <div style={{

@@ -566,12 +566,7 @@ export default function IdePage() {
   // File toolbar: Save + import/export
 
   const vDragHandle = (
-    <div
-      onMouseDown={startEditorVDrag}
-      style={{ height: 5, flexShrink: 0, cursor: 'row-resize', backgroundColor: theme.border, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-    >
-      <div style={{ height: 1, width: 28, backgroundColor: theme.subText, opacity: 0.35, borderRadius: 1 }} />
-    </div>
+    <div className="ide-editor-handle" onMouseDown={startEditorVDrag} />
   );
 
   // ---------------------------------------------------------------------------
@@ -853,7 +848,7 @@ export default function IdePage() {
                   style={{
                     backgroundColor: isBlue ? '#2563eb' : theme.card,
                     border: `1px solid ${isBlue ? '#2563eb' : theme.border}`,
-                    borderRadius: 8,
+                    borderRadius: 6,
                     color: isBlue ? '#fff' : theme.text,
                     cursor: isDisabled ? 'not-allowed' : 'pointer',
                     opacity: isDisabled ? 0.35 : 1,
@@ -889,7 +884,7 @@ export default function IdePage() {
                 style={{
                   backgroundColor: theme.card,
                   border: `1px solid ${theme.border}`,
-                  borderRadius: 8,
+                  borderRadius: 6,
                   color: theme.text,
                   cursor: 'pointer',
                   minWidth: 44,
@@ -973,7 +968,7 @@ export default function IdePage() {
                     marginLeft: 4,
                     backgroundColor: theme.card,
                     border: `1px solid ${theme.border}`,
-                    borderRadius: 8,
+                    borderRadius: 10,
                     padding: '10px 12px',
                     width: 180,
                     boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
@@ -988,7 +983,7 @@ export default function IdePage() {
                       type="button"
                       onClick={() => setFontSize(s => Math.max(10, s - 1))}
                       disabled={fontSize <= 10}
-                      style={{ width: 28, height: 28, borderRadius: 5, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize <= 10 ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize <= 10 ? 0.4 : 1 }}
+                      style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize <= 10 ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize <= 10 ? 0.4 : 1 }}
                       aria-label="Decrease font size"
                     >−</button>
                     <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600, color: theme.text, fontVariantNumeric: 'tabular-nums' }}>
@@ -998,14 +993,14 @@ export default function IdePage() {
                       type="button"
                       onClick={() => setFontSize(s => Math.min(24, s + 1))}
                       disabled={fontSize >= 24}
-                      style={{ width: 28, height: 28, borderRadius: 5, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize >= 24 ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize >= 24 ? 0.4 : 1 }}
+                      style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize >= 24 ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize >= 24 ? 0.4 : 1 }}
                       aria-label="Increase font size"
                     >+</button>
                   </div>
                   <button
                     type="button"
                     onClick={() => setFontSize(15)}
-                    style={{ marginTop: 8, width: '100%', padding: '4px 0', borderRadius: 5, border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.subText, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                    style={{ marginTop: 8, width: '100%', padding: '4px 0', borderRadius: 6, border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.subText, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
                   >
                     Reset to default
                   </button>
