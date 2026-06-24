@@ -118,6 +118,11 @@ export default function IdePage() {
   });
   const [instrStats, setInstrStats] = useState<InstrStats | null>(null);
   const [simTick, setSimTick] = useState(0);
+  const [fontSize, setFontSize] = useState<number>(() => {
+    try { const v = localStorage.getItem('editor_font_size'); return v ? Math.max(10, Math.min(24, Number(v))) : 15; } catch { return 15; }
+  });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
 
   const prevRegistersRef = useRef<RegisterValue[]>([]);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -149,9 +154,21 @@ export default function IdePage() {
     if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current);
   }, []);
 
-  useEffect(() => { try { localStorage.setItem('sidebar_open',  String(sidebarOpen));      } catch {} }, [sidebarOpen]);
-  useEffect(() => { try { localStorage.setItem('sidebar_width', String(sidebarWidth));      } catch {} }, [sidebarWidth]);
-  useEffect(() => { try { localStorage.setItem('sidebar_panel', activeSidebarPanel);        } catch {} }, [activeSidebarPanel]);
+  useEffect(() => { try { localStorage.setItem('sidebar_open',       String(sidebarOpen));      } catch {} }, [sidebarOpen]);
+  useEffect(() => { try { localStorage.setItem('sidebar_width',      String(sidebarWidth));      } catch {} }, [sidebarWidth]);
+  useEffect(() => { try { localStorage.setItem('sidebar_panel',      activeSidebarPanel);        } catch {} }, [activeSidebarPanel]);
+  useEffect(() => { try { localStorage.setItem('editor_font_size',   String(fontSize));           } catch {} }, [fontSize]);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [settingsOpen]);
 
   const activeCode = useMemo(() => tabs.find(t => t.id === activeTabId)?.code ?? '', [tabs, activeTabId]);
 
@@ -943,6 +960,69 @@ export default function IdePage() {
                 <span>{label}</span>
               </button>
             ))}
+
+            {/* Settings cog — pinned to bottom */}
+            <div ref={settingsRef} style={{ marginTop: 'auto', position: 'relative' }}>
+              {settingsOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: '100%',
+                    marginBottom: 4,
+                    marginLeft: 4,
+                    backgroundColor: theme.card,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    width: 180,
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                    zIndex: 100,
+                  }}
+                >
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 8, textTransform: 'uppercase' }}>
+                    Editor Font Size
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setFontSize(s => Math.max(10, s - 1))}
+                      disabled={fontSize <= 10}
+                      style={{ width: 28, height: 28, borderRadius: 5, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize <= 10 ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize <= 10 ? 0.4 : 1 }}
+                      aria-label="Decrease font size"
+                    >−</button>
+                    <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600, color: theme.text, fontVariantNumeric: 'tabular-nums' }}>
+                      {fontSize}px
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setFontSize(s => Math.min(24, s + 1))}
+                      disabled={fontSize >= 24}
+                      style={{ width: 28, height: 28, borderRadius: 5, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize >= 24 ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize >= 24 ? 0.4 : 1 }}
+                      aria-label="Increase font size"
+                    >+</button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFontSize(15)}
+                    style={{ marginTop: 8, width: '100%', padding: '4px 0', borderRadius: 5, border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.subText, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                  >
+                    Reset to default
+                  </button>
+                </div>
+              )}
+              <button
+                type="button"
+                className={`ide-activity-icon${settingsOpen ? ' ide-activity-icon--active' : ''}`}
+                onClick={() => setSettingsOpen(o => !o)}
+                title="Settings"
+                aria-label="Settings"
+                aria-expanded={settingsOpen}
+              >
+                <ActionIcon name="Settings" size={16} />
+                <span>Settings</span>
+              </button>
+            </div>
           </div>
 
           {/* Sidebar panel (hidden when collapsed) */}
@@ -979,7 +1059,7 @@ export default function IdePage() {
                   </div>
                 </div>
               ) : (
-                <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} />
+                <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} fontSize={fontSize} />
               )}
             </div>
 
@@ -995,7 +1075,7 @@ export default function IdePage() {
         /* Mobile single-panel */
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {mobileView === 'editor' && (
-            <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onAssemble={handleAssemble} />
+            <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onAssemble={handleAssemble} fontSize={fontSize} />
           )}
           {mobileView === 'console' && (
             <ConsolePanel

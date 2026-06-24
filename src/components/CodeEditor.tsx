@@ -20,6 +20,7 @@ interface CodeEditorProps {
   errorLines?: { line: number; message: string }[];
   onAssemble?: () => void;
   onToggleSidebar?: () => void;
+  fontSize?: number;
 }
 
 export function CodeEditor({
@@ -32,6 +33,7 @@ export function CodeEditor({
   errorLines = [],
   onAssemble,
   onToggleSidebar,
+  fontSize = 15,
 }: CodeEditorProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
@@ -132,6 +134,11 @@ export function CodeEditor({
     monacoRef.current?.editor.setTheme(mipsThemeName(isDark));
   }, [isDark]);
 
+  // Font size update
+  useEffect(() => {
+    editorRef.current?.updateOptions({ fontSize, lineHeight: Math.round(fontSize * 1.5) });
+  }, [fontSize]);
+
   return (
     <div style={{
       flex: 1,
@@ -161,9 +168,9 @@ export function CodeEditor({
           onMount={onMount}
           loading=""
           options={{
-            fontSize: 15,
+            fontSize,
             fontFamily: 'monospace',
-            lineHeight: 22,
+            lineHeight: Math.round(fontSize * 1.5),
             minimap: { enabled: false },
             automaticLayout: true,
             scrollBeyondLastLine: false,
@@ -192,8 +199,8 @@ export function CodeEditor({
             pointerEvents: 'none',
             color: theme.subText,
             fontFamily: 'monospace',
-            fontSize: 15,
-            lineHeight: '22px',
+            fontSize,
+            lineHeight: `${Math.round(fontSize * 1.5)}px`,
             opacity: 0.7,
             userSelect: 'none',
           }}>
