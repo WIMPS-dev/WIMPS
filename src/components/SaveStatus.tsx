@@ -3,9 +3,7 @@ import type { AutosaveStatus } from '../hooks/useAutosave';
 
 interface SaveStatusProps {
   status: AutosaveStatus;
-  guestStatus?: 'idle' | 'saved';
   lastSavedAt: number | null;
-  isLoggedIn: boolean;
   onRetry?: () => void;
   compact?: boolean;
 }
@@ -19,28 +17,14 @@ const DOT: Record<AutosaveStatus, string> = {
 };
 
 const LABEL: Record<AutosaveStatus, string> = {
-  idle:    'Saved',
+  idle:    '',
   saving:  'Saving…',
   saved:   'Saved',
   error:   'Save failed',
   offline: 'Offline',
 };
 
-export function SaveStatus({ status, guestStatus = 'idle', lastSavedAt, isLoggedIn, onRetry, compact = false }: SaveStatusProps) {
-  if (!isLoggedIn) {
-    if (guestStatus === 'idle') return null;
-    const tooltip = lastSavedAt
-      ? `Last saved: ${new Date(lastSavedAt).toLocaleTimeString()}`
-      : 'Saved to browser storage';
-    return (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#94a3b8', fontSize: 12, userSelect: 'none' }} title={tooltip}>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#94a3b8', flexShrink: 0 }} />
-        {!compact && <span>Saved</span>}
-      </span>
-    );
-  }
-
-  // Hide indicator when idle (no unsaved changes, no recent activity)
+export function SaveStatus({ status, lastSavedAt, onRetry, compact = false }: SaveStatusProps) {
   if (status === 'idle') return null;
 
   const isPulse = status === 'saving';
