@@ -366,7 +366,7 @@ input, textarea {
 .docs-instr-syn {
   font-family: monospace;
   font-size: 13px;
-  min-width: 180px;
+  min-width: 200px;
   flex-shrink: 0;
 }
 

@@ -392,8 +392,14 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
       ...localFiles.map(f => f.name),
     ]);
     const name = uniquifyName(ex.name, allNames);
-    setTabs(prev => [...prev, { id, name, code: ex.code, isDirty: false }]);
+    const newTab: CodeTab = { id, name, code: ex.code, isDirty: false };
+    setTabs(prev => [...prev, newTab]);
     setActiveTabId(id);
+    if (!isLoggedIn) {
+      const updated = [...localFiles, newTab];
+      setLocalFiles(updated);
+      writeSavedFiles(updated);
+    }
   };
 
   const handleDeleteCloud = async (file: CodeTab) => {
@@ -509,7 +515,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
               </div>
             ) : userFiles.length === 0 ? (
               <div style={{ padding: '4px 24px', color: theme.subText, fontSize: 12, lineHeight: '18px' }}>
-                Nothing saved yet.<br />Hit 💾 Save to keep a file here.
+                Nothing saved yet.<br />Save a file to keep it here.
               </div>
             ) : (
               userFiles.map(file => (
