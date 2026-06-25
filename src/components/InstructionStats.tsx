@@ -28,7 +28,9 @@ export function InstructionStats({ theme, stats }: InstructionStatsProps) {
           alignItems: 'center', justifyContent: 'center',
           gap: 8, padding: 24,
         }}>
-          <div style={{ fontSize: 28, opacity: 0.25 }}>📊</div>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.25, color: theme.subText }} aria-hidden="true">
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
           <div style={{ color: theme.subText, fontSize: 12, textAlign: 'center', lineHeight: '18px' }}>
             Run a program to see<br />instruction statistics.
           </div>
@@ -85,9 +87,11 @@ export function InstructionStats({ theme, stats }: InstructionStatsProps) {
                     backgroundColor: theme.border + '60', overflow: 'hidden',
                   }}>
                     <div style={{
-                      height: '100%', width: `${pct}%`,
+                      height: '100%', width: '100%',
                       backgroundColor: color, borderRadius: 3,
-                      transition: 'width 350ms cubic-bezier(0.4, 0, 0.2, 1)',
+                      transform: `scaleX(${pct / 100})`,
+                      transformOrigin: 'left',
+                      transition: 'transform 350ms cubic-bezier(0.4, 0, 0.2, 1)',
                     }} />
                   </div>
                   <div style={{ color: theme.subText, fontSize: 9, marginTop: 2, letterSpacing: '0.02em' }}>

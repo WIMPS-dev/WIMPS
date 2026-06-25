@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ActionIcon } from '../components/ActionIcons';
 import { Logo } from '../components/Logo';
 import { HomeSkeleton } from '../components/PageSkeletons';
 import { usePageReady } from '../components/Skeleton';
@@ -301,17 +302,17 @@ export default function HomePage() {
                 flexShrink: 0,
               }}>
                 {([
-                  { sym: '⚙', on: false },
-                  { sym: '▶', on: true  },
-                  { sym: '→', on: true  },
-                  { sym: '↺', on: false },
-                ] as const).map(({ sym, on }) => (
-                  <div key={sym} style={{
+                  { icon: 'Assemble' as const, on: false },
+                  { icon: 'Run'      as const, on: true  },
+                  { icon: 'Step'     as const, on: true  },
+                  { icon: 'Reset'    as const, on: false },
+                ]).map(({ icon, on }) => (
+                  <div key={icon} style={{
                     width: 22, height: 22, borderRadius: 4,
                     backgroundColor: on ? '#2563eb' : 'transparent',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#f8fafc', fontSize: 11,
-                  }}>{sym}</div>
+                    color: '#f8fafc',
+                  }}><ActionIcon name={icon} size={12} /></div>
                 ))}
               </div>
             </div>
@@ -486,8 +487,8 @@ export default function HomePage() {
         <p style={{ color: theme.subText, fontSize: 16, lineHeight: 1.7, maxWidth: 680, margin: '0 auto 40px', textAlign: 'center' }}>
           We built WIMPS to make learning MIPS assembly both accessible and approachable. Most simulators are
           desktop-only, inconvenient to install, and discouraging to use for students taking their first
-          computer-architecture course. WIMPS runs entirely in the browser, with write, assemble,
-          and step through code with live registers, memory, and a bitmap display, no setup required.
+          computer-architecture course. WIMPS runs entirely in the browser, letting you write, assemble,
+          and step through code with live registers, memory, and a bitmap display — no setup required.
         </p>
         <p style={{ color: theme.subText, fontSize: 16, lineHeight: 1.7, maxWidth: 680, margin: '0 auto 40px', textAlign: 'center' }}>
 
@@ -496,24 +497,21 @@ export default function HomePage() {
         </p>
 
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: 16,
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          gap: '0 48px',
           marginBottom: 40,
+          rowGap: 20,
         }}>
           {[
             { name: 'Dashell Finn', role: 'Backend & Systems' },
             { name: 'Matthew Wang', role: 'Lead Developer' },
             { name: 'Tarran Thomas', role: 'UI & UX' },
           ].map((member, i) => (
-            <div key={i} style={{
-              border: `1px solid ${theme.border}`,
-              borderRadius: 12,
-              padding: '18px 20px',
-              backgroundColor: theme.card,
-            }}>
-              <div style={{ color: theme.text, fontSize: 16, fontWeight: 700 }}>{member.name}</div>
-              <div style={{ color: theme.subText, fontSize: 14, marginTop: 4 }}>{member.role}</div>
+            <div key={i} style={{ textAlign: 'center' }}>
+              <div style={{ color: theme.text, fontSize: 15, fontWeight: 700 }}>{member.name}</div>
+              <div style={{ color: theme.subText, fontSize: 13, marginTop: 3 }}>{member.role}</div>
             </div>
           ))}
         </div>

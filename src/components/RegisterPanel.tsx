@@ -37,7 +37,7 @@ export function RegisterPanel({ registers, theme, showHex = true, toggleFormat, 
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Filter registers..."
+            placeholder="Filter…"
             aria-label="Filter registers"
             style={{
               width: 'calc(100% - 8px)',

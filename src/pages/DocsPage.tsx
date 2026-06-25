@@ -57,7 +57,7 @@ function SectionDivider({ label, theme }: { label: string; theme: Theme }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '18px 0' }}>
       <div style={{ flex: 1, height: 1, backgroundColor: theme.border }} />
-      <span style={{ color: theme.subText, fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase' }}>{label}</span>
+      <span style={{ color: theme.subText, fontSize: 13, fontWeight: 600 }}>{label}</span>
       <div style={{ flex: 1, height: 1, backgroundColor: theme.border }} />
     </div>
   );
@@ -286,10 +286,10 @@ export default function DocsPage() {
               <Accordion title="Getting started" theme={theme}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <Body theme={theme}>
-                    Write your code, hit ⚙, and check the Console for errors. Once assembled, the run controls turn blue. The editor highlights the current line in blue as you step through.
+                    Write your code, click Assemble, and check the Console for errors. Once assembled, the run controls turn blue. The editor highlights the current line in blue as you step through.
                   </Body>
                   <div style={{ marginTop: 4 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: theme.subText, textTransform: 'uppercase', letterSpacing: 1 }}>Toolbar</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: theme.subText }}>Toolbar</span>
                     <ButtonLegend theme={theme} />
                   </div>
                 </div>

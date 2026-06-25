@@ -419,7 +419,7 @@ input, textarea {
   transition: color 100ms ease-out, background-color 100ms ease-out;
 }
 .ide-activity-icon:hover {
-  color: #94a3b8;
+  color: var(--ide-icon-hover, #94a3b8);
   background-color: var(--ide-hover, #334155);
 }
 .ide-activity-icon:focus-visible {
@@ -427,7 +427,7 @@ input, textarea {
   outline-offset: 2px;
 }
 .ide-activity-icon.ide-activity-icon--active {
-  color: #7dd3fc;
+  color: var(--ide-active-icon, #7dd3fc);
   background-color: #2563eb18;
   border-left-color: #2563eb;
 }

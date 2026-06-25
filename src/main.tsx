@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import './global.css';
 import DocsPage from './pages/DocsPage';
@@ -15,10 +15,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <BrowserRouter basename="/">
         <Routes>
           <Route path="/" element={<HomePage />} />
-          {/* TEMP: login disabled
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          */}
+          {/* TEMP: login disabled — redirect to IDE so URLs don't 404 */}
+          <Route path="/login" element={<Navigate to="/ide" replace />} />
+          <Route path="/register" element={<Navigate to="/ide" replace />} />
           <Route path="/docs" element={<DocsPage />} />
           <Route path="/ide" element={<IdePage />} />
         </Routes>

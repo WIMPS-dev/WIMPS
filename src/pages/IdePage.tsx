@@ -584,8 +584,10 @@ export default function IdePage() {
       backgroundColor: theme.bg, overflow: 'hidden',
       '--ide-ink': theme.text,
       '--ide-card': theme.card,
-      '--ide-hover': theme.resizer,
+      '--ide-hover': isDark ? '#334155' : 'rgba(0,0,0,0.07)',
       '--ide-border': theme.border,
+      '--ide-active-icon': isDark ? '#7dd3fc' : '#1d4ed8',
+      '--ide-icon-hover': isDark ? '#94a3b8' : '#1e293b',
     } as React.CSSProperties}>
       {/* Top bar */}
       {wide ? (
@@ -601,7 +603,6 @@ export default function IdePage() {
             flexShrink: 0,
             gap: 8,
             padding: '0 12px',
-            overflow: 'hidden',
           }}>
             {/* Logo */}
             <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 16, flexShrink: 0, marginRight: 4 }}><Logo size={20} /></Link>
@@ -686,9 +687,74 @@ export default function IdePage() {
             </div>
 
             {/* Nav */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <div ref={settingsRef} style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, position: 'relative' }}>
               <div style={{ width: 1, height: 20, backgroundColor: theme.border }} />
               <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(o => !o)}
+                title="Settings"
+                aria-label="Settings"
+                aria-expanded={settingsOpen}
+                className="ide-settings-btn"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+                  borderRadius: 5, color: settingsOpen ? theme.text : theme.subText,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <ActionIcon name="Settings" size={15} />
+              </button>
+              {settingsOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 6,
+                  backgroundColor: theme.card,
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  width: 180,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                  zIndex: 1000,
+                }}>
+                  {/* Theme */}
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Theme</div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                    {(['dark', 'light'] as const).map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => { if ((t === 'dark') !== isDark) toggleTheme(); }}
+                        style={{
+                          flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          border: `1px solid ${(t === 'dark') === isDark ? '#2563eb' : theme.border}`,
+                          backgroundColor: (t === 'dark') === isDark ? '#2563eb22' : 'transparent',
+                          color: (t === 'dark') === isDark ? '#2563eb' : theme.subText,
+                        }}
+                      >
+                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Font size */}
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Font Size</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <button type="button" onClick={() => setFontSize(s => Math.max(10, s - 1))} disabled={fontSize <= 10} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize <= 10 ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize <= 10 ? 0.4 : 1 }} aria-label="Decrease font size">−</button>
+                    <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600, color: theme.text, fontVariantNumeric: 'tabular-nums' }}>{fontSize}px</span>
+                    <button type="button" onClick={() => setFontSize(s => Math.min(24, s + 1))} disabled={fontSize >= 24} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize >= 24 ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize >= 24 ? 0.4 : 1 }} aria-label="Increase font size">+</button>
+                  </div>
+                  <button type="button" onClick={() => setFontSize(15)} style={{ width: '100%', padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.subText, marginBottom: 14 }}>Reset to default</button>
+                  {/* Tab size */}
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Tab Size</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {([2, 4] as const).map(t => (
+                      <button key={t} type="button" onClick={() => setTabSize(t)} style={{ flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${tabSize === t ? '#2563eb' : theme.border}`, backgroundColor: tabSize === t ? '#2563eb22' : 'transparent', color: tabSize === t ? '#2563eb' : theme.subText }}>{t} spaces</button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -959,107 +1025,6 @@ export default function IdePage() {
               </button>
             ))}
 
-            {/* Settings cog — pinned to bottom */}
-            <div ref={settingsRef} style={{ marginTop: 'auto', position: 'relative' }}>
-              {settingsOpen && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '100%',
-                    left: '100%',
-                    marginBottom: 4,
-                    marginLeft: 4,
-                    backgroundColor: theme.card,
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: 10,
-                    padding: '10px 12px',
-                    width: 180,
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-                    zIndex: 100,
-                  }}
-                >
-                  {/* Theme */}
-                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Theme</div>
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-                    {(['dark', 'light'] as const).map(t => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => { if ((t === 'dark') !== isDark) toggleTheme(); }}
-                        style={{
-                          flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                          border: `1px solid ${(t === 'dark') === isDark ? '#2563eb' : theme.border}`,
-                          backgroundColor: (t === 'dark') === isDark ? '#2563eb22' : 'transparent',
-                          color: (t === 'dark') === isDark ? '#2563eb' : theme.subText,
-                        }}
-                      >
-                        {t.charAt(0).toUpperCase() + t.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Font size */}
-                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Font Size</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <button
-                      type="button"
-                      onClick={() => setFontSize(s => Math.max(10, s - 1))}
-                      disabled={fontSize <= 10}
-                      style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize <= 10 ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize <= 10 ? 0.4 : 1 }}
-                      aria-label="Decrease font size"
-                    >−</button>
-                    <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600, color: theme.text, fontVariantNumeric: 'tabular-nums' }}>
-                      {fontSize}px
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setFontSize(s => Math.min(24, s + 1))}
-                      disabled={fontSize >= 24}
-                      style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize >= 24 ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize >= 24 ? 0.4 : 1 }}
-                      aria-label="Increase font size"
-                    >+</button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setFontSize(15)}
-                    style={{ width: '100%', padding: '4px 0', borderRadius: 6, border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.subText, cursor: 'pointer', fontSize: 11, fontWeight: 600, marginBottom: 14 }}
-                  >
-                    Reset to default
-                  </button>
-
-                  {/* Tab size */}
-                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Tab Size</div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {([2, 4] as const).map(t => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setTabSize(t)}
-                        style={{
-                          flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                          border: `1px solid ${tabSize === t ? '#2563eb' : theme.border}`,
-                          backgroundColor: tabSize === t ? '#2563eb22' : 'transparent',
-                          color: tabSize === t ? '#2563eb' : theme.subText,
-                        }}
-                      >
-                        {t} spaces
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <button
-                type="button"
-                className={`ide-activity-icon${settingsOpen ? ' ide-activity-icon--active' : ''}`}
-                onClick={() => setSettingsOpen(o => !o)}
-                title="Settings"
-                aria-label="Settings"
-                aria-expanded={settingsOpen}
-              >
-                <ActionIcon name="Settings" size={16} />
-                <span>Settings</span>
-              </button>
-            </div>
           </div>
 
           {/* Sidebar panel (hidden when collapsed) */}
