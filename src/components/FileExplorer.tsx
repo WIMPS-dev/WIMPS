@@ -1,10 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import type { Theme } from '../theme/themes';
 import type { CodeTab } from '../types';
 import { getAuthToken, getApiHeaders, uniquifyName } from '../helpers/authStorage';
 import { normalizeTab, readSavedFiles, writeSavedFiles } from '../helpers/tabUtils';
 import { FileRowSkeleton } from '../components/PageSkeletons';
+import {
+  buildTree, renameFolderPrefix, moveFile,
+  readCollapsedFolders, writeCollapsedFolders,
+  tabFolder,
+  type TreeNode,
+} from '../helpers/tabUtils';
+
+// ---------------------------------------------------------------------------
+// Tree context — shared by FolderTree / FolderRow to avoid prop-drilling
+// ---------------------------------------------------------------------------
+interface FileTreeCtx {
+  theme: Theme;
+  activeTabId: string;
+  openTabIds: Set<string>;
+  deletingId: string | null;
+  collapsedFolders: Set<string>;
+  hoveredPath: string | null;
+  dragOverPath: string | null;
+  editingFolderPath: string | null;
+  editFolderName: string;
+  creatingFolderAt: string | null;
+  newFolderName: string;
+  toggleCollapse(path: string): void;
+  setHoveredPath(p: string | null): void;
+  startRenameFolder(path: string, currentName: string): void;
+  setEditFolderName(v: string): void;
+  commitRenameFolder(): void;
+  cancelRenameFolder(): void;
+  setCreatingFolderAt(p: string | null): void;
+  setNewFolderName(v: string): void;
+  commitNewFolder(parentPath: string): void;
+  newFileInFolder(folderPath: string): void;
+  newSubfolder(parentPath: string): void;
+  deleteFolder(node: Extract<TreeNode, { kind: 'folder' }>): void;
+  openFile(tab: CodeTab): void;
+  deleteFile(tab: CodeTab): void;
+  onDragStart(e: React.DragEvent, item: TreeNode): void;
+  onDragOver(e: React.DragEvent, targetPath: string): void;
+  onDragLeave(): void;
+  onDrop(e: React.DragEvent, targetPath: string): void;
+}
+
+const TreeCtx = React.createContext<FileTreeCtx>(null!);
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
@@ -219,6 +262,35 @@ function TrashIcon() {
   );
 }
 
+function FolderIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block', flexShrink: 0 }}>
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function NewFolderIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}>
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+      <line x1="12" y1="11" x2="12" y2="17" />
+      <line x1="9" y1="14" x2="15" y2="14" />
+    </svg>
+  );
+}
+
+function NewFileIcon({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="12" y1="12" x2="12" y2="18" />
+      <line x1="9" y1="15" x2="15" y2="15" />
+    </svg>
+  );
+}
+
 function SectionHeader({ label, expanded, onToggle, theme }: { label: string; expanded: boolean; onToggle: () => void; theme: Theme }) {
   return (
     <button
@@ -245,21 +317,26 @@ interface FileRowProps {
   isOpen: boolean;
   isDeleting: boolean;
   isHovered: boolean;
+  depth: number;
   theme: Theme;
   onClick: () => void;
   onDelete: () => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
+  onDragStart: (e: React.DragEvent) => void;
 }
 
-function FileRow({ file, isActive, isOpen, isDeleting, isHovered, theme, onClick, onDelete, onMouseEnter, onMouseLeave }: FileRowProps) {
+function FileRow({ file, isActive, isOpen, isDeleting, isHovered, depth, theme, onClick, onDelete, onMouseEnter, onMouseLeave, onDragStart }: FileRowProps) {
+  const indent = depth * 14;
   return (
     <div
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      draggable
+      onDragStart={onDragStart}
       style={{
         display: 'flex', alignItems: 'center', gap: 6,
-        padding: '0 8px', height: 28, cursor: 'pointer',
+        padding: `0 8px 0 ${8 + indent}px`, height: 28, cursor: 'pointer',
         backgroundColor: isActive ? theme.linkColor + '25' : isHovered ? theme.linkColor + '10' : 'transparent',
         opacity: isDeleting ? 0.4 : 1,
         transition: 'background-color 100ms, opacity 150ms',
@@ -281,7 +358,7 @@ function FileRow({ file, isActive, isOpen, isDeleting, isHovered, theme, onClick
       {isHovered && !isDeleting && (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          onClick={e => { e.stopPropagation(); onDelete(); }}
           title="Delete file"
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
@@ -292,6 +369,38 @@ function FileRow({ file, isActive, isOpen, isDeleting, isHovered, theme, onClick
           <TrashIcon />
         </button>
       )}
+    </div>
+  );
+}
+
+function NewFolderInput({ parentPath, depth }: { parentPath: string; depth: number }) {
+  const ctx = React.useContext(TreeCtx);
+  const indent = depth * 14;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 4,
+      padding: `0 8px 0 ${8 + indent}px`, height: 26,
+    }}>
+      <span style={{ width: 10, flexShrink: 0 }} />
+      <FolderIcon />
+      <input
+        autoFocus
+        value={ctx.newFolderName}
+        placeholder="folder name"
+        onChange={e => ctx.setNewFolderName(e.target.value)}
+        onBlur={() => ctx.commitNewFolder(parentPath)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') ctx.commitNewFolder(parentPath);
+          if (e.key === 'Escape') ctx.setCreatingFolderAt(null);
+          e.stopPropagation();
+        }}
+        style={{
+          flex: 1, background: ctx.theme.bg,
+          border: `1px solid ${ctx.theme.linkColor}`,
+          borderRadius: 3, color: ctx.theme.text,
+          fontSize: 13, padding: '1px 4px', outline: 'none',
+        }}
+      />
     </div>
   );
 }
@@ -317,6 +426,144 @@ function ExampleRow({ ex, theme, onClick, isHovered, onMouseEnter, onMouseLeave 
         </span>
       </div>
     </div>
+  );
+}
+
+const iconBtnStyle: React.CSSProperties = {
+  background: 'none', border: 'none', cursor: 'pointer',
+  color: 'currentColor', padding: 3, display: 'flex',
+  alignItems: 'center', borderRadius: 4, flexShrink: 0,
+};
+
+function FolderRow({ node, depth }: { node: Extract<TreeNode, { kind: 'folder' }>; depth: number }) {
+  const ctx = React.useContext(TreeCtx);
+  const isCollapsed  = ctx.collapsedFolders.has(node.fullPath);
+  const isHovered    = ctx.hoveredPath === node.fullPath;
+  const isDragTarget = ctx.dragOverPath === node.fullPath;
+  const isRenaming   = ctx.editingFolderPath === node.fullPath;
+  const indent       = depth * 14;
+
+  return (
+    <div
+      onMouseEnter={() => ctx.setHoveredPath(node.fullPath)}
+      onMouseLeave={() => ctx.setHoveredPath(null)}
+      draggable
+      onDragStart={e => ctx.onDragStart(e, node)}
+      onDragOver={e => ctx.onDragOver(e, node.fullPath)}
+      onDragLeave={ctx.onDragLeave}
+      onDrop={e => ctx.onDrop(e, node.fullPath)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        padding: `0 8px 0 ${8 + indent}px`, height: 26,
+        cursor: 'pointer', userSelect: 'none',
+        backgroundColor: isDragTarget
+          ? ctx.theme.linkColor + '20'
+          : isHovered ? ctx.theme.linkColor + '10' : 'transparent',
+        outline: isDragTarget ? `1px dashed ${ctx.theme.linkColor}` : 'none',
+        outlineOffset: -1,
+        transition: 'background-color 80ms',
+      }}
+    >
+      <span
+        onClick={e => { e.stopPropagation(); ctx.toggleCollapse(node.fullPath); }}
+        style={{ color: ctx.theme.subText, flexShrink: 0, display: 'flex' }}
+      >
+        <ChevronIcon open={!isCollapsed} />
+      </span>
+      <FolderIcon />
+      {isRenaming ? (
+        <input
+          autoFocus
+          value={ctx.editFolderName}
+          onChange={e => ctx.setEditFolderName(e.target.value)}
+          onBlur={ctx.commitRenameFolder}
+          onKeyDown={e => {
+            if (e.key === 'Enter') ctx.commitRenameFolder();
+            if (e.key === 'Escape') ctx.cancelRenameFolder();
+            e.stopPropagation();
+          }}
+          onClick={e => e.stopPropagation()}
+          style={{
+            flex: 1, background: ctx.theme.bg,
+            border: `1px solid ${ctx.theme.linkColor}`,
+            borderRadius: 3, color: ctx.theme.text,
+            fontSize: 13, padding: '1px 4px', outline: 'none',
+          }}
+        />
+      ) : (
+        <span
+          onDoubleClick={e => { e.stopPropagation(); ctx.startRenameFolder(node.fullPath, node.name); }}
+          onClick={() => ctx.toggleCollapse(node.fullPath)}
+          style={{
+            flex: 1, fontSize: 13, color: ctx.theme.text,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}
+        >
+          {node.name}
+        </span>
+      )}
+      {isHovered && !isRenaming && (
+        <div style={{ display: 'flex', gap: 1, flexShrink: 0, marginLeft: 'auto' }}>
+          <button type="button" title="New file inside"
+            onClick={e => { e.stopPropagation(); ctx.newFileInFolder(node.fullPath); }}
+            style={{ ...iconBtnStyle, color: ctx.theme.subText }}>
+            <NewFileIcon />
+          </button>
+          <button type="button" title="New subfolder"
+            onClick={e => { e.stopPropagation(); ctx.newSubfolder(node.fullPath); }}
+            style={{ ...iconBtnStyle, color: ctx.theme.subText }}>
+            <NewFolderIcon size={12} />
+          </button>
+          <button type="button" title="Delete folder"
+            onClick={e => { e.stopPropagation(); ctx.deleteFolder(node); }}
+            style={{ ...iconBtnStyle, color: '#ef4444' }}>
+            <TrashIcon />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FolderTree({ nodes, depth }: { nodes: TreeNode[]; depth: number }) {
+  const ctx = React.useContext(TreeCtx);
+  return (
+    <>
+      {nodes.map(node => {
+        if (node.kind === 'folder') {
+          const isCollapsed     = ctx.collapsedFolders.has(node.fullPath);
+          const isCreatingChild = ctx.creatingFolderAt === node.fullPath;
+          return (
+            <React.Fragment key={node.fullPath}>
+              <FolderRow node={node} depth={depth} />
+              {!isCollapsed && (
+                <>
+                  <FolderTree nodes={node.children} depth={depth + 1} />
+                  {isCreatingChild && <NewFolderInput parentPath={node.fullPath} depth={depth + 1} />}
+                </>
+              )}
+            </React.Fragment>
+          );
+        }
+        return (
+          <FileRow
+            key={node.tab.id}
+            file={node.tab}
+            depth={depth}
+            isActive={node.tab.id === ctx.activeTabId}
+            isOpen={ctx.openTabIds.has(node.tab.id)}
+            isDeleting={ctx.deletingId === node.tab.id}
+            isHovered={ctx.hoveredPath === node.tab.id}
+            theme={ctx.theme}
+            onClick={() => ctx.openFile(node.tab)}
+            onDelete={() => ctx.deleteFile(node.tab)}
+            onMouseEnter={() => ctx.setHoveredPath(node.tab.id)}
+            onMouseLeave={() => ctx.setHoveredPath(null)}
+            onDragStart={e => ctx.onDragStart(e, node)}
+          />
+        );
+      })}
+    </>
   );
 }
 
@@ -346,10 +593,19 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
   const [examplesExpanded, setExamplesExpanded] = useState<boolean>(() => {
     try { const v = localStorage.getItem('explorer_examples_open'); return v === null ? true : v === 'true'; } catch { return true; }
   });
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(readCollapsedFolders);
+  const [dragOverPath, setDragOverPath] = useState<string | null>(null);
+  const [editingFolderPath, setEditingFolderPath] = useState<string | null>(null);
+  const [editFolderName, setEditFolderName] = useState('');
+  const [creatingFolderAt, setCreatingFolderAt] = useState<string | null>(null);
+  const [newFolderName, setNewFolderName] = useState('');
+  const dragNodeRef = React.useRef<TreeNode | null>(null);
 
   useEffect(() => {
     try { localStorage.setItem('explorer_examples_open', String(examplesExpanded)); } catch {}
   }, [examplesExpanded]);
+
+  useEffect(() => { writeCollapsedFolders(collapsedFolders); }, [collapsedFolders]);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -448,11 +704,208 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     }
   };
 
+  const updateUserFiles = useCallback((updater: (files: CodeTab[]) => CodeTab[]) => {
+    if (isLoggedIn) {
+      setServerFiles(updater);
+    } else {
+      setLocalFiles(prev => {
+        const next = updater(prev);
+        writeSavedFiles(next);
+        return next;
+      });
+    }
+    setTabs(updater);
+  }, [isLoggedIn, setTabs, setServerFiles, setLocalFiles]);
+
+  const newFileInFolder = useCallback((folderPath: string) => {
+    const allNames = new Set([
+      ...tabs.map(t => t.name),
+      ...(isLoggedIn ? serverFiles : localFiles).map(f => f.name),
+    ]);
+    let n = 1;
+    while (allNames.has(`file${n}.asm`)) n++;
+    const name = `file${n}.asm`;
+    const id = String(Date.now());
+    const newTab: CodeTab = { id, name, path: folderPath, code: '', isDirty: false };
+    updateUserFiles(files => [...files, newTab]);
+    setActiveTabId(id);
+    setCollapsedFolders(prev => {
+      const next = new Set(prev);
+      next.delete(folderPath);
+      return next;
+    });
+  }, [tabs, serverFiles, localFiles, isLoggedIn, updateUserFiles, setActiveTabId]);
+
+  const deleteFolder = useCallback((node: Extract<TreeNode, { kind: 'folder' }>) => {
+    const userFiles = isLoggedIn ? serverFiles : localFiles;
+    const affected = userFiles.filter(
+      f => f.path === node.fullPath || (f.path ?? '').startsWith(node.fullPath + '/'),
+    );
+    if (affected.length > 0) {
+      const ok = window.confirm(
+        `Delete folder "${node.name}" and all ${affected.length} file${affected.length === 1 ? '' : 's'} inside?`,
+      );
+      if (!ok) return;
+    }
+    const affectedIds = new Set(affected.map(f => f.id));
+    if (affectedIds.has(activeTabId)) {
+      const remaining = tabs.filter(t => !affectedIds.has(t.id));
+      setActiveTabId(remaining[0]?.id ?? '');
+    }
+    updateUserFiles(files => files.filter(f => !affectedIds.has(f.id)));
+    setCollapsedFolders(prev => {
+      const next = new Set(prev);
+      for (const f of [...next]) {
+        if (f === node.fullPath || f.startsWith(node.fullPath + '/')) next.delete(f);
+      }
+      return next;
+    });
+  }, [isLoggedIn, serverFiles, localFiles, activeTabId, tabs, updateUserFiles, setActiveTabId]);
+
+  const commitNewFolder = useCallback((parentPath: string) => {
+    const name = newFolderName.trim();
+    setCreatingFolderAt(null);
+    setNewFolderName('');
+    if (!name) return;
+    const folderPath = parentPath ? `${parentPath}/${name}` : name;
+    const userFiles = isLoggedIn ? serverFiles : localFiles;
+    const allNames = new Set(userFiles.map(f => f.name));
+    let n = 1;
+    while (allNames.has(`file${n}.asm`)) n++;
+    const fileName = `file${n}.asm`;
+    const id = String(Date.now());
+    const newTab: CodeTab = { id, name: fileName, path: folderPath, code: '', isDirty: false };
+    updateUserFiles(files => [...files, newTab]);
+    setActiveTabId(id);
+    setCollapsedFolders(prev => {
+      const next = new Set(prev);
+      next.delete(folderPath);
+      return next;
+    });
+  }, [newFolderName, isLoggedIn, serverFiles, localFiles, updateUserFiles, setActiveTabId]);
+
+  const startRenameFolder = useCallback((fullPath: string, currentName: string) => {
+    setEditingFolderPath(fullPath);
+    setEditFolderName(currentName);
+  }, []);
+
+  const commitRenameFolder = useCallback(() => {
+    if (!editingFolderPath) return;
+    const newName = editFolderName.trim();
+    setEditingFolderPath(null);
+    setEditFolderName('');
+    if (!newName) return;
+
+    const parentPath = editingFolderPath.includes('/')
+      ? editingFolderPath.slice(0, editingFolderPath.lastIndexOf('/'))
+      : '';
+    const newFullPath = parentPath ? `${parentPath}/${newName}` : newName;
+    if (newFullPath === editingFolderPath) return;
+
+    updateUserFiles(files => renameFolderPrefix(files, editingFolderPath, newFullPath));
+    setCollapsedFolders(prev => {
+      const next = new Set<string>();
+      for (const p of prev) {
+        if (p === editingFolderPath) next.add(newFullPath);
+        else if (p.startsWith(editingFolderPath + '/'))
+          next.add(newFullPath + p.slice(editingFolderPath.length));
+        else next.add(p);
+      }
+      return next;
+    });
+  }, [editingFolderPath, editFolderName, updateUserFiles]);
+
+  const cancelRenameFolder = useCallback(() => {
+    setEditingFolderPath(null);
+    setEditFolderName('');
+  }, []);
+
+  const onDragStart = useCallback((e: React.DragEvent, item: TreeNode) => {
+    dragNodeRef.current = item;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', item.kind === 'file' ? item.tab.id : item.fullPath);
+  }, []);
+
+  const onDragOver = useCallback((e: React.DragEvent, targetPath: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverPath(targetPath);
+  }, []);
+
+  const onDragLeave = useCallback((e?: React.DragEvent) => {
+    setDragOverPath(null);
+  }, []);
+
+  const applyDrop = useCallback((targetFolderPath: string) => {
+    const dragged = dragNodeRef.current;
+    dragNodeRef.current = null;
+    setDragOverPath(null);
+    if (!dragged) return;
+
+    if (dragged.kind === 'file') {
+      const currentFolder = tabFolder(dragged.tab);
+      if (currentFolder === targetFolderPath) return;
+      updateUserFiles(files => moveFile(files, dragged.tab.id, targetFolderPath));
+    } else {
+      const src = dragged.fullPath;
+      if (src === targetFolderPath) return;
+      if (targetFolderPath === src || targetFolderPath.startsWith(src + '/')) return;
+      const folderName = src.includes('/') ? src.slice(src.lastIndexOf('/') + 1) : src;
+      const newPath = targetFolderPath ? `${targetFolderPath}/${folderName}` : folderName;
+      if (newPath === src) return;
+      updateUserFiles(files => renameFolderPrefix(files, src, newPath));
+      setCollapsedFolders(prev => {
+        const next = new Set<string>();
+        for (const p of prev) {
+          if (p === src) next.add(newPath);
+          else if (p.startsWith(src + '/')) next.add(newPath + p.slice(src.length));
+          else next.add(p);
+        }
+        return next;
+      });
+    }
+  }, [updateUserFiles]);
+
+  const onDrop = useCallback((e: React.DragEvent, targetFolderPath: string) => {
+    e.preventDefault();
+    applyDrop(targetFolderPath);
+  }, [applyDrop]);
+
   const openTabIds = new Set(tabs.map(t => t.id));
   const userFiles = isLoggedIn ? serverFiles : localFiles;
 
   const handleDelete = (file: CodeTab) =>
     isLoggedIn ? handleDeleteCloud(file) : handleDeleteLocal(file);
+
+  const treeCtx: FileTreeCtx = {
+    theme, activeTabId, openTabIds, deletingId, collapsedFolders,
+    hoveredPath: hoveredId, dragOverPath,
+    editingFolderPath, editFolderName,
+    creatingFolderAt, newFolderName,
+    toggleCollapse: (path) => setCollapsedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path); else next.add(path);
+      return next;
+    }),
+    setHoveredPath: setHoveredId,
+    startRenameFolder,
+    setEditFolderName,
+    commitRenameFolder,
+    cancelRenameFolder,
+    setCreatingFolderAt,
+    setNewFolderName,
+    commitNewFolder,
+    newFileInFolder,
+    newSubfolder: (parentPath) => {
+      setCreatingFolderAt(parentPath);
+      setNewFolderName('');
+      setCollapsedFolders(prev => { const next = new Set(prev); next.delete(parentPath); return next; });
+    },
+    deleteFolder,
+    openFile: handleOpen,
+    deleteFile: handleDelete,
+    onDragStart, onDragOver, onDragLeave, onDrop,
+  };
 
   const hdrBtn: React.CSSProperties = {
     background: 'none', border: 'none', cursor: 'pointer',
@@ -474,6 +927,13 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
             <line x1="12" y1="12" x2="12" y2="18" />
             <line x1="9" y1="15" x2="15" y2="15" />
           </svg>
+        </button>
+        <button type="button"
+          onClick={() => { setCreatingFolderAt(''); setNewFolderName(''); }}
+          title="New Folder"
+          style={hdrBtn}
+        >
+          <NewFolderIcon />
         </button>
         <button type="button" onClick={onUpload} title="Import file from disk" style={hdrBtn}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}>
@@ -518,21 +978,16 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
                 Nothing saved yet.<br />Save a file to keep it here.
               </div>
             ) : (
-              userFiles.map(file => (
-                <FileRow
-                  key={file.id}
-                  file={file}
-                  isActive={file.id === activeTabId}
-                  isOpen={openTabIds.has(file.id)}
-                  isDeleting={deletingId === file.id}
-                  isHovered={hoveredId === file.id}
-                  theme={theme}
-                  onClick={() => handleOpen(file)}
-                  onDelete={() => handleDelete(file)}
-                  onMouseEnter={() => setHoveredId(file.id)}
-                  onMouseLeave={() => setHoveredId(null)}
+              <TreeCtx.Provider value={treeCtx}>
+                <FolderTree nodes={buildTree(userFiles)} depth={0} />
+                {creatingFolderAt === '' && <NewFolderInput parentPath="" depth={0} />}
+                <div
+                  style={{ flex: 1, minHeight: 16 }}
+                  onDragOver={e => { e.preventDefault(); setDragOverPath('__root__'); }}
+                  onDragLeave={() => setDragOverPath(null)}
+                  onDrop={e => { e.preventDefault(); applyDrop(''); setDragOverPath(null); }}
                 />
-              ))
+              </TreeCtx.Provider>
             )}
           </>
         )}

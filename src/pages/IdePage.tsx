@@ -425,12 +425,18 @@ export default function IdePage() {
     }
   };
 
-  const addTab = () => {
+  const addTab = (folderPath?: string) => {
     const id = String(Date.now());
     const existingNames = new Set(tabs.map(t => t.name));
     let n = 1;
     while (existingNames.has(`file${n}.asm`)) n++;
-    const newTab: CodeTab = { id, name: `file${n}.asm`, code: '', isDirty: false };
+    const newTab: CodeTab = {
+      id,
+      name: `file${n}.asm`,
+      path: folderPath,
+      code: '',
+      isDirty: false,
+    };
     setTabs(prev => [...prev, newTab]);
     setActiveTabId(id);
   };
@@ -684,7 +690,7 @@ export default function IdePage() {
               {/* New tab */}
               <button
                 type="button"
-                onClick={addTab}
+                onClick={() => addTab()}
                 aria-label="New tab"
                 className="ide-new-tab"
                 style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', width: 28, height: 28, fontSize: 18, flexShrink: 0 }}
@@ -705,12 +711,15 @@ export default function IdePage() {
                 aria-expanded={settingsOpen}
                 className="ide-settings-btn"
                 style={{
-                  background: 'none', border: 'none', cursor: 'pointer', padding: 4,
-                  borderRadius: 5, color: settingsOpen ? theme.text : theme.subText,
+                  background: settingsOpen ? '#2563eb22' : 'transparent',
+                  border: `1px solid ${settingsOpen ? '#2563eb' : theme.border}`,
+                  cursor: 'pointer', padding: '4px 8px',
+                  borderRadius: 6, color: settingsOpen ? '#2563eb' : theme.text,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'border-color 0.15s, color 0.15s, background 0.15s',
                 }}
               >
-                <ActionIcon name="Settings" size={15} />
+                <ActionIcon name="Settings" size={16} />
               </button>
               {settingsOpen && (
                 <div style={{

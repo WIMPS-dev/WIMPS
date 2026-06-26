@@ -21,3 +21,102 @@ export function readSavedFiles(): CodeTab[] {
 export function writeSavedFiles(files: CodeTab[]): void {
   try { localStorage.setItem('saved_files', JSON.stringify(files)); } catch {}
 }
+
+// ---------------------------------------------------------------------------
+// Folder tree utilities
+// ---------------------------------------------------------------------------
+
+export type TreeNode =
+  | { kind: 'folder'; name: string; fullPath: string; children: TreeNode[] }
+  | { kind: 'file'; tab: CodeTab };
+
+/** Folder prefix of a tab ('') for root files */
+export function tabFolder(tab: CodeTab): string {
+  return tab.path ?? '';
+}
+
+/** Build a recursive tree from a flat CodeTab array.
+ *  Folders always precede files; both groups sorted alphabetically. */
+export function buildTree(tabs: CodeTab[]): TreeNode[] {
+  // Collect all folder paths and their ancestors
+  const folderSet = new Set<string>();
+  for (const tab of tabs) {
+    if (tab.path) {
+      const parts = tab.path.split('/');
+      for (let i = 1; i <= parts.length; i++) {
+        folderSet.add(parts.slice(0, i).join('/'));
+      }
+    }
+  }
+
+  const sortedFolders = [...folderSet].sort((a, b) => a.localeCompare(b));
+
+  function buildLevel(parentPath: string): TreeNode[] {
+    const nodes: TreeNode[] = [];
+
+    // Direct child folders
+    const childFolders = sortedFolders.filter(f => {
+      const parent = f.includes('/') ? f.slice(0, f.lastIndexOf('/')) : '';
+      return parent === parentPath;
+    });
+
+    for (const folder of childFolders) {
+      const name = folder.includes('/')
+        ? folder.slice(folder.lastIndexOf('/') + 1)
+        : folder;
+      nodes.push({ kind: 'folder', name, fullPath: folder, children: buildLevel(folder) });
+    }
+
+    // Files directly in this folder
+    const filesHere = tabs
+      .filter(t => (t.path ?? '') === parentPath)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    for (const tab of filesHere) {
+      nodes.push({ kind: 'file', tab });
+    }
+
+    return nodes;
+  }
+
+  return buildLevel('');
+}
+
+/** Rewrite every tab whose path starts with oldPrefix to newPrefix. */
+export function renameFolderPrefix(
+  tabs: CodeTab[],
+  oldPrefix: string,
+  newPrefix: string,
+): CodeTab[] {
+  return tabs.map(tab => {
+    if (!tab.path) return tab;
+    if (tab.path === oldPrefix)
+      return { ...tab, path: newPrefix || undefined };
+    if (tab.path.startsWith(oldPrefix + '/')) {
+      const remainder = tab.path.slice(oldPrefix.length); // starts with '/'
+      const newPath = newPrefix ? newPrefix + remainder : remainder.slice(1);
+      return { ...tab, path: newPath || undefined };
+    }
+    return tab;
+  });
+}
+
+/** Move a single file to a new folder. */
+export function moveFile(tabs: CodeTab[], tabId: string, newFolder: string): CodeTab[] {
+  return tabs.map(t =>
+    t.id === tabId ? { ...t, path: newFolder === '' ? undefined : newFolder } : t,
+  );
+}
+
+export function readCollapsedFolders(): Set<string> {
+  try {
+    const raw = localStorage.getItem('collapsed_folders');
+    if (raw) return new Set(JSON.parse(raw) as string[]);
+  } catch {}
+  return new Set();
+}
+
+export function writeCollapsedFolders(collapsed: Set<string>): void {
+  try {
+    localStorage.setItem('collapsed_folders', JSON.stringify([...collapsed]));
+  } catch {}
+}
