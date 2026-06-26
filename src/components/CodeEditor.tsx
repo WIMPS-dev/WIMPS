@@ -176,7 +176,7 @@ export function CodeEditor({
             fontSize,
             fontFamily: 'monospace',
             lineHeight: Math.round(fontSize * 1.5),
-            minimap: { enabled: false },
+            minimap: { enabled: true },
             automaticLayout: true,
             scrollBeyondLastLine: false,
             glyphMargin: true,
