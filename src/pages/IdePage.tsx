@@ -26,12 +26,12 @@ const DATA_WORDS = 32;
 
 type SidebarPanel = 'files' | 'registers' | 'memory' | 'stats' | 'bitmap';
 
-const SIDEBAR_PANELS: { id: SidebarPanel; label: string; icon: string }[] = [
-  { id: 'files',     label: 'Files',  icon: 'Files'  },
-  { id: 'registers', label: 'Regs',   icon: 'Regs'   },
-  { id: 'memory',    label: 'Memory', icon: 'Memory' },
-  { id: 'stats',     label: 'Stats',  icon: 'Stats'  },
-  { id: 'bitmap',    label: 'Bitmap', icon: 'Bitmap' },
+const SIDEBAR_PANELS: { id: SidebarPanel; label: string; title: string; icon: string }[] = [
+  { id: 'files',     label: 'Files',  title: 'Files',     icon: 'Files'  },
+  { id: 'registers', label: 'Registers', title: 'Registers', icon: 'Regs'   },
+  { id: 'memory',    label: 'Memory', title: 'Memory',    icon: 'Memory' },
+  { id: 'stats',     label: 'Stats',  title: 'Stats',     icon: 'Stats'  },
+  { id: 'bitmap',    label: 'Bitmap', title: 'Bitmap',    icon: 'Bitmap' },
 ];
 
 const DEFAULT_TABS: CodeTab[] = [{ id: '1', name: 'file1.asm', code: '', isDirty: false }];
@@ -124,6 +124,9 @@ export default function IdePage() {
   const [tabSize, setTabSize] = useState<2 | 4>(() => {
     try { const v = localStorage.getItem('editor_tab_size'); return v === '2' ? 2 : 4; } catch { return 4; }
   });
+  const [showHotkeys, setShowHotkeys] = useState<boolean>(() => {
+    try { const v = localStorage.getItem('show_hotkeys'); return v === null ? true : v === 'true'; } catch { return true; }
+  });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -162,6 +165,7 @@ export default function IdePage() {
   useEffect(() => { try { localStorage.setItem('sidebar_panel',      activeSidebarPanel);        } catch {} }, [activeSidebarPanel]);
   useEffect(() => { try { localStorage.setItem('editor_font_size',   String(fontSize));           } catch {} }, [fontSize]);
   useEffect(() => { try { localStorage.setItem('editor_tab_size',    String(tabSize));            } catch {} }, [tabSize]);
+  useEffect(() => { try { localStorage.setItem('show_hotkeys',       String(showHotkeys));        } catch {} }, [showHotkeys]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -544,12 +548,12 @@ export default function IdePage() {
   // Editor actions
   // ---------------------------------------------------------------------------
   // Debug toolbar: Assemble + step controls. Assemble always enabled; rest require isAssembled.
-  const debugActions: { label: string; onPress: () => void; enabled: boolean; title: string }[] = [
-    { label: 'Run',       onPress: handleRun,       enabled: isAssembled && !isTerminated,               title: 'Run (F5)' },
-    { label: 'Continue',  onPress: handleContinue,  enabled: isAssembled && !isTerminated,               title: 'Continue (F8)' },
-    { label: 'Step Back', onPress: handleStepBack,  enabled: isAssembled && canStepBack,                 title: 'Step Back (F9)' },
-    { label: 'Step',      onPress: handleStep,      enabled: isAssembled && !isTerminated,               title: 'Step (F10)' },
-    { label: 'Reset',     onPress: handleReset,     enabled: isAssembled,                                title: 'Reset (Escape)' },
+  const debugActions: { label: string; onPress: () => void; enabled: boolean; title: string; hotkey: string }[] = [
+    { label: 'Run',       onPress: handleRun,       enabled: isAssembled && !isTerminated,  title: 'Run (F5)',        hotkey: 'F5'  },
+    { label: 'Continue',  onPress: handleContinue,  enabled: isAssembled && !isTerminated,  title: 'Continue (F8)',   hotkey: 'F8'  },
+    { label: 'Step Back', onPress: handleStepBack,  enabled: isAssembled && canStepBack,    title: 'Step Back (F9)', hotkey: 'F9'  },
+    { label: 'Step',      onPress: handleStep,      enabled: isAssembled && !isTerminated,  title: 'Step (F10)',      hotkey: 'F10' },
+    { label: 'Reset',     onPress: handleReset,     enabled: isAssembled,                   title: 'Reset (Escape)',  hotkey: 'Esc' },
   ];
 
   const simStatus =
@@ -577,6 +581,9 @@ export default function IdePage() {
   // Render
   // ---------------------------------------------------------------------------
   if (!ready) return <IdeSkeleton theme={theme} />;
+
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+  const assembleKey = isMac ? '⌘ Enter' : 'Ctrl+Enter';
 
   return (
     <div style={{
@@ -748,11 +755,23 @@ export default function IdePage() {
                   <button type="button" onClick={() => setFontSize(15)} style={{ width: '100%', padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.subText, marginBottom: 14 }}>Reset to default</button>
                   {/* Tab size */}
                   <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Tab Size</div>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
                     {([2, 4] as const).map(t => (
                       <button key={t} type="button" onClick={() => setTabSize(t)} style={{ flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${tabSize === t ? '#2563eb' : theme.border}`, backgroundColor: tabSize === t ? '#2563eb22' : 'transparent', color: tabSize === t ? '#2563eb' : theme.subText }}>{t} spaces</button>
                     ))}
                   </div>
+                  {/* Hotkeys */}
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Hotkey Labels</div>
+                  <button
+                    type="button"
+                    onClick={() => setShowHotkeys(v => !v)}
+                    style={{
+                      width: '100%', padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                      border: `1px solid ${showHotkeys ? '#2563eb' : theme.border}`,
+                      backgroundColor: showHotkeys ? '#2563eb22' : 'transparent',
+                      color: showHotkeys ? '#2563eb' : theme.subText,
+                    }}
+                  >{showHotkeys ? 'Visible' : 'Hidden'}</button>
                 </div>
               )}
             </div>
@@ -794,6 +813,16 @@ export default function IdePage() {
             >
               <ActionIcon name="Assemble" size={13} />
               <span>Assemble</span>
+              {showHotkeys && (
+                <span style={{
+                  fontSize: 12, fontFamily: 'ui-monospace, monospace', fontWeight: 700,
+                  color: '#1e3a8a',
+                  backgroundColor: '#ffffff',
+                  padding: '2px 6px', borderRadius: 4,
+                  lineHeight: '16px', marginLeft: 4, flexShrink: 0,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+                }}>{assembleKey}</span>
+              )}
             </button>
 
             <div style={{ width: 1, height: 20, backgroundColor: theme.border, flexShrink: 0 }} />
@@ -828,6 +857,15 @@ export default function IdePage() {
               >
                 <ActionIcon name={a.label} size={13} />
                 <span>{a.label}</span>
+                {showHotkeys && (
+                  <span style={{
+                    fontSize: 11, fontFamily: 'monospace', fontWeight: 700,
+                    color: theme.subText, opacity: a.enabled ? 0.7 : 0.4,
+                    padding: '1px 4px', borderRadius: 3,
+                    border: `1px solid ${theme.border}`,
+                    lineHeight: '14px', marginLeft: 1, flexShrink: 0,
+                  }}>{a.hotkey}</span>
+                )}
               </button>
             ))}
 
@@ -1032,7 +1070,7 @@ export default function IdePage() {
             <>
               <div className="ide-sidebar" style={{ width: sidebarWidth }}>
                 <div className="ide-sidebar-header">
-                  {SIDEBAR_PANELS.find(p => p.id === activeSidebarPanel)?.label.toUpperCase()}
+                  {SIDEBAR_PANELS.find(p => p.id === activeSidebarPanel)?.title.toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   {activeSidebarPanel === 'files'     && <FileExplorer theme={theme} isLoggedIn={isLoggedIn} tabs={tabs} setTabs={setTabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} removeTabLocally={removeTabLocally} onFilesLoaded={setClosedFileNames} onUpload={handleUpload} onDownload={handleDownload} />}
