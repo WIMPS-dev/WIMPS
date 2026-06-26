@@ -207,6 +207,23 @@ export function defineMipsThemes(monaco: MonacoNS) {
       'editorLineNumber.foreground': THEMES.dark.subText,
       'editorLineNumber.activeForeground': THEMES.dark.text,
       'editorGutter.background': THEMES.dark.card,
+      // Autocomplete suggestion widget
+      'editorSuggestWidget.background': THEMES.dark.card,
+      'editorSuggestWidget.border': THEMES.dark.border,
+      'editorSuggestWidget.foreground': THEMES.dark.text,
+      'editorSuggestWidget.selectedBackground': THEMES.dark.tabActive,
+      'editorSuggestWidget.selectedForeground': THEMES.dark.text,
+      'editorSuggestWidget.highlightForeground': THEMES.dark.linkColor,
+      'editorSuggestWidget.focusHighlightForeground': THEMES.dark.linkColor,
+      // Hover info widget
+      'editorHoverWidget.background': THEMES.dark.card,
+      'editorHoverWidget.border': THEMES.dark.border,
+      'editorHoverWidget.foreground': THEMES.dark.text,
+      'editorHoverWidget.statusBarBackground': THEMES.dark.bg,
+      // Generic editor widgets (parameter hints, etc.)
+      'editorWidget.background': THEMES.dark.card,
+      'editorWidget.border': THEMES.dark.border,
+      'editorWidget.foreground': THEMES.dark.text,
     },
   });
 
@@ -220,6 +237,23 @@ export function defineMipsThemes(monaco: MonacoNS) {
       'editorLineNumber.foreground': THEMES.light.subText,
       'editorLineNumber.activeForeground': THEMES.light.text,
       'editorGutter.background': THEMES.light.card,
+      // Autocomplete suggestion widget
+      'editorSuggestWidget.background': THEMES.light.card,
+      'editorSuggestWidget.border': THEMES.light.border,
+      'editorSuggestWidget.foreground': THEMES.light.text,
+      'editorSuggestWidget.selectedBackground': THEMES.light.tabActive,
+      'editorSuggestWidget.selectedForeground': THEMES.light.text,
+      'editorSuggestWidget.highlightForeground': THEMES.light.linkColor,
+      'editorSuggestWidget.focusHighlightForeground': THEMES.light.linkColor,
+      // Hover info widget
+      'editorHoverWidget.background': THEMES.light.card,
+      'editorHoverWidget.border': THEMES.light.border,
+      'editorHoverWidget.foreground': THEMES.light.text,
+      'editorHoverWidget.statusBarBackground': THEMES.light.bg,
+      // Generic editor widgets (parameter hints, etc.)
+      'editorWidget.background': THEMES.light.card,
+      'editorWidget.border': THEMES.light.border,
+      'editorWidget.foreground': THEMES.light.text,
     },
   });
 }
