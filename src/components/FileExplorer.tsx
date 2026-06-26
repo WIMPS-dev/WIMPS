@@ -8,6 +8,7 @@ import { FileRowSkeleton } from '../components/PageSkeletons';
 import {
   buildTree, renameFolderPrefix, moveFile,
   readCollapsedFolders, writeCollapsedFolders,
+  readSavedFolders, writeSavedFolders,
   tabFolder,
   type TreeNode,
 } from '../helpers/tabUtils';
@@ -599,6 +600,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
   const [editFolderName, setEditFolderName] = useState('');
   const [creatingFolderAt, setCreatingFolderAt] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
+  const [folderPaths, setFolderPaths] = useState<Set<string>>(() => new Set(readSavedFolders()));
   const dragNodeRef = React.useRef<TreeNode | null>(null);
 
   useEffect(() => {
@@ -606,6 +608,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
   }, [examplesExpanded]);
 
   useEffect(() => { writeCollapsedFolders(collapsedFolders); }, [collapsedFolders]);
+  useEffect(() => { writeSavedFolders([...folderPaths]); }, [folderPaths]);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -753,13 +756,15 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
       setActiveTabId(remaining[0]?.id ?? '');
     }
     updateUserFiles(files => files.filter(f => !affectedIds.has(f.id)));
-    setCollapsedFolders(prev => {
+    const prunePrefix = (prev: Set<string>) => {
       const next = new Set(prev);
       for (const f of [...next]) {
         if (f === node.fullPath || f.startsWith(node.fullPath + '/')) next.delete(f);
       }
       return next;
-    });
+    };
+    setCollapsedFolders(prunePrefix);
+    setFolderPaths(prunePrefix);
   }, [isLoggedIn, serverFiles, localFiles, activeTabId, tabs, updateUserFiles, setActiveTabId]);
 
   const commitNewFolder = useCallback((parentPath: string) => {
@@ -768,21 +773,13 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     setNewFolderName('');
     if (!name) return;
     const folderPath = parentPath ? `${parentPath}/${name}` : name;
-    const userFiles = isLoggedIn ? serverFiles : localFiles;
-    const allNames = new Set(userFiles.map(f => f.name));
-    let n = 1;
-    while (allNames.has(`file${n}.asm`)) n++;
-    const fileName = `file${n}.asm`;
-    const id = String(Date.now());
-    const newTab: CodeTab = { id, name: fileName, path: folderPath, code: '', isDirty: false };
-    updateUserFiles(files => [...files, newTab]);
-    setActiveTabId(id);
+    setFolderPaths(prev => new Set([...prev, folderPath]));
     setCollapsedFolders(prev => {
       const next = new Set(prev);
       next.delete(folderPath);
       return next;
     });
-  }, [newFolderName, isLoggedIn, serverFiles, localFiles, updateUserFiles, setActiveTabId]);
+  }, [newFolderName]);
 
   const startRenameFolder = useCallback((fullPath: string, currentName: string) => {
     setEditingFolderPath(fullPath);
@@ -803,7 +800,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     if (newFullPath === editingFolderPath) return;
 
     updateUserFiles(files => renameFolderPrefix(files, editingFolderPath, newFullPath));
-    setCollapsedFolders(prev => {
+    const rewritePrefix = (prev: Set<string>) => {
       const next = new Set<string>();
       for (const p of prev) {
         if (p === editingFolderPath) next.add(newFullPath);
@@ -812,7 +809,9 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
         else next.add(p);
       }
       return next;
-    });
+    };
+    setCollapsedFolders(rewritePrefix);
+    setFolderPaths(rewritePrefix);
   }, [editingFolderPath, editFolderName, updateUserFiles]);
 
   const cancelRenameFolder = useCallback(() => {
@@ -854,7 +853,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
       const newPath = targetFolderPath ? `${targetFolderPath}/${folderName}` : folderName;
       if (newPath === src) return;
       updateUserFiles(files => renameFolderPrefix(files, src, newPath));
-      setCollapsedFolders(prev => {
+      const rewriteDrag = (prev: Set<string>) => {
         const next = new Set<string>();
         for (const p of prev) {
           if (p === src) next.add(newPath);
@@ -862,7 +861,9 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
           else next.add(p);
         }
         return next;
-      });
+      };
+      setCollapsedFolders(rewriteDrag);
+      setFolderPaths(rewriteDrag);
     }
   }, [updateUserFiles]);
 
@@ -973,13 +974,13 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
               <div style={{ padding: '0 8px' }}>
                 <FileRowSkeleton theme={theme} count={3} />
               </div>
-            ) : userFiles.length === 0 ? (
+            ) : userFiles.length === 0 && folderPaths.size === 0 ? (
               <div style={{ padding: '4px 24px', color: theme.subText, fontSize: 12, lineHeight: '18px' }}>
                 Nothing saved yet.<br />Save a file to keep it here.
               </div>
             ) : (
               <TreeCtx.Provider value={treeCtx}>
-                <FolderTree nodes={buildTree(userFiles)} depth={0} />
+                <FolderTree nodes={buildTree(userFiles, folderPaths)} depth={0} />
                 {creatingFolderAt === '' && <NewFolderInput parentPath="" depth={0} />}
                 <div
                   style={{ flex: 1, minHeight: 16 }}

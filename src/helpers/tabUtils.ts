@@ -36,13 +36,23 @@ export function tabFolder(tab: CodeTab): string {
 }
 
 /** Build a recursive tree from a flat CodeTab array.
+ *  explicitFolders lets empty folders (no files) appear in the tree.
  *  Folders always precede files; both groups sorted alphabetically. */
-export function buildTree(tabs: CodeTab[]): TreeNode[] {
+export function buildTree(tabs: CodeTab[], explicitFolders?: Set<string>): TreeNode[] {
   // Collect all folder paths and their ancestors
   const folderSet = new Set<string>();
   for (const tab of tabs) {
     if (tab.path) {
       const parts = tab.path.split('/');
+      for (let i = 1; i <= parts.length; i++) {
+        folderSet.add(parts.slice(0, i).join('/'));
+      }
+    }
+  }
+  if (explicitFolders) {
+    for (const f of explicitFolders) {
+      if (!f) continue;
+      const parts = f.split('/');
       for (let i = 1; i <= parts.length; i++) {
         folderSet.add(parts.slice(0, i).join('/'));
       }
@@ -105,6 +115,19 @@ export function moveFile(tabs: CodeTab[], tabId: string, newFolder: string): Cod
   return tabs.map(t =>
     t.id === tabId ? { ...t, path: newFolder === '' ? undefined : newFolder } : t,
   );
+}
+
+export function readSavedFolders(): string[] {
+  try {
+    const raw = localStorage.getItem('saved_folders');
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed)) return parsed.filter((x): x is string => typeof x === 'string');
+  } catch {}
+  return [];
+}
+
+export function writeSavedFolders(paths: string[]): void {
+  try { localStorage.setItem('saved_folders', JSON.stringify(paths)); } catch {}
 }
 
 export function readCollapsedFolders(): Set<string> {
