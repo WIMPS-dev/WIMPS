@@ -43,7 +43,7 @@ export function MemoryView({ theme, tick }: MemoryViewProps) {
   const visible = showZeros ? rows : rows.filter(r => !isZeroRow(r));
   const hiddenCount = rows.length - visible.length;
 
-  const isDirty = addrStr !== DEFAULT_ADDR || numRows !== 128 || showZeros;
+  const isDirty = addrStr !== DEFAULT_ADDR || numRows !== 128;
 
   const mono: React.CSSProperties = { fontFamily: 'monospace' };
 
@@ -111,7 +111,7 @@ export function MemoryView({ theme, tick }: MemoryViewProps) {
         {isDirty && (
           <button
             type="button"
-            onClick={() => { setAddrStr(DEFAULT_ADDR); setNumRows(128); setShowZeros(false); }}
+            onClick={() => { setAddrStr(DEFAULT_ADDR); setNumRows(128); }}
             style={{
               background: 'none', border: `1px solid ${theme.border}`,
               borderRadius: 6, fontSize: 10, fontWeight: 600,
