@@ -62,9 +62,10 @@ export async function migrateGuestFiles(token: string, apiBase: string): Promise
 
     const headers = getApiHeaders(token);
 
-    // Fetch existing server files
+    // Fetch existing server files — abort if we can't verify server state to avoid overwriting
     const getRes = await fetch(`${apiBase}/auth/tabs`, { headers });
-    let serverTabs: any[] = getRes.ok ? await getRes.json() : [];
+    if (!getRes.ok) return;
+    let serverTabs: any[] = await getRes.json();
 
     // Special case: if server has an empty file1.asm and the guest has a non-empty file1.asm,
     // fill the server file's content rather than creating a duplicate "file1 (1).asm".

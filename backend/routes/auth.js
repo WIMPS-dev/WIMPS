@@ -23,13 +23,23 @@ const authenticate = (req, res, next) => {
 router.post('/register', async(req, res) => {
     const { username, password } = req.body;
 
+    if (!username || typeof username !== 'string' || username.trim().length < 2 || username.trim().length > 32) {
+        return res.status(400).json({ error: 'Username must be 2–32 characters' });
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(username.trim())) {
+        return res.status(400).json({ error: 'Username may only contain letters, numbers, _ and -' });
+    }
+    if (!password || typeof password !== 'string' || password.length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
     try {
-        const existing = await User.findOne({ username });
+        const existing = await User.findOne({ username: username.trim() });
         if (existing) {
             return res.status(400).json({ error: 'Username already exists' });
         }
 
-        const user = await User.create({ username, password });
+        const user = await User.create({ username: username.trim(), password });
         console.log(`✅ Registration success: New user '${username}' created.`);
         res.status(201).json({ message: 'User registered successfully' });
     } catch (err) {

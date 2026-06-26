@@ -8,8 +8,17 @@ const authRoutes = require('./routes/auth');
 
 const app = express();
 
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://wimps.dev')
+    .split(',').map(s => s.trim());
+
 const corsOptions = {
-    origin: true,
+    origin: (origin, callback) => {
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
 };

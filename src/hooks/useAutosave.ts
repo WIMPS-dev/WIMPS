@@ -152,6 +152,21 @@ export function useAutosave({
     return () => window.removeEventListener('online', onOnline);
   }, [tabsRef]);
 
+  useEffect(() => {
+    const onBeforeUnload = () => {
+      if (debounceTimerRef.current !== null) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      // Synchronous path for guests — writes to localStorage before the page closes
+      if (!isLoggedInRef.current) {
+        doSaveRef.current?.();
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
+
   // Guests get 300ms debounce (localStorage is sync — just batches rapid keystrokes)
   const scheduleSave = useCallback(() => {
     if (inFlightRef.current && isLoggedInRef.current) { pendingRef.current = true; return; }

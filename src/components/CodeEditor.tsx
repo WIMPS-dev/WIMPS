@@ -42,8 +42,8 @@ export function CodeEditor({
   const activeDecoRef = useRef<string[]>([]);
   const bpDecoRef = useRef<string[]>([]);
   const [ready, setReady] = useState(false);
-  // Left offset of the text content area (gutter width) — for placeholder alignment
   const [contentLeft, setContentLeft] = useState(40);
+  const disposablesRef = useRef<Monaco.IDisposable[]>([]);
 
   // Keep callbacks fresh without re-binding Monaco commands/listeners
   const onAssembleRef = useRef(onAssemble);
@@ -71,20 +71,23 @@ export function CodeEditor({
     // Ctrl/Cmd+B → toggle sidebar
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB, () => onToggleSidebarRef.current?.());
 
-    // Click the glyph margin to toggle a breakpoint
-    editor.onMouseDown((e) => {
-      if (e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) {
-        const ln = e.target.position?.lineNumber;
-        if (ln) onBreakpointToggleRef.current(ln);
-      }
-    });
+    disposablesRef.current = [
+      editor.onMouseDown((e) => {
+        if (e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) {
+          const ln = e.target.position?.lineNumber;
+          if (ln) onBreakpointToggleRef.current(ln);
+        }
+      }),
+      editor.onDidLayoutChange((info) => setContentLeft(info.contentLeft)),
+    ];
 
-    // Track the content-area left offset so the placeholder lines up with text
     setContentLeft(editor.getLayoutInfo().contentLeft);
-    editor.onDidLayoutChange((info) => setContentLeft(info.contentLeft));
-
     setReady(true);
   };
+
+  useEffect(() => {
+    return () => { disposablesRef.current.forEach(d => d.dispose()); };
+  }, []);
 
   // Active-line highlight
   useEffect(() => {
