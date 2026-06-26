@@ -91,15 +91,8 @@ function trackCurrentInstruction(): void {
   if (instance.terminated) return;
   try {
     const stmt = instance.getStatementAtAddress(instance.programCounter);
-    if (!stmt?.sourceLine || stmt.sourceLine < 1) return;
-    const lineText = (sourceLines[stmt.sourceLine - 1] ?? '').trimStart();
-    if (!lineText || lineText.startsWith('#') || lineText.startsWith('.')) return;
-    // Detect and strip label prefix ("loop: add..." → "add...")
-    const colonIdx = lineText.indexOf(':');
-    const firstSpaceIdx = lineText.search(/\s/);
-    const hasLabel = colonIdx >= 0 && (firstSpaceIdx < 0 || colonIdx < firstSpaceIdx);
-    const codePart = hasLabel ? lineText.slice(colonIdx + 1).trimStart() : lineText;
-    const mnemonic = codePart.split(/[\s,\t(]/)[0].toLowerCase();
+    if (!stmt?.assemblyStatement) return;
+    const mnemonic = stmt.assemblyStatement.trimStart().split(/[\s,\t(]/)[0].toLowerCase();
     if (!mnemonic) return;
     instrCounts[categorizeInstr(mnemonic)]++;
     totalInstructions++;

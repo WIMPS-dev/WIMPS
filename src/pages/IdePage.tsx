@@ -16,13 +16,11 @@ import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getApiHeaders, getAuthToken, uniquifyName } from '../helpers/authStorage';
 import { useAutosave } from '../hooks/useAutosave';
 import type { InstrStats } from '../simulator/useMips';
-import { assemble, continueSim, feedInput, getInstructionStats, getMemoryRange, getState, resetSim, runSim, stepBackSim, stepSim } from '../simulator/useMips';
+import { assemble, continueSim, feedInput, getInstructionStats, getState, resetSim, runSim, stepBackSim, stepSim } from '../simulator/useMips';
 import type { CodeTab } from '../types';
 import { normalizeTab, readSavedFiles, writeSavedFiles } from '../helpers/tabUtils';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
-const DATA_START = 0x10010000;
-const DATA_WORDS = 32;
 
 type SidebarPanel = 'files' | 'registers' | 'memory' | 'stats' | 'bitmap';
 
@@ -89,7 +87,6 @@ export default function IdePage() {
 
   const [registers, setRegisters] = useState<RegisterValue[]>(buildInitialRegisters());
   const [output, setOutput] = useState('');
-  const [memoryData, setMemoryData] = useState<any[]>([]);
   const [activeLine, setActiveLine] = useState<number | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
   const [isAssembled, setIsAssembled] = useState(false);
@@ -256,7 +253,6 @@ export default function IdePage() {
     setIsWaiting(state.isWaiting);
     setCanStepBack(state.canUndo);
     setIsTerminated(state.terminated);
-    setMemoryData(getMemoryRange(DATA_START, DATA_WORDS));
     setInstrStats(getInstructionStats());
     setSimTick(t => t + 1);
   };
@@ -307,7 +303,6 @@ export default function IdePage() {
     setChangedRegisters(new Set());
     prevRegistersRef.current = [];
     setOutput('');
-    setMemoryData([]);
     setActiveLine(null);
     setIsWaiting(false);
     setIsAssembled(false);
@@ -1084,7 +1079,7 @@ export default function IdePage() {
                 <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   {activeSidebarPanel === 'files'     && <FileExplorer theme={theme} isLoggedIn={isLoggedIn} tabs={tabs} setTabs={setTabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} removeTabLocally={removeTabLocally} onFilesLoaded={setClosedFileNames} onUpload={handleUpload} onDownload={handleDownload} />}
                   {activeSidebarPanel === 'registers' && <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} changedRegisters={changedRegisters} />}
-                  {activeSidebarPanel === 'memory'    && <MemoryView data={memoryData} theme={theme} />}
+                  {activeSidebarPanel === 'memory'    && <MemoryView tick={simTick} theme={theme} />}
                   {activeSidebarPanel === 'stats'     && <InstructionStats stats={instrStats} theme={theme} />}
                   {activeSidebarPanel === 'bitmap'    && <BitmapDisplay theme={theme} tick={simTick} />}
                 </div>
@@ -1137,7 +1132,7 @@ export default function IdePage() {
           {mobileView === 'registers' && (
             <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} changedRegisters={changedRegisters} />
           )}
-          {mobileView === 'memory' && <MemoryView data={memoryData} theme={theme} />}
+          {mobileView === 'memory' && <MemoryView tick={simTick} theme={theme} />}
         </div>
       )}
 
