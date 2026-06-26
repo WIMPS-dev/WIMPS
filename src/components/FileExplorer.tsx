@@ -263,6 +263,63 @@ function TrashIcon() {
   );
 }
 
+interface ConfirmModalProps {
+  message: string;
+  theme: Theme;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmModal({ message, theme, onConfirm, onCancel }: ConfirmModalProps) {
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: theme.card, border: `1px solid ${theme.border}`,
+          borderRadius: 10, padding: '20px 24px', maxWidth: 360, width: '90%',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        }}
+      >
+        <p style={{ margin: '0 0 20px', fontSize: 14, color: theme.text, lineHeight: '1.5' }}>
+          {message}
+        </p>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              background: 'none', border: `1px solid ${theme.border}`,
+              borderRadius: 6, padding: '6px 14px', cursor: 'pointer',
+              color: theme.subText, fontSize: 13,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            style={{
+              background: '#dc2626', border: 'none',
+              borderRadius: 6, padding: '6px 14px', cursor: 'pointer',
+              color: '#fff', fontSize: 13, fontWeight: 600,
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FolderIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block', flexShrink: 0 }}>
@@ -601,6 +658,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
   const [creatingFolderAt, setCreatingFolderAt] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [folderPaths, setFolderPaths] = useState<Set<string>>(() => new Set(readSavedFolders()));
+  const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const dragNodeRef = React.useRef<TreeNode | null>(null);
 
   useEffect(() => {
@@ -744,27 +802,33 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     const affected = userFiles.filter(
       f => f.path === node.fullPath || (f.path ?? '').startsWith(node.fullPath + '/'),
     );
-    if (affected.length > 0) {
-      const ok = window.confirm(
-        `Delete folder "${node.name}" and all ${affected.length} file${affected.length === 1 ? '' : 's'} inside?`,
-      );
-      if (!ok) return;
-    }
-    const affectedIds = new Set(affected.map(f => f.id));
-    if (affectedIds.has(activeTabId)) {
-      const remaining = tabs.filter(t => !affectedIds.has(t.id));
-      setActiveTabId(remaining[0]?.id ?? '');
-    }
-    updateUserFiles(files => files.filter(f => !affectedIds.has(f.id)));
-    const prunePrefix = (prev: Set<string>) => {
-      const next = new Set(prev);
-      for (const f of [...next]) {
-        if (f === node.fullPath || f.startsWith(node.fullPath + '/')) next.delete(f);
+
+    const doDelete = () => {
+      const affectedIds = new Set(affected.map(f => f.id));
+      if (affectedIds.has(activeTabId)) {
+        const remaining = tabs.filter(t => !affectedIds.has(t.id));
+        setActiveTabId(remaining[0]?.id ?? '');
       }
-      return next;
+      updateUserFiles(files => files.filter(f => !affectedIds.has(f.id)));
+      const prunePrefix = (prev: Set<string>) => {
+        const next = new Set(prev);
+        for (const f of [...next]) {
+          if (f === node.fullPath || f.startsWith(node.fullPath + '/')) next.delete(f);
+        }
+        return next;
+      };
+      setCollapsedFolders(prunePrefix);
+      setFolderPaths(prunePrefix);
     };
-    setCollapsedFolders(prunePrefix);
-    setFolderPaths(prunePrefix);
+
+    if (affected.length > 0) {
+      setConfirmModal({
+        message: `Delete folder "${node.name}" and all ${affected.length} file${affected.length === 1 ? '' : 's'} inside?`,
+        onConfirm: doDelete,
+      });
+    } else {
+      doDelete();
+    }
   }, [isLoggedIn, serverFiles, localFiles, activeTabId, tabs, updateUserFiles, setActiveTabId]);
 
   const commitNewFolder = useCallback((parentPath: string) => {
@@ -916,6 +980,14 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {confirmModal && (
+        <ConfirmModal
+          message={confirmModal.message}
+          theme={theme}
+          onConfirm={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
       {/* Header action buttons */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
