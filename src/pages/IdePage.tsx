@@ -113,8 +113,8 @@ export default function IdePage() {
   const [activeSidebarPanel, setActiveSidebarPanel] = useState<SidebarPanel>(() => {
     try {
       const v = localStorage.getItem('sidebar_panel');
-      return (['files', 'registers', 'memory', 'stats', 'bitmap'] as const).includes(v as SidebarPanel) ? v as SidebarPanel : 'registers';
-    } catch { return 'registers'; }
+      return (['files', 'registers', 'memory', 'stats', 'bitmap'] as const).includes(v as SidebarPanel) ? v as SidebarPanel : 'files';
+    } catch { return 'files'; }
   });
   const [instrStats, setInstrStats] = useState<InstrStats | null>(null);
   const [simTick, setSimTick] = useState(0);
