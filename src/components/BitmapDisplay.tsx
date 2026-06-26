@@ -185,7 +185,7 @@ export function BitmapDisplay({ theme, tick }: BitmapDisplayProps) {
           {/* Usage hint */}
           <div style={{ color: theme.subText, fontSize: 10, lineHeight: '15px', maxWidth: 320 }}>
             Write 32-bit color words to memory starting at <code style={{ fontFamily: 'monospace', color: theme.text }}>{addrStr}</code>.
-            Format: <code style={{ fontFamily: 'monospace', color: theme.text }}>0x00RRGGBB</code> (matches MARS).
+            Format: <code style={{ fontFamily: 'monospace', color: theme.text }}>0x00RRGGBB</code>.
           </div>
         </div>
       </div>
