@@ -26,6 +26,9 @@
         var dark = !/(^|;\s*)theme=light(;|$)/.test(document.cookie);
         var de = document.documentElement;
         de.style.background = dark ? '#0b1020' : '#f1f5f9';
+        if (/\/ide\/?$/.test(window.location.pathname)) {
+          de.classList.add('preload-ide');
+        }
         // Mirrors skeletonColors() in src/components/Skeleton.tsx so the inline
         // shimmer matches the React skeletons that take over after mount.
         de.style.setProperty('--skeleton-base', dark ? '#1f2937' : '#e2e8f0');
@@ -62,6 +65,33 @@
         display: flex; flex-direction: column; align-items: center;
         padding: 100px 24px 80px; gap: 18px;
       }
+      #app-preloader .pl-ide { display: none; height: 100vh; flex-direction: column; overflow: hidden; }
+      .preload-ide #app-preloader .pl-home { display: none; }
+      .preload-ide #app-preloader .pl-ide { display: flex; }
+      #app-preloader .pl-ide-row {
+        display: flex; align-items: center; gap: 8px; padding: 0 12px;
+        border-bottom: 1px solid var(--skeleton-border, #1e293b); flex-shrink: 0;
+      }
+      #app-preloader .pl-file-row { height: 44px; }
+      #app-preloader .pl-debug-row { height: 40px; }
+      #app-preloader .pl-tabs { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
+      #app-preloader .pl-main { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+      #app-preloader .pl-rail {
+        width: 66px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center;
+        gap: 8px; padding: 8px 0; border-right: 1px solid var(--skeleton-border, #1e293b);
+      }
+      #app-preloader .pl-rail-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+      #app-preloader .pl-sidebar { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; }
+      #app-preloader .pl-sidebar-title { padding: 6px 10px; border-bottom: 1px solid var(--skeleton-border, #1e293b); }
+      #app-preloader .pl-file-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+      #app-preloader .pl-file-row-item { display: flex; align-items: center; gap: 8px; padding: 8px 2px; }
+      #app-preloader .pl-side-handle { width: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+      #app-preloader .pl-editor { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+      #app-preloader .pl-code { height: 70%; display: flex; padding: 12px 0; gap: 12px; }
+      #app-preloader .pl-gutter { width: 34px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; padding-right: 8px; }
+      #app-preloader .pl-lines { flex: 1; display: flex; flex-direction: column; gap: 8px; padding-right: 14px; }
+      #app-preloader .pl-console { flex: 1; padding: 10px; }
+      #app-preloader .pl-editor-handle { height: 8px; display: flex; align-items: center; justify-content: center; }
       @keyframes app-shimmer {
         0% { background-position: 100% 50%; }
         100% { background-position: 0 50%; }
@@ -74,20 +104,106 @@
   <body>
     <div id="root">
       <div id="app-preloader" aria-hidden="true">
-        <div class="pl-nav">
-          <span class="sk" style="width:92px;height:22px"></span>
-          <span class="pl-nav-right">
-            <span class="sk" style="width:46px;height:15px;border-radius:5px"></span>
-            <span class="sk" style="width:46px;height:15px;border-radius:5px"></span>
-            <span class="sk" style="width:46px;height:15px;border-radius:5px"></span>
-            <span class="sk" style="width:84px;height:34px;border-radius:8px"></span>
-          </span>
+        <div class="pl-home">
+          <div class="pl-nav">
+            <span class="sk" style="width:92px;height:22px"></span>
+            <span class="pl-nav-right">
+              <span class="sk" style="width:46px;height:15px;border-radius:5px"></span>
+              <span class="sk" style="width:46px;height:15px;border-radius:5px"></span>
+              <span class="sk" style="width:46px;height:15px;border-radius:5px"></span>
+              <span class="sk" style="width:84px;height:34px;border-radius:8px"></span>
+            </span>
+          </div>
+          <div class="pl-hero">
+            <span class="sk" style="width:min(620px,90%);height:46px;border-radius:10px"></span>
+            <span class="sk" style="width:min(440px,80%);height:46px;border-radius:10px"></span>
+            <span class="sk" style="width:min(480px,85%);height:18px;margin-top:14px"></span>
+            <span class="sk" style="width:196px;height:50px;border-radius:10px;margin-top:24px"></span>
+          </div>
         </div>
-        <div class="pl-hero">
-          <span class="sk" style="width:min(620px,90%);height:46px;border-radius:10px"></span>
-          <span class="sk" style="width:min(440px,80%);height:46px;border-radius:10px"></span>
-          <span class="sk" style="width:min(480px,85%);height:18px;margin-top:14px"></span>
-          <span class="sk" style="width:196px;height:50px;border-radius:10px;margin-top:24px"></span>
+        <div class="pl-ide">
+          <div class="pl-ide-row pl-file-row">
+            <span class="sk" style="width:22px;height:22px"></span>
+            <span class="pl-tabs">
+              <span class="sk" style="width:96px;height:32px"></span>
+              <span class="sk" style="width:96px;height:32px"></span>
+              <span class="sk" style="width:96px;height:32px"></span>
+              <span class="sk" style="width:28px;height:28px"></span>
+            </span>
+            <span class="sk" style="width:1px;height:20px"></span>
+            <span class="sk" style="width:34px;height:13px;border-radius:4px"></span>
+            <span class="sk" style="width:34px;height:28px"></span>
+          </div>
+          <div class="pl-ide-row pl-debug-row">
+            <span class="sk" style="width:154px;height:28px"></span>
+            <span class="sk" style="width:1px;height:20px"></span>
+            <span class="sk" style="width:88px;height:28px;border-radius:5px"></span>
+            <span class="sk" style="width:110px;height:28px;border-radius:5px"></span>
+            <span class="sk" style="width:104px;height:28px;border-radius:5px"></span>
+            <span class="sk" style="width:80px;height:28px;border-radius:5px"></span>
+            <span class="sk" style="width:74px;height:28px;border-radius:5px"></span>
+            <span style="flex:1"></span>
+            <span class="sk" style="width:72px;height:14px;border-radius:4px"></span>
+            <span class="sk" style="width:1px;height:16px"></span>
+            <span class="sk" style="width:118px;height:24px;border-radius:5px"></span>
+          </div>
+          <div class="pl-main">
+            <div class="pl-rail">
+              <div class="pl-rail-item"><span class="sk" style="width:22px;height:18px;border-radius:5px"></span><span class="sk" style="width:42px;height:9px;border-radius:3px"></span></div>
+              <div class="pl-rail-item"><span class="sk" style="width:22px;height:18px;border-radius:5px"></span><span class="sk" style="width:42px;height:9px;border-radius:3px"></span></div>
+              <div class="pl-rail-item"><span class="sk" style="width:22px;height:18px;border-radius:5px"></span><span class="sk" style="width:42px;height:9px;border-radius:3px"></span></div>
+              <div class="pl-rail-item"><span class="sk" style="width:22px;height:18px;border-radius:5px"></span><span class="sk" style="width:42px;height:9px;border-radius:3px"></span></div>
+              <div class="pl-rail-item"><span class="sk" style="width:22px;height:18px;border-radius:5px"></span><span class="sk" style="width:42px;height:9px;border-radius:3px"></span></div>
+            </div>
+            <div class="pl-sidebar">
+              <div class="pl-sidebar-title"><span class="sk" style="width:46px;height:10px;border-radius:3px"></span></div>
+              <div class="pl-file-list">
+                <div style="display:flex;gap:8px;margin-bottom:2px">
+                  <span class="sk" style="width:78px;height:28px"></span>
+                  <span class="sk" style="width:78px;height:28px"></span>
+                </div>
+                <div class="pl-file-row-item"><span class="sk" style="width:14px;height:14px;border-radius:4px"></span><span class="sk" style="width:68%;height:13px;border-radius:4px"></span></div>
+                <div class="pl-file-row-item"><span class="sk" style="width:14px;height:14px;border-radius:4px"></span><span class="sk" style="width:52%;height:13px;border-radius:4px"></span></div>
+                <div class="pl-file-row-item"><span class="sk" style="width:14px;height:14px;border-radius:4px"></span><span class="sk" style="width:52%;height:13px;border-radius:4px"></span></div>
+                <div class="pl-file-row-item"><span class="sk" style="width:14px;height:14px;border-radius:4px"></span><span class="sk" style="width:52%;height:13px;border-radius:4px"></span></div>
+                <div class="pl-file-row-item"><span class="sk" style="width:14px;height:14px;border-radius:4px"></span><span class="sk" style="width:52%;height:13px;border-radius:4px"></span></div>
+                <div class="pl-file-row-item"><span class="sk" style="width:14px;height:14px;border-radius:4px"></span><span class="sk" style="width:52%;height:13px;border-radius:4px"></span></div>
+              </div>
+            </div>
+            <div class="pl-side-handle">
+              <span class="sk" style="width:4px;height:44px;border-radius:4px"></span>
+            </div>
+            <div class="pl-editor">
+              <div class="pl-code">
+                <div class="pl-gutter">
+                  <span class="sk" style="width:14px;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:14px;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:14px;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:14px;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:14px;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:14px;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:14px;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:14px;height:12px;border-radius:3px"></span>
+                </div>
+                <div class="pl-lines">
+                  <span class="sk" style="width:62%;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:48%;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:30%;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:70%;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:55%;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:40%;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:66%;height:12px;border-radius:3px"></span>
+                  <span class="sk" style="width:52%;height:12px;border-radius:3px"></span>
+                </div>
+              </div>
+              <div class="pl-editor-handle">
+                <span class="sk" style="width:56px;height:4px;border-radius:4px"></span>
+              </div>
+              <div class="pl-console">
+                <span class="sk" style="width:100%;height:100%;border-radius:10px"></span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

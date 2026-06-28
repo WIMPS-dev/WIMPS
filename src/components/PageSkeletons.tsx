@@ -130,69 +130,99 @@ export function AuthSkeleton({ theme, fields }: { theme: Theme; fields: number }
 // IDE
 // ---------------------------------------------------------------------------
 export function IdeSkeleton({ theme }: { theme: Theme }) {
+  const codeWidths = [62, 48, 30, 70, 55, 40, 66, 52, 36, 60, 44, 58];
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: theme.bg, overflow: 'hidden' }}>
-      {/* Top bar */}
+      {/* File toolbar */}
       <div style={{
-        display: 'flex', alignItems: 'center', height: 48, gap: 8, padding: '0 12px',
+        display: 'flex', alignItems: 'center', height: 44, gap: 8, padding: '0 12px',
         borderBottom: `1px solid ${theme.border}`, backgroundColor: theme.card, flexShrink: 0,
       }}>
-        <Skeleton theme={theme} width={66} height={20} radius={6} />
-        <div style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0 }}>
+        <Skeleton theme={theme} width={22} height={22} radius={6} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, overflow: 'hidden' }}>
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} theme={theme} width={96} height={32} radius={6} />
           ))}
-          <Skeleton theme={theme} width={28} height={28} radius={6} style={{ marginLeft: 2 }} />
-          <Skeleton theme={theme} width={210} height={34} radius={8} style={{ marginLeft: 8 }} />
+          <Skeleton theme={theme} width={28} height={28} radius={6} />
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Skeleton theme={theme} width={40} height={20} radius={5} />
-          <Skeleton theme={theme} width={56} height={28} radius={6} />
-          <Skeleton theme={theme} width={64} height={28} radius={6} />
-        </div>
+        <div style={{ width: 1, height: 20, backgroundColor: theme.border }} />
+        <Skeleton theme={theme} width={34} height={13} radius={4} />
+        <Skeleton theme={theme} width={34} height={28} radius={6} />
       </div>
 
-      {/* Main split */}
+      {/* Debug toolbar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', height: 40, gap: 6, padding: '0 12px',
+        borderBottom: `1px solid ${theme.border}`, backgroundColor: theme.bg, flexShrink: 0,
+      }}>
+        <Skeleton theme={theme} width={154} height={28} radius={6} />
+        <div style={{ width: 1, height: 20, backgroundColor: theme.border }} />
+        {[88, 110, 104, 80, 74].map((w, i) => (
+          <Skeleton key={i} theme={theme} width={w} height={28} radius={5} />
+        ))}
+        <div style={{ flex: 1 }} />
+        <Skeleton theme={theme} width={72} height={14} radius={4} />
+        <div style={{ width: 1, height: 16, backgroundColor: theme.border }} />
+        <Skeleton theme={theme} width={118} height={24} radius={5} />
+      </div>
+
+      {/* Main IDE */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
-        {/* Left: editor over console */}
-        <div style={{ width: '75%', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ height: '70%', display: 'flex', padding: '12px 0 12px 0', gap: 12 }}>
-            {/* Gutter */}
+        {/* Activity rail */}
+        <div style={{
+          width: 66, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
+          gap: 8, padding: '8px 0', borderRight: `1px solid ${theme.border}`, backgroundColor: theme.card,
+        }}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <Skeleton theme={theme} width={22} height={18} radius={5} />
+              <Skeleton theme={theme} width={42} height={9} radius={3} />
+            </div>
+          ))}
+        </div>
+
+        {/* Files sidebar */}
+        <div style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', backgroundColor: theme.card }}>
+          <div style={{ padding: '6px 10px', borderBottom: `1px solid ${theme.border}` }}>
+            <Skeleton theme={theme} width={46} height={10} radius={3} />
+          </div>
+          <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 2 }}>
+              <Skeleton theme={theme} width={78} height={28} radius={6} />
+              <Skeleton theme={theme} width={78} height={28} radius={6} />
+            </div>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 2px' }}>
+                <Skeleton theme={theme} width={14} height={14} radius={4} />
+                <Skeleton theme={theme} width={i === 0 ? '68%' : '52%'} height={13} radius={4} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ width: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Skeleton theme={theme} width={4} height={44} radius={4} />
+        </div>
+
+        {/* Editor + console */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ height: '70%', minHeight: 0, display: 'flex', padding: '12px 0', gap: 12 }}>
             <div style={{ width: 34, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', paddingRight: 8 }}>
               {Array.from({ length: 12 }).map((_, i) => (
                 <Skeleton key={i} theme={theme} width={14} height={12} radius={3} />
               ))}
             </div>
-            {/* Code lines */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 14 }}>
-              {[62, 48, 30, 70, 55, 40, 66, 52, 36, 60, 44, 58].map((w, i) => (
+              {codeWidths.map((w, i) => (
                 <Skeleton key={i} theme={theme} width={`${w}%`} height={12} radius={3} />
               ))}
             </div>
           </div>
-          {/* Console */}
+          <div style={{ height: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Skeleton theme={theme} width={56} height={4} radius={4} />
+          </div>
           <div style={{ flex: 1, padding: 10 }}>
             <Skeleton theme={theme} width="100%" height="100%" radius={10} />
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div style={{ width: 5, backgroundColor: theme.border, flexShrink: 0 }} />
-
-        {/* Right: panel tabs + register rows */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', gap: 14, height: 34, alignItems: 'center', padding: '0 12px', borderBottom: `1px solid ${theme.border}`, backgroundColor: theme.card }}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} theme={theme} width={52} height={11} radius={4} />
-            ))}
-          </div>
-          <div style={{ flex: 1, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-            {Array.from({ length: 14 }).map((_, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                <Skeleton theme={theme} width={48} height={13} radius={4} />
-                <Skeleton theme={theme} width={92} height={13} radius={4} />
-              </div>
-            ))}
           </div>
         </div>
       </div>
