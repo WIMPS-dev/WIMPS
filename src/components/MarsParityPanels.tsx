@@ -258,6 +258,7 @@ function CacheAnalysisPanel({ theme, tick }: { theme: Theme; tick: number }) {
   const [config, setConfig] = useState<CacheConfig>({ cacheBytes: 1024, blockBytes: 16, associativity: 1 });
   const [showConfig, setShowConfig] = useState(false);
   const result = useMemo(() => analyzeCache(config), [tick, config]);
+  const cacheGridColumns = '6ch 10ch minmax(0, 1fr) 4ch';
 
   return (
     <div style={{ border: `1px solid ${theme.border}`, borderRadius: 10, backgroundColor: theme.card, overflow: 'hidden' }}>
@@ -296,14 +297,24 @@ function CacheAnalysisPanel({ theme, tick }: { theme: Theme; tick: number }) {
       )}
 
       <div style={{ maxHeight: 240, overflow: 'auto', padding: 8 }}>
-        {result.accesses.length === 0 ? <Empty theme={theme} text="Run a program to analyze instruction and memory cache accesses." /> : result.accesses.slice(-200).map((a, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '4ch 9ch 1fr 5ch', gap: 8, padding: '3px 2px', borderBottom: `1px solid ${theme.border}22`, fontSize: 11 }}>
-            <span style={{ color: a.hit ? '#10b981' : '#ef4444', fontWeight: 800 }}>{a.hit ? 'hit' : 'miss'}</span>
-            <span style={{ fontFamily: 'monospace', color: theme.subText }}>{formatWordValue(a.address, 'hex')}</span>
-            <span style={{ color: theme.text }}>{a.op}</span>
-            <span style={{ color: theme.subText, textAlign: 'right' }}>{a.line ?? ''}</span>
-          </div>
-        ))}
+        {result.accesses.length === 0 ? <Empty theme={theme} text="Run a program to analyze instruction and memory cache accesses." /> : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: cacheGridColumns, gap: 6, padding: '0 2px 5px', borderBottom: `1px solid ${theme.border}`, color: theme.subText, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
+              <span style={{ minWidth: 0, whiteSpace: 'nowrap' }}>Result</span>
+              <span style={{ paddingLeft: '1ch' }}>Address</span>
+              <span style={{ minWidth: 0, paddingLeft: '2ch', whiteSpace: 'nowrap' }}>Type</span>
+              <span style={{ minWidth: 0, textAlign: 'right', whiteSpace: 'nowrap' }}>Line</span>
+            </div>
+            {result.accesses.slice(-200).map((a, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: cacheGridColumns, gap: 6, padding: '3px 2px', borderBottom: `1px solid ${theme.border}22`, fontSize: 11, fontFamily: 'monospace' }}>
+                <span style={{ color: a.hit ? '#10b981' : '#ef4444', fontWeight: 800 }}>{a.hit ? 'hit' : 'miss'}</span>
+                <span style={{ color: theme.subText, whiteSpace: 'nowrap' }}>{formatWordValue(a.address, 'hex')}</span>
+                <span style={{ color: theme.text, minWidth: 0 }}>{a.op}</span>
+                <span style={{ color: theme.subText, textAlign: 'right' }}>{a.line ?? ''}</span>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
