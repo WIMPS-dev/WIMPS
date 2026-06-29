@@ -4,8 +4,8 @@ import { ActionIcon } from '../components/ActionIcons';
 import { FileExplorer } from '../components/FileExplorer';
 import { BitmapDisplay } from '../components/BitmapDisplay';
 import { CodeEditor } from '../components/CodeEditor';
-import { InstructionStats } from '../components/InstructionStats';
 import { Logo } from '../components/Logo';
+import { PerformancePanel, ProgramPanel } from '../components/MarsParityPanels';
 import { MemoryView } from '../components/MemoryView';
 import { IdeSkeleton } from '../components/PageSkeletons';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
@@ -15,22 +15,38 @@ import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getApiHeaders, getAuthToken, uniquifyName } from '../helpers/authStorage';
 import { useAutosave } from '../hooks/useAutosave';
-import type { InstrStats } from '../simulator/useMips';
-import { assemble, continueSim, feedInput, getInstructionStats, getState, resetSim, runSim, stepBackSim, stepSim } from '../simulator/useMips';
+import type { InstrStats, PseudoExpansionInfo, ValueFormat } from '../simulator/useMips';
+import { assemble, continueSim, feedInput, formatWordValue, getCurrentPseudoExpansionRows, getInstructionStats, getPseudoExpansion, getState, resetSim, runSim, runSimWithLimit, runUntilLine, runWithLimit, setMemoryWord, setRegisterValue, stepBackSim, stepSim } from '../simulator/useMips';
 import type { CodeTab } from '../types';
 import { normalizeTab, readSavedFiles, writeSavedFiles } from '../helpers/tabUtils';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
-type SidebarPanel = 'files' | 'registers' | 'memory' | 'stats' | 'bitmap';
+type RailControl = 'files' | 'tool-library';
+type ToolId = 'registers' | 'memory' | 'display' | 'program' | 'performance';
+type SidebarView = RailControl | ToolId;
+type MobileView = 'files' | 'editor' | 'console' | 'tool-library' | ToolId;
 
-const SIDEBAR_PANELS: { id: SidebarPanel; label: string; title: string; icon: string }[] = [
-  { id: 'files',     label: 'Files',  title: 'Files',     icon: 'Files'  },
-  { id: 'registers', label: 'Registers', title: 'Registers', icon: 'Regs'   },
-  { id: 'memory',    label: 'Memory', title: 'Memory',    icon: 'Memory' },
-  { id: 'stats',     label: 'Stats',  title: 'Stats',     icon: 'Stats'  },
-  { id: 'bitmap',    label: 'Bitmap', title: 'Bitmap',    icon: 'Bitmap' },
+type ToolDefinition = {
+  id: ToolId;
+  label: string;
+  title: string;
+  icon: string;
+  defaultEnabled: boolean;
+  description: string;
+};
+
+const TOOL_DEFINITIONS: ToolDefinition[] = [
+  { id: 'registers', label: 'Registers', title: 'Registers', icon: 'Regs', defaultEnabled: true, description: 'General-purpose registers, PC, HI, LO, and flags.' },
+  { id: 'memory', label: 'Memory', title: 'Memory', icon: 'Memory', defaultEnabled: true, description: 'Memory inspector and word editor.' },
+  { id: 'display', label: 'Bitmap Display', title: 'Bitmap Display', icon: 'Bitmap', defaultEnabled: false, description: 'Bitmap display viewer.' },
+  { id: 'program', label: 'Program', title: 'Program', icon: 'Segments', defaultEnabled: false, description: 'Instruction and label views.' },
+  { id: 'performance', label: 'Performance', title: 'Performance', icon: 'Stats', defaultEnabled: false, description: 'Instruction counts and performance stats.' },
 ];
+
+const DEFAULT_ENABLED_TOOL_IDS = TOOL_DEFINITIONS.filter(tool => tool.defaultEnabled).map(tool => tool.id);
+const ENABLED_TOOLS_KEY = 'ide_enabled_tools';
+const ACTIVE_TOOL_KEY = 'ide_active_tool';
 
 const DEFAULT_TABS: CodeTab[] = [{ id: '1', name: 'file1.asm', code: '', isDirty: false }];
 
@@ -40,6 +56,197 @@ const buildInitialRegisters = (): RegisterValue[] =>
    '$s0','$s1','$s2','$s3','$s4','$s5','$s6','$s7',
    '$t8','$t9','$k0','$k1','$gp','$sp','$fp','$ra']
   .map((name, i) => ({ name, number: i, hexValue: '0x00000000' }));
+
+function explainExpandedInstruction(assembly: string) {
+  const op = assembly.trim().split(/\s+/)[0]?.toLowerCase();
+  if (op === 'lui') return 'Load the upper 16 address bits into a register.';
+  if (op === 'ori') return 'Add the lower 16 address bits without changing the upper bits.';
+  if (op === 'addiu') return 'Add an immediate value; often used for small constants.';
+  if (op === 'addu') return 'Copy or add register values without overflow traps.';
+  if (op === 'sll') return 'Shift bits left; also used for nop.';
+  return 'One real machine instruction produced by the assembler.';
+}
+
+function isToolId(value: string): value is ToolId {
+  return TOOL_DEFINITIONS.some(tool => tool.id === value);
+}
+
+function readEnabledToolIds(): ToolId[] {
+  try {
+    const raw = localStorage.getItem(ENABLED_TOOLS_KEY);
+    if (raw === null) return DEFAULT_ENABLED_TOOL_IDS;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return DEFAULT_ENABLED_TOOL_IDS;
+    const filtered = parsed.filter((value): value is ToolId => typeof value === 'string' && isToolId(value));
+    if (parsed.length === 0) return [];
+    const unique = TOOL_DEFINITIONS
+      .map(tool => tool.id)
+      .filter(id => filtered.includes(id));
+    return unique.length > 0 ? unique : DEFAULT_ENABLED_TOOL_IDS;
+  } catch {
+    return DEFAULT_ENABLED_TOOL_IDS;
+  }
+}
+
+function readActiveToolId(enabledToolIds: ToolId[]): ToolId | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_TOOL_KEY);
+    if (raw && isToolId(raw) && enabledToolIds.includes(raw)) return raw;
+  } catch {}
+  return null;
+}
+
+function readInitialToolState(): { enabledToolIds: ToolId[]; activeToolId: ToolId | null } {
+  const enabledToolIds = readEnabledToolIds();
+  return { enabledToolIds, activeToolId: readActiveToolId(enabledToolIds) };
+}
+
+function PanelTabButton({
+  theme,
+  active,
+  label,
+  onClick,
+}: {
+  theme: ReturnType<typeof useTheme>['theme'];
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        border: `1px solid ${active ? '#2563eb' : theme.border}`,
+        backgroundColor: active ? '#2563eb22' : theme.bg,
+        color: active ? '#2563eb' : theme.text,
+        borderRadius: 6,
+        padding: '4px 8px',
+        fontSize: 11,
+        fontWeight: 700,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function PseudoExpansionNotice({
+  theme,
+  pseudoExpansion,
+}: {
+  theme: ReturnType<typeof useTheme>['theme'];
+  pseudoExpansion: PseudoExpansionInfo | null;
+}) {
+  if (!pseudoExpansion) return null;
+
+  return (
+    <div style={{ margin: '0 14px 10px', border: '1px solid #92400e', backgroundColor: '#78350f18', borderRadius: 10, padding: 12 }}>
+      <div style={{ color: '#f59e0b', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        Pseudo-instruction expansion
+      </div>
+      <div style={{ color: theme.text, fontSize: 12, lineHeight: '18px', marginTop: 4 }}>
+        Source line {pseudoExpansion.sourceLine} expands into {pseudoExpansion.total} machine instructions. Step moves through the real instructions below one at a time.
+      </div>
+      <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+        {getCurrentPseudoExpansionRows().map((row, i) => (
+          <div
+            key={row.address}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '4ch 10ch 10ch 1fr',
+              gap: 8,
+              alignItems: 'start',
+              color: i + 1 === pseudoExpansion.index ? theme.text : theme.subText,
+              fontSize: 11,
+            }}
+          >
+            <span style={{ fontFamily: 'monospace' }}>{i + 1}/{pseudoExpansion.total}</span>
+            <span style={{ fontFamily: 'monospace' }}>{formatWordValue(row.address, 'hex')}</span>
+            <span style={{ fontFamily: 'monospace' }}>{formatWordValue(row.binary, 'hex')}</span>
+            <span>
+              <span style={{ display: 'block', fontFamily: 'monospace', color: theme.text }}>{row.assembly}</span>
+              <span style={{ display: 'block', marginTop: 2, lineHeight: '15px' }}>{explainExpandedInstruction(row.assembly)}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ToolLibraryPanel({
+  theme,
+  enabledToolIds,
+  onToggleTool,
+}: {
+  theme: ReturnType<typeof useTheme>['theme'];
+  enabledToolIds: ToolId[];
+  onToggleTool: (toolId: ToolId) => void;
+}) {
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', backgroundColor: theme.bg }}>
+      <div style={{ padding: 12, borderBottom: `1px solid ${theme.border}`, backgroundColor: theme.card }}>
+        <div style={{ color: theme.text, fontSize: 13, fontWeight: 700 }}>Tool Library</div>
+        <div style={{ color: theme.subText, fontSize: 11, marginTop: 4 }}>
+          Choose which tools appear in the sidebar and mobile tool switcher.
+        </div>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'grid', gap: 10 }}>
+        {TOOL_DEFINITIONS.map(tool => {
+          const enabled = enabledToolIds.includes(tool.id);
+          return (
+            <button
+              key={tool.id}
+              type="button"
+              onClick={() => onToggleTool(tool.id)}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '20px 1fr',
+                gap: 10,
+                alignItems: 'center',
+                textAlign: 'left',
+                padding: 10,
+                borderRadius: 10,
+                border: `1px solid ${enabled ? '#2563eb' : theme.border}`,
+                backgroundColor: enabled ? '#2563eb14' : theme.card,
+                color: theme.text,
+                cursor: 'pointer',
+              }}
+            >
+              <ActionIcon name={tool.icon} size={16} />
+              <span>
+                <span style={{ display: 'block', fontSize: 12, fontWeight: 700 }}>{tool.label}</span>
+                <span style={{ display: 'block', marginTop: 2, fontSize: 11, color: theme.subText }}>{tool.description}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SidebarPanelFrame({
+  children,
+}: React.PropsWithChildren<{
+}>) {
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {children}
+    </div>
+  );
+}
+
+function DisplayPanel({ theme, simTick }: { theme: ReturnType<typeof useTheme>['theme']; simTick: number }) {
+  return (
+    <SidebarPanelFrame>
+      <BitmapDisplay theme={theme} tick={simTick} />
+    </SidebarPanelFrame>
+  );
+}
 
 function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
   try {
@@ -88,18 +295,25 @@ export default function IdePage() {
   const [registers, setRegisters] = useState<RegisterValue[]>(buildInitialRegisters());
   const [output, setOutput] = useState('');
   const [activeLine, setActiveLine] = useState<number | null>(null);
+  const [cursorLine, setCursorLine] = useState<number | null>(1);
   const [isWaiting, setIsWaiting] = useState(false);
   const [isAssembled, setIsAssembled] = useState(false);
   const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set());
   const [canStepBack, setCanStepBack] = useState(false);
   const [isTerminated, setIsTerminated] = useState(false);
   const [errorLines, setErrorLines] = useState<{ line: number; message: string }[]>([]);
-  const [showHex, setShowHex] = useState(true);
+  const [valueFormat, setValueFormat] = useState<ValueFormat>('hex');
+  const [runSpeed, setRunSpeed] = useState(4);
+  const runTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // TEMP: login disabled
   // useState(() => !!getAuthToken())`
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [closedFileNames, setClosedFileNames] = useState<Set<string>>(new Set());
-  const [mobileView, setMobileView] = useState<'editor' | 'console' | 'registers' | 'memory'>('editor');
+  const [initialToolState] = useState(readInitialToolState);
+  const [enabledToolIds, setEnabledToolIds] = useState<ToolId[]>(initialToolState.enabledToolIds);
+  const [activeToolId, setActiveToolId] = useState<ToolId | null>(initialToolState.activeToolId);
+  const [activeSidebarView, setActiveSidebarView] = useState<SidebarView>(initialToolState.activeToolId ?? 'files');
+  const [mobileView, setMobileView] = useState<MobileView>(initialToolState.activeToolId ?? 'editor');
 
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
     try { const v = localStorage.getItem('sidebar_open'); return v === null ? true : v === 'true'; } catch { return true; }
@@ -107,13 +321,10 @@ export default function IdePage() {
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     try { const v = localStorage.getItem('sidebar_width'); return v ? Math.max(160, Math.min(480, Number(v))) : 260; } catch { return 260; }
   });
-  const [activeSidebarPanel, setActiveSidebarPanel] = useState<SidebarPanel>(() => {
-    try {
-      const v = localStorage.getItem('sidebar_panel');
-      return (['files', 'registers', 'memory', 'stats', 'bitmap'] as const).includes(v as SidebarPanel) ? v as SidebarPanel : 'files';
-    } catch { return 'files'; }
-  });
+  const [registerEditable, setRegisterEditable] = useState(false);
+  const [memoryEditable, setMemoryEditable] = useState(false);
   const [instrStats, setInstrStats] = useState<InstrStats | null>(null);
+  const [pseudoExpansion, setPseudoExpansion] = useState<PseudoExpansionInfo | null>(null);
   const [simTick, setSimTick] = useState(0);
   const [fontSize, setFontSize] = useState<number>(() => {
     try { const v = localStorage.getItem('editor_font_size'); return v ? Math.max(10, Math.min(24, Number(v))) : 15; } catch { return 15; }
@@ -125,7 +336,9 @@ export default function IdePage() {
     try { const v = localStorage.getItem('show_hotkeys'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [runOptionsOpen, setRunOptionsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const runOptionsRef = useRef<HTMLDivElement>(null);
 
   const prevRegistersRef = useRef<RegisterValue[]>([]);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -135,6 +348,7 @@ export default function IdePage() {
 
   const isWide = typeof window !== 'undefined' && window.innerWidth >= 900;
   const [wide, setWide] = useState(isWide);
+  const prevWideRef = useRef(isWide);
 
   useEffect(() => {
     const onResize = () => setWide(window.innerWidth >= 900);
@@ -144,6 +358,66 @@ export default function IdePage() {
 
   const tabsRef = useRef(tabs);
   useEffect(() => { tabsRef.current = tabs; }, [tabs]);
+
+  const enabledTools = useMemo(
+    () => TOOL_DEFINITIONS.filter(tool => enabledToolIds.includes(tool.id)),
+    [enabledToolIds],
+  );
+
+  const firstEnabledToolId = enabledTools[0]?.id ?? null;
+  const visibleToolId = wide
+    ? activeSidebarView !== 'files' && activeSidebarView !== 'tool-library'
+      ? activeSidebarView
+      : null
+    : mobileView !== 'files' && mobileView !== 'editor' && mobileView !== 'console' && mobileView !== 'tool-library'
+      ? mobileView
+      : null;
+
+  useEffect(() => {
+    setActiveToolId(current => {
+      if (visibleToolId) return visibleToolId;
+      if (current && enabledToolIds.includes(current)) return current;
+      return null;
+    });
+  }, [enabledToolIds, visibleToolId]);
+
+  useEffect(() => {
+    setMobileView(current => {
+      if (current === 'files' || current === 'editor' || current === 'console' || current === 'tool-library') return current;
+      return enabledToolIds.includes(current) ? current : 'editor';
+    });
+  }, [enabledToolIds]);
+
+  useEffect(() => {
+    setActiveSidebarView(current => {
+      if (current === 'files' || current === 'tool-library') return current;
+      return enabledToolIds.includes(current) ? current : (firstEnabledToolId ?? 'files');
+    });
+  }, [enabledToolIds, firstEnabledToolId]);
+
+  useEffect(() => {
+    if (prevWideRef.current === wide) return;
+    prevWideRef.current = wide;
+
+    if (wide) {
+      if (mobileView === 'files' || mobileView === 'tool-library') {
+        setActiveSidebarView(mobileView);
+        return;
+      }
+      if (mobileView !== 'editor' && mobileView !== 'console' && enabledToolIds.includes(mobileView)) {
+        setActiveSidebarView(mobileView);
+      }
+      return;
+    }
+
+    if (activeSidebarView === 'files' || activeSidebarView === 'tool-library') {
+      setMobileView(activeSidebarView);
+      return;
+    }
+    if (enabledToolIds.includes(activeSidebarView)) {
+      setMobileView(activeSidebarView);
+    }
+  }, [activeSidebarView, enabledToolIds, mobileView, wide]);
 
   const { status: saveStatus, lastSavedAt, scheduleSave, flushNow, markSaved } = useAutosave({
     tabsRef,
@@ -155,11 +429,18 @@ export default function IdePage() {
 
   useEffect(() => () => {
     if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current);
+    if (runTimerRef.current !== null) clearTimeout(runTimerRef.current);
   }, []);
 
   useEffect(() => { try { localStorage.setItem('sidebar_open',       String(sidebarOpen));      } catch {} }, [sidebarOpen]);
   useEffect(() => { try { localStorage.setItem('sidebar_width',      String(sidebarWidth));      } catch {} }, [sidebarWidth]);
-  useEffect(() => { try { localStorage.setItem('sidebar_panel',      activeSidebarPanel);        } catch {} }, [activeSidebarPanel]);
+  useEffect(() => { try { localStorage.setItem(ENABLED_TOOLS_KEY, JSON.stringify(enabledToolIds)); } catch {} }, [enabledToolIds]);
+  useEffect(() => {
+    try {
+      if (activeToolId) localStorage.setItem(ACTIVE_TOOL_KEY, activeToolId);
+      else localStorage.removeItem(ACTIVE_TOOL_KEY);
+    } catch {}
+  }, [activeToolId]);
   useEffect(() => { try { localStorage.setItem('editor_font_size',   String(fontSize));           } catch {} }, [fontSize]);
   useEffect(() => { try { localStorage.setItem('editor_tab_size',    String(tabSize));            } catch {} }, [tabSize]);
   useEffect(() => { try { localStorage.setItem('show_hotkeys',       String(showHotkeys));        } catch {} }, [showHotkeys]);
@@ -175,16 +456,38 @@ export default function IdePage() {
     return () => document.removeEventListener('mousedown', handler);
   }, [settingsOpen]);
 
+  useEffect(() => {
+    if (!runOptionsOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (runOptionsRef.current && !runOptionsRef.current.contains(e.target as Node)) {
+        setRunOptionsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [runOptionsOpen]);
+
   const activeCode = useMemo(() => tabs.find(t => t.id === activeTabId)?.code ?? '', [tabs, activeTabId]);
+
+  const clearDerivedSimMetadata = () => {
+    setInstrStats(null);
+    setPseudoExpansion(null);
+  };
 
   const setActiveCode = useCallback((code: string) => {
     setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, code, isDirty: true } : t));
     setIsAssembled(false);
     setErrorLines([]);
+    clearDerivedSimMetadata();
   }, [activeTabId]);
 
   // Reset assembled state and error markers when switching tabs
-  useEffect(() => { setIsAssembled(false); setErrorLines([]); }, [activeTabId]);
+  useEffect(() => {
+    setIsAssembled(false);
+    setErrorLines([]);
+    setCursorLine(1);
+    clearDerivedSimMetadata();
+  }, [activeTabId]);
 
   // Load tabs from server on mount (logged-in users only).
   // Always apply the server response — never let stale localStorage bleed through.
@@ -254,10 +557,12 @@ export default function IdePage() {
     setCanStepBack(state.canUndo);
     setIsTerminated(state.terminated);
     setInstrStats(getInstructionStats());
+    setPseudoExpansion(getPseudoExpansion());
     setSimTick(t => t + 1);
   };
 
   const handleAssemble = () => {
+    stopAutoRun();
     resetSim();
     setActiveLine(null);
     setIsWaiting(false);
@@ -268,35 +573,76 @@ export default function IdePage() {
       setOutput(`Assembly failed:\n${result.error}`);
       setIsAssembled(false);
       setErrorLines(result.errors.filter(e => !e.isWarning).map(e => ({ line: e.lineNumber, message: e.message })));
+      clearDerivedSimMetadata();
     } else {
       setIsAssembled(true);
       setErrorLines([]);
       applyState(getState());
-      setActiveLine(null);
     }
   };
 
   const handleRun = () => {
-    const state = runSim(Array.from(breakpoints));
+    stopAutoRun();
+    if (runSpeed === 4) {
+      applyState(runSim(Array.from(breakpoints)));
+    } else {
+      startTimedRun(true);
+    }
+  };
+
+  const stopAutoRun = () => {
+    if (runTimerRef.current !== null) clearTimeout(runTimerRef.current);
+    runTimerRef.current = null;
+  };
+
+  const startTimedRun = (fresh: boolean) => {
+    stopAutoRun();
+    const delay = runSpeed === 0 ? 650 : runSpeed === 1 ? 350 : runSpeed === 2 ? 160 : 45;
+    const batch = runSpeed === 3 ? 5 : 1;
+    let first = true;
+    const tick = () => {
+      const state = fresh && first
+        ? runSimWithLimit(batch, Array.from(breakpoints))
+        : runWithLimit(batch, Array.from(breakpoints));
+      first = false;
+      applyState(state);
+      if (state.terminated || state.isWaiting) {
+        stopAutoRun();
+        return;
+      }
+      runTimerRef.current = setTimeout(tick, delay);
+    };
+    runTimerRef.current = setTimeout(tick, delay);
+  };
+
+  const handleRunToLine = () => {
+    const state = runUntilLine(cursorLine ?? activeLine ?? 1, Array.from(breakpoints));
     applyState(state);
   };
 
   const handleContinue = () => {
-    const state = continueSim(Array.from(breakpoints));
-    applyState(state);
+    stopAutoRun();
+    if (runSpeed === 4) {
+      applyState(continueSim(Array.from(breakpoints)));
+    } else {
+      startTimedRun(false);
+    }
   };
 
   const handleStep = () => {
+    stopAutoRun();
     const state = stepSim();
     applyState(state);
   };
 
   const handleStepBack = () => {
+    stopAutoRun();
     const state = stepBackSim();
     applyState(state);
   };
 
   const handleReset = () => {
+    stopAutoRun();
     resetSim();
     setRegisters(buildInitialRegisters());
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
@@ -308,7 +654,7 @@ export default function IdePage() {
     setIsAssembled(false);
     setCanStepBack(false);
     setIsTerminated(false);
-    setInstrStats(null);
+    clearDerivedSimMetadata();
     setSimTick(t => t + 1);
   };
 
@@ -326,6 +672,14 @@ export default function IdePage() {
     applyState(state);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleRegisterEdit = (name: string, value: number) => {
+    applyState(setRegisterValue(name, value));
+  };
+
+  const handleMemoryEdit = (address: number, value: number) => {
+    applyState(setMemoryWord(address, value));
+  };
 
   const handleSaveLocal = () => {
     flushNow();
@@ -389,17 +743,42 @@ export default function IdePage() {
       if (inInput || isWaiting) return;
 
       switch (e.key) {
-        case 'F5':  e.preventDefault(); handleRun(); break;
-        case 'F8':  e.preventDefault(); handleContinue(); break;
-        case 'F9':  e.preventDefault(); if (canStepBack) handleStepBack(); break;
-        case 'F10': e.preventDefault(); handleStep(); break;
-        case 'Escape': handleReset(); break;
+        case 'F5':
+          if (isAssembled && !isTerminated && !canStepBack && !isWaiting) {
+            e.preventDefault();
+            handleRun();
+          }
+          break;
+        case 'F8':
+          if (isAssembled && !isTerminated && canStepBack) {
+            e.preventDefault();
+            handleContinue();
+          }
+          break;
+        case 'F9':
+          if (isAssembled && canStepBack) {
+            e.preventDefault();
+            handleStepBack();
+          }
+          break;
+        case 'F10':
+          if (isAssembled && !isTerminated) {
+            e.preventDefault();
+            handleStep();
+          }
+          break;
+        case 'Escape':
+          if (isAssembled) {
+            e.preventDefault();
+            handleReset();
+          }
+          break;
       }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [isLoggedIn, canStepBack, isWaiting,
+  }, [canStepBack, isAssembled, isTerminated, isWaiting,
       handleAssemble, handleRun, handleContinue, handleStep, handleStepBack, handleReset,
       handleSaveLocal]);
 
@@ -522,13 +901,21 @@ export default function IdePage() {
     window.addEventListener('mouseup', onUp);
   };
 
-  const handleSidebarIconClick = (panel: SidebarPanel) => {
-    if (panel === activeSidebarPanel) {
-      setSidebarOpen(o => !o);
-    } else {
-      setActiveSidebarPanel(panel);
-      setSidebarOpen(true);
+  const handleSidebarViewClick = (view: SidebarView) => {
+    if (view === activeSidebarView) {
+      setSidebarOpen(open => !open);
+      return;
     }
+    setActiveSidebarView(view);
+    if (view === 'files' || view === 'tool-library') setActiveToolId(null);
+    else setActiveToolId(view);
+    setSidebarOpen(true);
+  };
+
+  const handleMobileViewClick = (view: MobileView) => {
+    setMobileView(view);
+    if (view === 'files' || view === 'editor' || view === 'console' || view === 'tool-library') setActiveToolId(null);
+    else setActiveToolId(view);
   };
 
   const startEditorVDrag = (e: React.MouseEvent) => {
@@ -548,20 +935,20 @@ export default function IdePage() {
   // ---------------------------------------------------------------------------
   // Editor actions
   // ---------------------------------------------------------------------------
-  // Debug toolbar: Assemble + step controls. Assemble always enabled; rest require isAssembled.
-  const debugActions: { label: string; onPress: () => void; enabled: boolean; title: string; hotkey: string }[] = [
-    { label: 'Run',       onPress: handleRun,       enabled: isAssembled && !isTerminated,  title: 'Run (F5)',        hotkey: 'F5'  },
-    { label: 'Continue',  onPress: handleContinue,  enabled: isAssembled && !isTerminated,  title: 'Continue (F8)',   hotkey: 'F8'  },
-    { label: 'Step Back', onPress: handleStepBack,  enabled: isAssembled && canStepBack,    title: 'Step Back (F9)', hotkey: 'F9'  },
-    { label: 'Step',      onPress: handleStep,      enabled: isAssembled && !isTerminated,  title: 'Step (F10)',      hotkey: 'F10' },
-    { label: 'Reset',     onPress: handleReset,     enabled: isAssembled,                   title: 'Reset (Escape)',  hotkey: 'Esc' },
+  const runLabel = canStepBack || isWaiting ? 'Continue' : 'Run';
+  const runToLineLabel = `Run to Selected Line (${cursorLine ?? activeLine ?? 1})`;
+  const primaryDebugActions: { label: 'Run' | 'Continue' | 'Step Back' | 'Step' | 'Reset'; onPress: () => void; enabled: boolean; title: string; hotkey: string }[] = [
+    { label: runLabel, onPress: runLabel === 'Continue' ? handleContinue : handleRun, enabled: isAssembled && !isTerminated, title: `${runLabel} (${runLabel === 'Continue' ? 'F8' : 'F5'})`, hotkey: runLabel === 'Continue' ? 'F8' : 'F5' },
+    { label: 'Step Back', onPress: handleStepBack, enabled: isAssembled && canStepBack, title: 'Step Back (F9)', hotkey: 'F9' },
+    { label: 'Step', onPress: handleStep, enabled: isAssembled && !isTerminated, title: 'Step (F10)', hotkey: 'F10' },
+    { label: 'Reset', onPress: handleReset, enabled: isAssembled, title: 'Reset (Escape)', hotkey: 'Esc' },
   ];
 
   const simStatus =
     errorLines.length > 0 ? 'error'     as const
     : !isAssembled        ? 'idle'      as const
     : isTerminated        ? 'done'      as const
-    : activeLine !== null ? 'stepping'  as const
+    : canStepBack || isWaiting ? 'stepping'  as const
     :                       'assembled' as const;
 
   const STATUS_CONFIG = {
@@ -571,6 +958,71 @@ export default function IdePage() {
     done:      { label: '◼ Done',                            color: '#94a3b8', bg: '#1e29381a', border: '#334155' },
     error:     { label: `✕ Error (${errorLines.length})`,    color: '#f87171', bg: '#7f1d1d22', border: '#7f1d1d' },
   } as const;
+
+  const getFallbackToolId = (toolId: ToolId, nextEnabledToolIds: ToolId[]) => {
+    if (nextEnabledToolIds.length === 0) return null;
+    const currentIndex = TOOL_DEFINITIONS.findIndex(tool => tool.id === toolId);
+    return (
+      TOOL_DEFINITIONS.slice(currentIndex + 1).map(tool => tool.id).find(id => nextEnabledToolIds.includes(id)) ??
+      TOOL_DEFINITIONS.slice(0, currentIndex).map(tool => tool.id).find(id => nextEnabledToolIds.includes(id)) ??
+      nextEnabledToolIds[0]
+    );
+  };
+
+  const toggleToolEnabled = useCallback((toolId: ToolId) => {
+    const disabling = enabledToolIds.includes(toolId);
+    const nextSet = new Set(enabledToolIds);
+    if (disabling) nextSet.delete(toolId);
+    else nextSet.add(toolId);
+    const nextEnabledToolIds = TOOL_DEFINITIONS.map(tool => tool.id).filter(id => nextSet.has(id));
+    const fallbackToolId = getFallbackToolId(toolId, nextEnabledToolIds);
+
+    setEnabledToolIds(nextEnabledToolIds);
+    if (disabling) {
+      setActiveSidebarView(prev => (prev === toolId ? (fallbackToolId ?? 'files') : prev));
+      setMobileView(prev => (prev === toolId ? (fallbackToolId ?? 'editor') : prev));
+      setActiveToolId(prev => (prev === toolId ? fallbackToolId : prev));
+    }
+  }, [enabledToolIds]);
+
+  const renderToolPanel = (toolId: ToolId): React.ReactNode => {
+    switch (toolId) {
+      case 'registers':
+        return (
+          <RegisterPanel
+            registers={registers}
+            theme={theme}
+            valueFormat={valueFormat}
+            setValueFormat={setValueFormat}
+            editable={registerEditable}
+            onToggleEditable={() => setRegisterEditable(v => !v)}
+            changedRegisters={changedRegisters}
+            onRegisterEdit={handleRegisterEdit}
+            tick={simTick}
+          />
+        );
+      case 'memory':
+        return (
+          <MemoryView
+            tick={simTick}
+            theme={theme}
+            valueFormat={valueFormat}
+            setValueFormat={setValueFormat}
+            editable={memoryEditable}
+            onToggleEditable={() => setMemoryEditable(v => !v)}
+            onMemoryEdit={handleMemoryEdit}
+          />
+        );
+      case 'display':
+        return <DisplayPanel theme={theme} simTick={simTick} />;
+      case 'program':
+        return <SidebarPanelFrame><ProgramPanel tick={simTick} theme={theme} /></SidebarPanelFrame>;
+      case 'performance':
+        return <SidebarPanelFrame><PerformancePanel tick={simTick} theme={theme} stats={instrStats} /></SidebarPanelFrame>;
+    }
+    const _exhaustive: never = toolId;
+    return _exhaustive;
+  };
 
   // File toolbar: Save + import/export
 
@@ -781,7 +1233,7 @@ export default function IdePage() {
             </div>
           </div>
 
-          {/* Row 2 — debug toolbar: Assemble + step controls + status pill placeholder */}
+          {/* Row 2 — debug toolbar: primary actions + run options + status */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -792,7 +1244,6 @@ export default function IdePage() {
             padding: '0 12px',
             gap: 6,
           }}>
-            {/* Assemble — always enabled, always blue */}
             <button
               type="button"
               onClick={handleAssemble}
@@ -829,10 +1280,7 @@ export default function IdePage() {
               )}
             </button>
 
-            <div style={{ width: 1, height: 20, backgroundColor: theme.border, flexShrink: 0 }} />
-
-            {/* Step controls — dimmed until assembled */}
-            {debugActions.map(a => (
+            {primaryDebugActions.map(a => (
               <button
                 key={a.label}
                 type="button"
@@ -873,10 +1321,86 @@ export default function IdePage() {
               </button>
             ))}
 
+            {isAssembled && (
+              <div ref={runOptionsRef} style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setRunOptionsOpen(o => !o)}
+                  aria-expanded={runOptionsOpen}
+                  style={{
+                    backgroundColor: runOptionsOpen ? '#2563eb22' : 'transparent',
+                    border: `1px solid ${runOptionsOpen ? '#2563eb' : theme.border}`,
+                    borderRadius: 6,
+                    color: runOptionsOpen ? '#2563eb' : theme.text,
+                    cursor: 'pointer',
+                    height: 28,
+                    padding: '0 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Run options
+                </button>
+                {runOptionsOpen && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    width: 240,
+                    maxWidth: 'calc(100vw - 24px)',
+                    backgroundColor: theme.card,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 10,
+                    boxShadow: '0 12px 28px rgba(0,0,0,0.35)',
+                    padding: 10,
+                    zIndex: 1000,
+                    display: 'grid',
+                    gap: 10,
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => { handleRunToLine(); setRunOptionsOpen(false); }}
+                      disabled={!isAssembled || isTerminated}
+                      style={{
+                        backgroundColor: theme.bg,
+                        border: `1px solid ${theme.border}`,
+                        borderRadius: 6,
+                        color: theme.text,
+                        cursor: !isAssembled || isTerminated ? 'not-allowed' : 'pointer',
+                        opacity: !isAssembled || isTerminated ? 0.45 : 1,
+                        padding: '8px 10px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        textAlign: 'left',
+                      }}
+                    >
+                      {runToLineLabel}
+                    </button>
+                    <label style={{ display: 'grid', gap: 5 }}>
+                      <span style={{ color: theme.subText, fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>Speed</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={4}
+                        step={1}
+                        value={runSpeed}
+                        disabled={isTerminated}
+                        onChange={e => setRunSpeed(Number(e.target.value))}
+                        aria-label="Run speed"
+                      />
+                      <span style={{ color: theme.text, fontSize: 11, fontWeight: 700 }}>
+                        {['Crawl', 'Slow', 'Normal', 'Fast', 'Max'][runSpeed]}
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ flex: 1 }} />
             <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} />
             <div style={{ width: 1, height: 16, backgroundColor: theme.border, flexShrink: 0, margin: '0 4px' }} />
-            {/* Status pill */}
             <div
               className="sim-status-pill"
               role="status"
@@ -937,15 +1461,12 @@ export default function IdePage() {
           >
             {[
               { label: 'Assemble',  onPress: handleAssemble,  disabled: false },
-              { label: 'Run',       onPress: handleRun,       disabled: isTerminated },
-              { label: 'Continue',  onPress: handleContinue,  disabled: isTerminated },
-              { label: 'Step Back', onPress: handleStepBack,  disabled: !canStepBack },
-              { label: 'Step',      onPress: handleStep,      disabled: isTerminated },
-              { label: 'Reset',     onPress: handleReset,     disabled: false },
+              { label: runLabel,    onPress: runLabel === 'Continue' ? handleContinue : handleRun, disabled: !isAssembled || isTerminated },
+              { label: 'Step Back', onPress: handleStepBack,  disabled: !isAssembled || !canStepBack },
+              { label: 'Step',      onPress: handleStep,      disabled: !isAssembled || isTerminated },
+              { label: 'Reset',     onPress: handleReset,     disabled: !isAssembled },
             ].map(a => {
-              const isBlue = isAssembled
-                ? (['Run', 'Continue', 'Step Back', 'Step'].includes(a.label))
-                : a.label === 'Assemble';
+              const isBlue = a.label === 'Assemble' || (isAssembled && a.label !== 'Reset');
               const isDisabled = Boolean(a.disabled);
               return (
                 <button
@@ -980,6 +1501,77 @@ export default function IdePage() {
                 </button>
               );
             })}
+
+            {isAssembled && (
+              <div ref={runOptionsRef} style={{ position: 'relative', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setRunOptionsOpen(o => !o)}
+                  aria-expanded={runOptionsOpen}
+                  style={{
+                    backgroundColor: runOptionsOpen ? '#2563eb22' : theme.card,
+                    border: `1px solid ${runOptionsOpen ? '#2563eb' : theme.border}`,
+                    borderRadius: 6,
+                    color: runOptionsOpen ? '#2563eb' : theme.text,
+                    cursor: 'pointer',
+                    minWidth: 44,
+                    height: 36,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 10px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Run options
+                </button>
+                {runOptionsOpen && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    width: 220,
+                    backgroundColor: theme.card,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 10,
+                    boxShadow: '0 12px 28px rgba(0,0,0,0.35)',
+                    padding: 10,
+                    zIndex: 1000,
+                    display: 'grid',
+                    gap: 10,
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => { handleRunToLine(); setRunOptionsOpen(false); }}
+                      disabled={isTerminated}
+                      style={{
+                        backgroundColor: theme.bg,
+                        border: `1px solid ${theme.border}`,
+                        borderRadius: 6,
+                        color: theme.text,
+                        cursor: isTerminated ? 'not-allowed' : 'pointer',
+                        opacity: isTerminated ? 0.45 : 1,
+                        padding: '8px 10px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        textAlign: 'left',
+                      }}
+                    >
+                      {runToLineLabel}
+                    </button>
+                    <label style={{ display: 'grid', gap: 5 }}>
+                      <span style={{ color: theme.subText, fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>Speed</span>
+                      <input type="range" min={0} max={4} step={1} value={runSpeed} disabled={isTerminated} onChange={e => setRunSpeed(Number(e.target.value))} aria-label="Run speed" />
+                      <span style={{ color: theme.text, fontSize: 11, fontWeight: 700 }}>
+                        {['Crawl', 'Slow', 'Normal', 'Fast', 'Max'][runSpeed]}
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
 
             {[
               { label: 'Import', onPress: handleUpload },
@@ -1020,15 +1612,23 @@ export default function IdePage() {
 
       {/* Mobile nav */}
       {!wide && (
-        <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-          {(['editor', 'console', 'registers', 'memory'] as const).map(view => (
+        <div
+          className="tab-scroll"
+          role="tablist"
+          aria-label="IDE views"
+          style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: 'auto' }}
+        >
+          {(['files', 'editor', 'console', 'tool-library'] as const).map(view => (
             <button
               key={view}
               type="button"
-              onClick={() => setMobileView(view)}
+              role="tab"
+              aria-selected={mobileView === view}
+              onClick={() => handleMobileViewClick(view)}
               style={{
-                flex: 1,
+                flex: view === 'editor' ? 1 : '0 0 auto',
                 padding: '10px 0',
+                minWidth: 88,
                 minHeight: 48,
                 backgroundColor: mobileView === view ? theme.tabActive : theme.tabInactive,
                 border: 'none',
@@ -1040,9 +1640,38 @@ export default function IdePage() {
                 textTransform: 'capitalize',
               }}
             >
-              {view}
+              {view === 'tool-library' ? 'Tools' : view}
             </button>
           ))}
+          {enabledTools.map(tool => (
+            <button
+              key={tool.id}
+              type="button"
+              role="tab"
+              aria-selected={mobileView === tool.id}
+              onClick={() => handleMobileViewClick(tool.id)}
+              style={{
+                flex: '0 0 auto',
+                padding: '10px 0',
+                minWidth: 88,
+                minHeight: 48,
+                backgroundColor: mobileView === tool.id ? theme.tabActive : theme.tabInactive,
+                border: 'none',
+                borderRight: `1px solid ${theme.border}`,
+                color: mobileView === tool.id ? theme.text : theme.subText,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {tool.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {!wide && enabledTools.length === 0 && (
+        <div style={{ padding: '8px 12px', borderBottom: `1px solid ${theme.border}`, color: theme.subText, fontSize: 11 }}>
+          No tools enabled. Use the Tools tab to re-enable sidebar tools.
         </div>
       )}
 
@@ -1052,21 +1681,46 @@ export default function IdePage() {
 
           {/* Activity bar */}
           <div className="ide-activity-bar">
-            {SIDEBAR_PANELS.map(({ id, label, icon }) => (
+            <button
+              type="button"
+              className={`ide-activity-icon${activeSidebarView === 'files' && sidebarOpen ? ' ide-activity-icon--active' : ''}`}
+              onClick={() => handleSidebarViewClick('files')}
+              title="Files"
+              aria-label="Files"
+              aria-pressed={activeSidebarView === 'files' && sidebarOpen}
+            >
+              <ActionIcon name="Files" size={16} />
+              <span>Files</span>
+            </button>
+
+            {enabledTools.map(tool => (
               <button
-                key={id}
+                key={tool.id}
                 type="button"
-                className={`ide-activity-icon${activeSidebarPanel === id && sidebarOpen ? ' ide-activity-icon--active' : ''}`}
-                onClick={() => handleSidebarIconClick(id)}
-                title={label}
-                aria-label={label}
-                aria-pressed={activeSidebarPanel === id && sidebarOpen}
+                className={`ide-activity-icon${activeSidebarView === tool.id && sidebarOpen ? ' ide-activity-icon--active' : ''}`}
+                onClick={() => handleSidebarViewClick(tool.id)}
+                title={tool.label}
+                aria-label={tool.label}
+                aria-pressed={activeSidebarView === tool.id && sidebarOpen}
               >
-                <ActionIcon name={icon} size={16} />
-                <span>{label}</span>
+                <ActionIcon name={tool.icon} size={16} />
+                <span>{tool.label}</span>
               </button>
             ))}
 
+            <div style={{ flex: 1 }} />
+
+            <button
+              type="button"
+              className={`ide-activity-icon${activeSidebarView === 'tool-library' && sidebarOpen ? ' ide-activity-icon--active' : ''}`}
+              onClick={() => handleSidebarViewClick('tool-library')}
+              title="Manage Tools"
+              aria-label="Manage Tools"
+              aria-pressed={activeSidebarView === 'tool-library' && sidebarOpen}
+            >
+              <ActionIcon name="Tools" size={16} />
+              <span>Tools</span>
+            </button>
           </div>
 
           {/* Sidebar panel (hidden when collapsed) */}
@@ -1074,14 +1728,16 @@ export default function IdePage() {
             <>
               <div className="ide-sidebar" style={{ width: sidebarWidth }}>
                 <div className="ide-sidebar-header">
-                  {SIDEBAR_PANELS.find(p => p.id === activeSidebarPanel)?.title.toUpperCase()}
+                  {(activeSidebarView === 'files'
+                    ? 'FILES'
+                    : activeSidebarView === 'tool-library'
+                      ? 'TOOL LIBRARY'
+                      : TOOL_DEFINITIONS.find(tool => tool.id === activeSidebarView)?.title.toUpperCase()) ?? 'TOOLS'}
                 </div>
                 <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                  {activeSidebarPanel === 'files'     && <FileExplorer theme={theme} isLoggedIn={isLoggedIn} tabs={tabs} setTabs={setTabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} removeTabLocally={removeTabLocally} onFilesLoaded={setClosedFileNames} onUpload={handleUpload} onDownload={handleDownload} />}
-                  {activeSidebarPanel === 'registers' && <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} changedRegisters={changedRegisters} />}
-                  {activeSidebarPanel === 'memory'    && <MemoryView tick={simTick} theme={theme} />}
-                  {activeSidebarPanel === 'stats'     && <InstructionStats stats={instrStats} theme={theme} />}
-                  {activeSidebarPanel === 'bitmap'    && <BitmapDisplay theme={theme} tick={simTick} />}
+                  {activeSidebarView === 'files' && <FileExplorer theme={theme} isLoggedIn={isLoggedIn} tabs={tabs} setTabs={setTabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} removeTabLocally={removeTabLocally} onFilesLoaded={setClosedFileNames} onUpload={handleUpload} onDownload={handleDownload} />}
+                  {activeSidebarView === 'tool-library' && <ToolLibraryPanel theme={theme} enabledToolIds={enabledToolIds} onToggleTool={toggleToolEnabled} />}
+                  {activeSidebarView !== 'files' && activeSidebarView !== 'tool-library' && renderToolPanel(activeSidebarView)}
                 </div>
               </div>
               <div className="ide-sidebar-handle" onMouseDown={startSidebarDrag} />
@@ -1103,7 +1759,10 @@ export default function IdePage() {
                   </div>
                 </div>
               ) : (
-                <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} fontSize={fontSize} tabSize={tabSize} />
+                <>
+                  <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} />
+                  <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} fontSize={fontSize} tabSize={tabSize} />
+                </>
               )}
             </div>
 
@@ -1118,8 +1777,12 @@ export default function IdePage() {
       ) : (
         /* Mobile single-panel */
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {mobileView === 'files' && <FileExplorer theme={theme} isLoggedIn={isLoggedIn} tabs={tabs} setTabs={setTabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} removeTabLocally={removeTabLocally} onFilesLoaded={setClosedFileNames} onUpload={handleUpload} onDownload={handleDownload} />}
           {mobileView === 'editor' && (
-            <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onAssemble={handleAssemble} fontSize={fontSize} tabSize={tabSize} />
+            <>
+              <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} />
+              <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} onAssemble={handleAssemble} fontSize={fontSize} tabSize={tabSize} />
+            </>
           )}
           {mobileView === 'console' && (
             <ConsolePanel
@@ -1129,10 +1792,8 @@ export default function IdePage() {
               theme={theme}
             />
           )}
-          {mobileView === 'registers' && (
-            <RegisterPanel registers={registers} theme={theme} showHex={showHex} toggleFormat={() => setShowHex(p => !p)} changedRegisters={changedRegisters} />
-          )}
-          {mobileView === 'memory' && <MemoryView tick={simTick} theme={theme} />}
+          {mobileView === 'tool-library' && <ToolLibraryPanel theme={theme} enabledToolIds={enabledToolIds} onToggleTool={toggleToolEnabled} />}
+          {mobileView !== 'files' && mobileView !== 'editor' && mobileView !== 'console' && mobileView !== 'tool-library' && renderToolPanel(mobileView)}
         </div>
       )}
 

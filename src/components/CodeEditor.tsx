@@ -15,8 +15,10 @@ interface CodeEditorProps {
   setCode: (code: string) => void;
   theme: Theme;
   activeLine: number | null;
+  cursorLine?: number | null;
   breakpoints: Set<number>;
   onBreakpointToggle: (line: number) => void;
+  onCursorLineChange?: (line: number) => void;
   errorLines?: { line: number; message: string }[];
   onAssemble?: () => void;
   onToggleSidebar?: () => void;
@@ -29,8 +31,10 @@ export function CodeEditor({
   setCode,
   theme,
   activeLine,
+  cursorLine,
   breakpoints,
   onBreakpointToggle,
+  onCursorLineChange,
   errorLines = [],
   onAssemble,
   onToggleSidebar,
@@ -49,9 +53,11 @@ export function CodeEditor({
   const onAssembleRef = useRef(onAssemble);
   const onBreakpointToggleRef = useRef(onBreakpointToggle);
   const onToggleSidebarRef = useRef(onToggleSidebar);
+  const onCursorLineChangeRef = useRef(onCursorLineChange);
   useEffect(() => { onAssembleRef.current = onAssemble; }, [onAssemble]);
   useEffect(() => { onBreakpointToggleRef.current = onBreakpointToggle; }, [onBreakpointToggle]);
   useEffect(() => { onToggleSidebarRef.current = onToggleSidebar; }, [onToggleSidebar]);
+  useEffect(() => { onCursorLineChangeRef.current = onCursorLineChange; }, [onCursorLineChange]);
 
   const isDark = theme.bg === THEMES.dark.bg;
 
@@ -78,10 +84,14 @@ export function CodeEditor({
           if (ln) onBreakpointToggleRef.current(ln);
         }
       }),
+      editor.onDidChangeCursorPosition((e) => {
+        onCursorLineChangeRef.current?.(e.position.lineNumber);
+      }),
       editor.onDidLayoutChange((info) => setContentLeft(info.contentLeft)),
     ];
 
     setContentLeft(editor.getLayoutInfo().contentLeft);
+    onCursorLineChangeRef.current?.(editor.getPosition()?.lineNumber ?? 1);
     setReady(true);
   };
 
@@ -147,6 +157,14 @@ export function CodeEditor({
   useEffect(() => {
     editorRef.current?.updateOptions({ tabSize });
   }, [tabSize]);
+
+  useEffect(() => {
+    if (!editorRef.current || !cursorLine) return;
+    const current = editorRef.current.getPosition()?.lineNumber;
+    if (current !== cursorLine) {
+      editorRef.current.setPosition({ lineNumber: cursorLine, column: 1 });
+    }
+  }, [cursorLine]);
 
   return (
     <div style={{

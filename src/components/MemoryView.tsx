@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getMemoryRange } from '../simulator/useMips';
+import { formatWordValue, getMemoryRange, parseWordValue, type ValueFormat } from '../simulator/useMips';
 import type { Theme } from '../theme/themes';
 
 const DEFAULT_ADDR = '0x10010000';
@@ -9,6 +9,11 @@ const ROW_COUNT_OPTIONS = [32, 64, 128, 256, 512];
 interface MemoryViewProps {
   theme: Theme;
   tick: number;
+  valueFormat?: ValueFormat;
+  setValueFormat?: (format: ValueFormat) => void;
+  editable?: boolean;
+  onToggleEditable?: () => void;
+  onMemoryEdit?: (address: number, value: number) => void;
 }
 
 interface MemRow {
@@ -16,11 +21,47 @@ interface MemRow {
   words: { address: string; value: string }[];
 }
 
-export function MemoryView({ theme, tick }: MemoryViewProps) {
+function FormatToggle({
+  theme,
+  valueFormat,
+  setValueFormat,
+}: {
+  theme: Theme;
+  valueFormat: ValueFormat;
+  setValueFormat?: (format: ValueFormat) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {(['hex', 'dec', 'bin'] as const).map(format => (
+        <button
+          key={format}
+          type="button"
+          onClick={() => setValueFormat?.(format)}
+          style={{
+            backgroundColor: valueFormat === format ? '#2563eb' : theme.bg,
+            color: valueFormat === format ? '#fff' : theme.subText,
+            border: `1px solid ${valueFormat === format ? '#2563eb' : theme.border}`,
+            borderRadius: 6,
+            padding: '4px 7px',
+            fontSize: 10,
+            fontWeight: 700,
+            cursor: 'pointer',
+            textTransform: 'uppercase',
+          }}
+        >
+          {format}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function MemoryView({ theme, tick, valueFormat = 'hex', setValueFormat, editable = false, onToggleEditable, onMemoryEdit }: MemoryViewProps) {
   const [addrStr, setAddrStr]     = useState(DEFAULT_ADDR);
   const [numRows, setNumRows]     = useState(128);
   const [showZeros, setShowZeros] = useState(false);
   const [rows, setRows]           = useState<MemRow[]>([]);
+  const [editing, setEditing]     = useState<Record<string, string>>({});
 
   const parseAddr = (s: string) => parseInt(s.replace(/^0[xX]/, ''), 16) || 0x10010000;
 
@@ -47,6 +88,16 @@ export function MemoryView({ theme, tick }: MemoryViewProps) {
 
   const mono: React.CSSProperties = { fontFamily: 'monospace' };
 
+  const commitEdit = (address: string) => {
+    const value = parseWordValue(editing[address] ?? '');
+    setEditing(prev => {
+      const next = { ...prev };
+      delete next[address];
+      return next;
+    });
+    if (value !== null) onMemoryEdit?.(parseAddr(address), value);
+  };
+
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', backgroundColor: theme.bg }}>
 
@@ -61,6 +112,8 @@ export function MemoryView({ theme, tick }: MemoryViewProps) {
         gap: 10,
         alignItems: 'center',
       }}>
+        <FormatToggle theme={theme} valueFormat={valueFormat} setValueFormat={setValueFormat} />
+
         {/* Base address */}
         <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <span style={{ fontSize: 9, fontWeight: 700, color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Base</span>
@@ -78,7 +131,6 @@ export function MemoryView({ theme, tick }: MemoryViewProps) {
           />
         </label>
 
-        {/* Row count */}
         <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <span style={{ fontSize: 9, fontWeight: 700, color: theme.subText, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Rows</span>
           <select
@@ -96,18 +148,39 @@ export function MemoryView({ theme, tick }: MemoryViewProps) {
           </select>
         </label>
 
-        {/* Show zeros toggle */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={showZeros}
-            onChange={e => setShowZeros(e.target.checked)}
-            style={{ cursor: 'pointer' }}
-          />
-          <span style={{ fontSize: 11, color: theme.subText }}>Show zeros</span>
-        </label>
+        <button
+          type="button"
+          onClick={onToggleEditable}
+          style={{
+            backgroundColor: editable ? '#2563eb22' : theme.bg,
+            color: editable ? '#2563eb' : theme.subText,
+            border: `1px solid ${editable ? '#2563eb' : theme.border}`,
+            borderRadius: 6,
+            padding: '4px 8px',
+            fontSize: 11,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          {editable ? 'Done editing' : 'Edit memory'}
+        </button>
 
-        {/* Reset */}
+        <button
+          type="button"
+          onClick={() => setShowZeros(v => !v)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: showZeros ? theme.text : theme.subText,
+            fontSize: 11,
+            cursor: 'pointer',
+            padding: 0,
+            textDecoration: 'underline',
+          }}
+        >
+          {showZeros ? 'Hide zeros' : 'Show zeros'}
+        </button>
+
         {isDirty && (
           <button
             type="button"
@@ -175,17 +248,51 @@ export function MemoryView({ theme, tick }: MemoryViewProps) {
                 </span>
                 {row.words.map((w, wi) => {
                   const isZero = w.value === '0x00000000';
+                  const displayValue = formatWordValue(parseWordValue(w.value) ?? 0, valueFormat);
                   return (
-                    <span
-                      key={wi}
-                      style={{
-                        ...mono, fontSize: 11, fontWeight: isZero ? 400 : 600,
-                        color: isZero ? theme.subText + '50' : theme.text,
-                        textAlign: 'right',
-                      }}
-                    >
-                      {w.value.slice(2)}
-                    </span>
+                    editable ? (
+                      <input
+                        key={wi}
+                        value={editing[w.address] ?? displayValue}
+                        aria-label={`Edit memory ${w.address}`}
+                        onChange={e => setEditing(prev => ({ ...prev, [w.address]: e.target.value }))}
+                        onBlur={() => commitEdit(w.address)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') e.currentTarget.blur();
+                          if (e.key === 'Escape') setEditing(prev => {
+                            const next = { ...prev };
+                            delete next[w.address];
+                            return next;
+                          });
+                        }}
+                        style={{
+                          ...mono, fontSize: 11, fontWeight: isZero ? 400 : 600,
+                          color: isZero ? theme.subText + '50' : theme.text,
+                          textAlign: 'right',
+                          minWidth: 0,
+                          backgroundColor: 'transparent',
+                          border: `1px solid ${editing[w.address] !== undefined ? theme.border : 'transparent'}`,
+                          borderRadius: 4,
+                          padding: '1px 3px',
+                          outline: 'none',
+                        }}
+                      />
+                    ) : (
+                      <span
+                        key={wi}
+                        style={{
+                          ...mono,
+                          fontSize: 11,
+                          fontWeight: isZero ? 400 : 600,
+                          color: isZero ? theme.subText + '50' : theme.text,
+                          textAlign: 'right',
+                          minWidth: 0,
+                          padding: '2px 3px',
+                        }}
+                      >
+                        {displayValue}
+                      </span>
+                    )
                   );
                 })}
               </div>
