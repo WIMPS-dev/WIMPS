@@ -319,6 +319,9 @@ export function ProgramPanel({ theme, tick }: ProgramPanelProps) {
   const instructionGridColumns = format === 'binary'
     ? '158px 158px minmax(0, 1fr)'
     : '112px 112px minmax(0, 1fr)';
+  const labelGridColumns = format === 'binary'
+    ? 'minmax(0, 1fr) 5ch 124px'
+    : 'minmax(0, 1fr) 5ch 112px';
 
   useEffect(() => {
     if (selectedAddress !== null && !rows.some(row => row.address === selectedAddress)) {
@@ -439,17 +442,17 @@ export function ProgramPanel({ theme, tick }: ProgramPanelProps) {
                   Labels name code and data locations so you can map symbolic names back to real addresses.
                 </HelpText>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 8ch 12ch', gap: 10, padding: '10px 12px', borderBottom: `1px solid ${theme.border}`, color: theme.subText, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: labelGridColumns, gap: 10, padding: '10px 12px', borderBottom: `1px solid ${theme.border}`, color: theme.subText, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', fontFamily: 'monospace' }}>
                 <span>Label</span>
-                <span>Kind</span>
+                <span style={{ transform: 'translateX(-0.5ch)' }}>Kind</span>
                 <span>Address</span>
               </div>
               <div style={{ maxHeight: 420, overflow: 'auto' }}>
                 {labels.map(row => (
-                  <div key={`${row.label}-${row.address}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 8ch 12ch', gap: 10, padding: '9px 12px', borderBottom: `1px solid ${theme.border}22`, fontSize: 12 }}>
+                  <div key={`${row.label}-${row.address}`} style={{ display: 'grid', gridTemplateColumns: labelGridColumns, gap: 10, padding: '9px 12px', borderBottom: `1px solid ${theme.border}22`, fontSize: 12 }}>
                     <span style={{ color: theme.text, fontWeight: 700 }}>{row.label}</span>
                     <span style={{ color: theme.subText, textTransform: 'capitalize' }}>{row.segment === 'text' ? 'code' : row.segment}</span>
-                    <span style={{ color: theme.text, fontFamily: 'monospace' }}>{formatWordValue(row.address, 'hex')}</span>
+                    <span style={{ color: theme.text, fontFamily: 'monospace', whiteSpace: 'pre-line', lineHeight: format === 'binary' ? '12px' : '16px', fontSize: format === 'binary' ? 10 : 12, letterSpacing: format === 'binary' ? '0.2px' : 0 }}>{formatProgramAddress(row.address, format)}</span>
                   </div>
                 ))}
               </div>
