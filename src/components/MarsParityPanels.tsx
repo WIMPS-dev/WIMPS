@@ -60,53 +60,22 @@ function normalizeAssemblySpacing(assembly: string): string {
     .trim();
 }
 
-function parseNumberToken(token: string): number | null {
-  if (/^-?0x[\da-f]+$/i.test(token)) {
-    const sign = token.startsWith('-') ? -1 : 1;
-    const digits = token.replace(/^-?0x/i, '');
-    return sign * parseInt(digits, 16);
-  }
-  if (/^-?\d+$/.test(token)) return parseInt(token, 10);
-  return null;
-}
-
 const NUMBER_TOKEN_RE = /(?<![\w$])(-?0x[\da-f]+|-?\d+)(?![\w$])/gi;
 
-function getNumberTokens(text: string): string[] {
-  return Array.from(text.matchAll(NUMBER_TOKEN_RE), match => match[1]);
+function formatDecimalToken(token: string): string {
+  if (/^-?\d+$/.test(token)) return token;
+  const negative = token.startsWith('-');
+  const digits = token.replace(/^-?0x/i, '');
+  const value = parseInt(digits, 16);
+  if (Number.isNaN(value)) return token;
+  if (negative) return `-${value}`;
+  if (digits.length === 8 && value > 0x7fffffff) return String(value - 0x100000000);
+  if (digits.length === 4 && value > 0x7fff) return String(value - 0x10000);
+  return String(value);
 }
 
-function isNegativeSourceMaskOfAssembly(sourceToken: string, assemblyToken: string): boolean {
-  if (!sourceToken.startsWith('-') || !/^0x[\da-f]+$/i.test(assemblyToken)) return false;
-  const sourceValue = parseNumberToken(sourceToken);
-  const assemblyValue = parseNumberToken(assemblyToken);
-  if (sourceValue === null || assemblyValue === null) return false;
-  const digits = assemblyToken.slice(2).length;
-  if (digits < 1 || digits > 8) return false;
-  const mask = digits === 8 ? 0xffffffff : (2 ** (digits * 4)) - 1;
-  return (sourceValue & mask) === assemblyValue;
-}
-
-function preserveSourceNumberStyle(assembly: string, source: string): string {
-  const assemblyNumbers = getNumberTokens(assembly);
-  const sourceNumbers = getNumberTokens(source.replace(/#.*$/, ''));
-  if (assemblyNumbers.length === 0 || assemblyNumbers.length !== sourceNumbers.length) return assembly;
-  const pairs = assemblyNumbers.map((assemblyToken, index) => {
-    const sourceToken = sourceNumbers[index];
-    const assemblyValue = parseNumberToken(assemblyToken);
-    const sourceValue = parseNumberToken(sourceToken);
-    const matches = assemblyValue !== null
-      && sourceValue !== null
-      && (assemblyValue === sourceValue || isNegativeSourceMaskOfAssembly(sourceToken, assemblyToken));
-    return { assemblyToken, sourceToken, matches };
-  });
-  if (pairs.some(pair => !pair.matches)) return assembly;
-  let replacementIndex = 0;
-  return assembly.replace(NUMBER_TOKEN_RE, () => pairs[replacementIndex++]!.sourceToken);
-}
-
-function formatInstructionDisplay(assembly: string, source: string): string {
-  return normalizeAssemblySpacing(preserveSourceNumberStyle(assembly, source));
+function formatInstructionDisplay(assembly: string): string {
+  return normalizeAssemblySpacing(assembly.replace(NUMBER_TOKEN_RE, match => formatDecimalToken(match)));
 }
 
 function downloadText(filename: string, text: string) {
@@ -212,8 +181,18 @@ function groupBinary(bits: string, size = 4): string {
   return groups.join(' ');
 }
 
+function formatBinaryWrapped(value: number, width: number, lineWidth = 16): string {
+  const bits = formatBinary(value, width);
+  if (width <= lineWidth) return groupBinary(bits);
+  const lines: string[] = [];
+  for (let index = 0; index < bits.length; index += lineWidth) {
+    lines.push(groupBinary(bits.slice(index, index + lineWidth)));
+  }
+  return lines.join('\n');
+}
+
 function formatFieldValue(field: DecodedField, format: ProgramFormat): string {
-  if (format === 'binary') return groupBinary(formatBinary(field.value, field.width));
+  if (format === 'binary') return formatBinaryWrapped(field.value, field.width, field.width > 16 ? 16 : field.width);
   return `0x${field.value.toString(16).padStart(Math.ceil(field.width / 4), '0')}`;
 }
 
@@ -222,12 +201,12 @@ function fieldDisplayLabel(field: DecodedField): string {
 }
 
 function formatProgramWord(word: number, format: ProgramFormat): string {
-  if (format === 'binary') return groupBinary(formatBinary(word >>> 0, 32));
+  if (format === 'binary') return formatBinaryWrapped(word >>> 0, 32);
   return formatWordValue(word, 'hex');
 }
 
 function formatProgramAddress(address: number, format: ProgramFormat): string {
-  if (format === 'binary') return groupBinary(formatBinary(address >>> 0, 32));
+  if (format === 'binary') return formatBinaryWrapped(address >>> 0, 32);
   return formatWordValue(address, 'hex');
 }
 
@@ -338,7 +317,7 @@ export function ProgramPanel({ theme, tick }: ProgramPanelProps) {
   const labels = useMemo(() => getSymbolTable(), [tick]);
   const currentPc = useMemo(() => getSpecialRegisters().pc, [tick]);
   const instructionGridColumns = format === 'binary'
-    ? '292px 292px minmax(0, 1fr)'
+    ? '158px 158px minmax(0, 1fr)'
     : '112px 112px minmax(0, 1fr)';
 
   useEffect(() => {
@@ -394,6 +373,7 @@ export function ProgramPanel({ theme, tick }: ProgramPanelProps) {
                   {rows.map(row => {
                     const isSelected = activeRow?.address === row.address;
                     const isCurrent = row.address === currentPc;
+                    const rowPadY = format === 'binary' ? 7 : 9;
                     return (
                       <button
                         key={row.address}
@@ -404,7 +384,7 @@ export function ProgramPanel({ theme, tick }: ProgramPanelProps) {
                           display: 'grid',
                           gridTemplateColumns: instructionGridColumns,
                           gap: 10,
-                          padding: '9px 12px',
+                          padding: `${rowPadY}px 12px`,
                           border: 'none',
                           borderBottom: `1px solid ${theme.border}22`,
                           backgroundColor: isSelected ? '#2563eb18' : isCurrent ? `${theme.border}28` : 'transparent',
@@ -412,12 +392,12 @@ export function ProgramPanel({ theme, tick }: ProgramPanelProps) {
                           textAlign: 'left',
                         }}
                       >
-                        <span style={{ fontFamily: 'monospace', color: theme.subText, whiteSpace: 'normal', lineHeight: '16px' }}>{formatProgramAddress(row.address, format)}</span>
-                        <span style={{ fontFamily: 'monospace', color: theme.text, whiteSpace: 'normal', lineHeight: '16px' }}>
+                        <span style={{ fontFamily: 'monospace', color: theme.subText, whiteSpace: 'pre-line', lineHeight: format === 'binary' ? '12px' : '16px', fontSize: format === 'binary' ? 10 : 12, letterSpacing: format === 'binary' ? '0.2px' : 0 }}>{formatProgramAddress(row.address, format)}</span>
+                        <span style={{ fontFamily: 'monospace', color: theme.text, whiteSpace: 'pre-line', lineHeight: format === 'binary' ? '12px' : '16px', fontSize: format === 'binary' ? 10 : 12, letterSpacing: format === 'binary' ? '0.2px' : 0 }}>
                           {formatProgramWord(row.binary, format)}
                         </span>
                         <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
-                          <span style={{ fontFamily: 'monospace', color: theme.text, minWidth: 0, overflowWrap: 'anywhere' }}>{formatInstructionDisplay(row.assembly, row.source)}</span>
+                          <span style={{ fontFamily: 'monospace', color: theme.text, minWidth: 0, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{formatInstructionDisplay(row.assembly)}</span>
                           {isCurrent && <span style={{ color: '#2563eb', fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap' }}>Current</span>}
                         </span>
                       </button>
@@ -431,13 +411,13 @@ export function ProgramPanel({ theme, tick }: ProgramPanelProps) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <div>
                       <div style={{ color: theme.subText, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>Decoded fields</div>
-                      <div style={{ marginTop: 4, color: theme.text, fontFamily: 'monospace', fontSize: 13 }}>{formatInstructionDisplay(activeRow.assembly, activeRow.source)}</div>
+                      <div style={{ marginTop: 4, color: theme.text, fontFamily: 'monospace', fontSize: 13, whiteSpace: 'pre-wrap' }}>{formatInstructionDisplay(activeRow.assembly)}</div>
                     </div>
-                    <div style={{ color: theme.subText, fontFamily: 'monospace', fontSize: 11 }}>{formatProgramAddress(activeRow.address, format)}</div>
+                    <div style={{ color: theme.subText, fontFamily: 'monospace', fontSize: format === 'binary' ? 10 : 11, whiteSpace: 'pre-line', lineHeight: format === 'binary' ? '12px' : '16px' }}>{formatProgramAddress(activeRow.address, format)}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
                     {decodeInstruction(activeRow).fields.map(field => (
-                      <span key={field.key} style={{ border: `1px solid ${theme.border}`, borderRadius: 999, padding: '3px 7px', fontSize: 11, color: theme.subText, fontFamily: 'monospace', whiteSpace: 'normal', lineHeight: '16px' }}>
+                      <span key={field.key} style={{ border: `1px solid ${theme.border}`, borderRadius: 999, padding: '3px 7px', fontSize: format === 'binary' ? 10 : 11, color: theme.subText, fontFamily: 'monospace', whiteSpace: 'pre-line', lineHeight: format === 'binary' ? '12px' : '16px' }}>
                         {fieldDisplayLabel(field)}: {formatFieldValue(field, format)}{field.alias ? ` (${field.alias})` : ''}
                       </span>
                     ))}
