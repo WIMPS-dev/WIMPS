@@ -24,16 +24,23 @@ interface FileTreeCtx {
   collapsedFolders: Set<string>;
   hoveredPath: string | null;
   dragOverPath: string | null;
+  selectedFolderPath: string | null;
   editingFolderPath: string | null;
   editFolderName: string;
+  creatingFileAt: string | null;
+  newFileName: string;
   creatingFolderAt: string | null;
   newFolderName: string;
   toggleCollapse(path: string): void;
+  selectFolder(path: string): void;
   setHoveredPath(p: string | null): void;
   startRenameFolder(path: string, currentName: string): void;
   setEditFolderName(v: string): void;
   commitRenameFolder(): void;
   cancelRenameFolder(): void;
+  setCreatingFileAt(p: string | null): void;
+  setNewFileName(v: string): void;
+  commitNewFile(folderPath: string): void;
   setCreatingFolderAt(p: string | null): void;
   setNewFolderName(v: string): void;
   commitNewFolder(parentPath: string): void;
@@ -439,7 +446,6 @@ function NewFolderInput({ parentPath, depth }: { parentPath: string; depth: numb
       display: 'flex', alignItems: 'center', gap: 4,
       padding: `0 8px 0 ${8 + indent}px`, height: 26,
     }}>
-      <span style={{ width: 10, flexShrink: 0 }} />
       <FolderIcon />
       <input
         autoFocus
@@ -450,6 +456,39 @@ function NewFolderInput({ parentPath, depth }: { parentPath: string; depth: numb
         onKeyDown={e => {
           if (e.key === 'Enter') ctx.commitNewFolder(parentPath);
           if (e.key === 'Escape') ctx.setCreatingFolderAt(null);
+          e.stopPropagation();
+        }}
+        style={{
+          flex: 1, background: ctx.theme.bg,
+          border: `1px solid ${ctx.theme.linkColor}`,
+          borderRadius: 3, color: ctx.theme.text,
+          fontSize: 13, padding: '1px 4px', outline: 'none',
+        }}
+      />
+    </div>
+  );
+}
+
+function NewFileInput({ folderPath, depth }: { folderPath: string; depth: number }) {
+  const ctx = React.useContext(TreeCtx);
+  const indent = depth * 14;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 4,
+      padding: `0 8px 0 ${8 + indent}px`, height: 26,
+    }}>
+      <span style={{ color: ctx.theme.subText, flexShrink: 0 }}>
+        <FileIcon />
+      </span>
+      <input
+        autoFocus
+        value={ctx.newFileName}
+        placeholder="file name"
+        onChange={e => ctx.setNewFileName(e.target.value)}
+        onBlur={() => ctx.commitNewFile(folderPath)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+          if (e.key === 'Escape') ctx.setCreatingFileAt(null);
           e.stopPropagation();
         }}
         style={{
@@ -498,6 +537,7 @@ function FolderRow({ node, depth }: { node: Extract<TreeNode, { kind: 'folder' }
   const isCollapsed  = ctx.collapsedFolders.has(node.fullPath);
   const isHovered    = ctx.hoveredPath === node.fullPath;
   const isDragTarget = ctx.dragOverPath === node.fullPath;
+  const isSelected   = ctx.selectedFolderPath === node.fullPath;
   const isRenaming   = ctx.editingFolderPath === node.fullPath;
   const indent       = depth * 14;
 
@@ -510,12 +550,14 @@ function FolderRow({ node, depth }: { node: Extract<TreeNode, { kind: 'folder' }
       onDragOver={e => ctx.onDragOver(e, node.fullPath)}
       onDragLeave={ctx.onDragLeave}
       onDrop={e => ctx.onDrop(e, node.fullPath)}
+      onClick={() => ctx.selectFolder(node.fullPath)}
       style={{
         display: 'flex', alignItems: 'center', gap: 4,
         padding: `0 8px 0 ${8 + indent}px`, height: 26,
         cursor: 'pointer', userSelect: 'none',
         backgroundColor: isDragTarget
           ? ctx.theme.linkColor + '20'
+          : isSelected ? ctx.theme.linkColor + '18'
           : isHovered ? ctx.theme.linkColor + '10' : 'transparent',
         outline: isDragTarget ? `1px dashed ${ctx.theme.linkColor}` : 'none',
         outlineOffset: -1,
@@ -551,7 +593,7 @@ function FolderRow({ node, depth }: { node: Extract<TreeNode, { kind: 'folder' }
       ) : (
         <span
           onDoubleClick={e => { e.stopPropagation(); ctx.startRenameFolder(node.fullPath, node.name); }}
-          onClick={() => ctx.toggleCollapse(node.fullPath)}
+          onClick={e => { e.stopPropagation(); ctx.selectFolder(node.fullPath); ctx.toggleCollapse(node.fullPath); }}
           style={{
             flex: 1, fontSize: 13, color: ctx.theme.text,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -591,12 +633,14 @@ function FolderTree({ nodes, depth }: { nodes: TreeNode[]; depth: number }) {
         if (node.kind === 'folder') {
           const isCollapsed     = ctx.collapsedFolders.has(node.fullPath);
           const isCreatingChild = ctx.creatingFolderAt === node.fullPath;
+          const isCreatingFile  = ctx.creatingFileAt === node.fullPath;
           return (
             <React.Fragment key={node.fullPath}>
               <FolderRow node={node} depth={depth} />
               {!isCollapsed && (
                 <>
                   <FolderTree nodes={node.children} depth={depth + 1} />
+                  {isCreatingFile && <NewFileInput folderPath={node.fullPath} depth={depth + 1} />}
                   {isCreatingChild && <NewFolderInput parentPath={node.fullPath} depth={depth + 1} />}
                 </>
               )}
@@ -653,8 +697,11 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
   });
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(readCollapsedFolders);
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
+  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [editingFolderPath, setEditingFolderPath] = useState<string | null>(null);
   const [editFolderName, setEditFolderName] = useState('');
+  const [creatingFileAt, setCreatingFileAt] = useState<string | null>(null);
+  const [newFileName, setNewFileName] = useState('');
   const [creatingFolderAt, setCreatingFolderAt] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [folderPaths, setFolderPaths] = useState<Set<string>>(() => new Set(readSavedFolders()));
@@ -692,6 +739,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
   }, [isLoggedIn]);
 
   const handleOpen = (file: CodeTab) => {
+    setSelectedFolderPath(null);
     const existing = tabs.find(t => t.id === file.id);
     if (existing) {
       setActiveTabId(existing.id);
@@ -743,28 +791,6 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     removeTabLocally(file.id);
   };
 
-  const handleNewFile = () => {
-    const id = String(Date.now());
-    const allNames = new Set([
-      ...tabs.map(t => t.name),
-      ...serverFiles.map(f => f.name),
-      ...localFiles.map(f => f.name),
-    ]);
-    let n = 1;
-    while (allNames.has(`file${n}.asm`)) n++;
-    const name = `file${n}.asm`;
-    const newTab: CodeTab = { id, name, code: '', isDirty: false };
-    setTabs(prev => [...prev, newTab]);
-    setActiveTabId(id);
-    if (!isLoggedIn) {
-      const updated = [...localFiles, newTab];
-      setLocalFiles(updated);
-      writeSavedFiles(updated);
-    } else {
-      setServerFiles(prev => [...prev, newTab]);
-    }
-  };
-
   const updateUserFiles = useCallback((updater: (files: CodeTab[]) => CodeTab[]) => {
     if (isLoggedIn) {
       setServerFiles(updater);
@@ -778,24 +804,24 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     setTabs(updater);
   }, [isLoggedIn, setTabs, setServerFiles, setLocalFiles]);
 
-  const newFileInFolder = useCallback((folderPath: string) => {
-    const allNames = new Set([
-      ...tabs.map(t => t.name),
-      ...(isLoggedIn ? serverFiles : localFiles).map(f => f.name),
-    ]);
-    let n = 1;
-    while (allNames.has(`file${n}.asm`)) n++;
-    const name = `file${n}.asm`;
+  const startNewFile = useCallback((folderPath: string) => {
+    setCreatingFileAt(folderPath);
+    setNewFileName('');
+    setSelectedFolderPath(folderPath || null);
+    setCollapsedFolders(prev => { const next = new Set(prev); next.delete(folderPath); return next; });
+  }, []);
+
+  const commitNewFile = useCallback((folderPath: string) => {
+    const name = newFileName.trim();
+    setCreatingFileAt(null);
+    setNewFileName('');
+    if (!name) return;
     const id = String(Date.now());
     const newTab: CodeTab = { id, name, path: folderPath, code: '', isDirty: false };
     updateUserFiles(files => [...files, newTab]);
     setActiveTabId(id);
-    setCollapsedFolders(prev => {
-      const next = new Set(prev);
-      next.delete(folderPath);
-      return next;
-    });
-  }, [tabs, serverFiles, localFiles, isLoggedIn, updateUserFiles, setActiveTabId]);
+    setSelectedFolderPath(folderPath || null);
+  }, [newFileName, updateUserFiles, setActiveTabId]);
 
   const deleteFolder = useCallback((node: Extract<TreeNode, { kind: 'folder' }>) => {
     const userFiles = isLoggedIn ? serverFiles : localFiles;
@@ -819,6 +845,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
       };
       setCollapsedFolders(prunePrefix);
       setFolderPaths(prunePrefix);
+      setSelectedFolderPath(prev => prev && (prev === node.fullPath || prev.startsWith(node.fullPath + '/')) ? null : prev);
     };
 
     if (affected.length > 0) {
@@ -838,6 +865,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     if (!name) return;
     const folderPath = parentPath ? `${parentPath}/${name}` : name;
     setFolderPaths(prev => new Set([...prev, folderPath]));
+    setSelectedFolderPath(folderPath);
     setCollapsedFolders(prev => {
       const next = new Set(prev);
       next.delete(folderPath);
@@ -876,6 +904,12 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     };
     setCollapsedFolders(rewritePrefix);
     setFolderPaths(rewritePrefix);
+    setSelectedFolderPath(prev => {
+      if (!prev) return prev;
+      if (prev === editingFolderPath) return newFullPath;
+      if (prev.startsWith(editingFolderPath + '/')) return newFullPath + prev.slice(editingFolderPath.length);
+      return prev;
+    });
   }, [editingFolderPath, editFolderName, updateUserFiles]);
 
   const cancelRenameFolder = useCallback(() => {
@@ -928,6 +962,12 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
       };
       setCollapsedFolders(rewriteDrag);
       setFolderPaths(rewriteDrag);
+      setSelectedFolderPath(prev => {
+        if (!prev) return prev;
+        if (prev === src) return newPath;
+        if (prev.startsWith(src + '/')) return newPath + prev.slice(src.length);
+        return prev;
+      });
     }
   }, [updateUserFiles]);
 
@@ -935,6 +975,13 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     e.preventDefault();
     applyDrop(targetFolderPath);
   }, [applyDrop]);
+
+  const startNewFolder = useCallback((parentPath: string) => {
+    setCreatingFolderAt(parentPath);
+    setNewFolderName('');
+    setSelectedFolderPath(parentPath || null);
+    setCollapsedFolders(prev => { const next = new Set(prev); next.delete(parentPath); return next; });
+  }, []);
 
   const openTabIds = new Set(tabs.map(t => t.id));
   const userFiles = isLoggedIn ? serverFiles : localFiles;
@@ -944,28 +991,29 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
 
   const treeCtx: FileTreeCtx = {
     theme, activeTabId, openTabIds, deletingId, collapsedFolders,
-    hoveredPath: hoveredId, dragOverPath,
+    hoveredPath: hoveredId, dragOverPath, selectedFolderPath,
     editingFolderPath, editFolderName,
+    creatingFileAt, newFileName,
     creatingFolderAt, newFolderName,
     toggleCollapse: (path) => setCollapsedFolders(prev => {
       const next = new Set(prev);
       if (next.has(path)) next.delete(path); else next.add(path);
       return next;
     }),
+    selectFolder: setSelectedFolderPath,
     setHoveredPath: setHoveredId,
     startRenameFolder,
     setEditFolderName,
     commitRenameFolder,
     cancelRenameFolder,
+    setCreatingFileAt,
+    setNewFileName,
+    commitNewFile,
     setCreatingFolderAt,
     setNewFolderName,
     commitNewFolder,
-    newFileInFolder,
-    newSubfolder: (parentPath) => {
-      setCreatingFolderAt(parentPath);
-      setNewFolderName('');
-      setCollapsedFolders(prev => { const next = new Set(prev); next.delete(parentPath); return next; });
-    },
+    newFileInFolder: startNewFile,
+    newSubfolder: startNewFolder,
     deleteFolder,
     openFile: handleOpen,
     deleteFile: handleDelete,
@@ -993,7 +1041,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
         display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
         gap: 2, padding: '3px 6px', borderBottom: `1px solid ${theme.border}`, flexShrink: 0,
       }}>
-        <button type="button" onClick={handleNewFile} title="New File" style={hdrBtn}>
+        <button type="button" onClick={() => startNewFile(selectedFolderPath ?? '')} title="New File" style={hdrBtn}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}>
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <polyline points="14 2 14 8 20 8" />
@@ -1002,7 +1050,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
           </svg>
         </button>
         <button type="button"
-          onClick={() => { setCreatingFolderAt(''); setNewFolderName(''); }}
+          onClick={() => startNewFolder(selectedFolderPath ?? '')}
           title="New Folder"
           style={hdrBtn}
         >
@@ -1046,16 +1094,18 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
               <div style={{ padding: '0 8px' }}>
                 <FileRowSkeleton theme={theme} count={3} />
               </div>
-            ) : userFiles.length === 0 && folderPaths.size === 0 ? (
+            ) : userFiles.length === 0 && folderPaths.size === 0 && creatingFileAt === null && creatingFolderAt === null ? (
               <div style={{ padding: '4px 24px', color: theme.subText, fontSize: 12, lineHeight: '18px' }}>
                 Nothing saved yet.<br />Save a file to keep it here.
               </div>
             ) : (
               <TreeCtx.Provider value={treeCtx}>
                 <FolderTree nodes={buildTree(userFiles, folderPaths)} depth={0} />
+                {creatingFileAt === '' && <NewFileInput folderPath="" depth={0} />}
                 {creatingFolderAt === '' && <NewFolderInput parentPath="" depth={0} />}
                 <div
                   style={{ flex: 1, minHeight: 16 }}
+                  onClick={() => setSelectedFolderPath(null)}
                   onDragOver={e => { e.preventDefault(); setDragOverPath('__root__'); }}
                   onDragLeave={() => setDragOverPath(null)}
                   onDrop={e => { e.preventDefault(); applyDrop(''); setDragOverPath(null); }}
