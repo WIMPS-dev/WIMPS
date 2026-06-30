@@ -9,7 +9,7 @@ import { PerformancePanel, ProgramPanel } from '../components/MarsParityPanels';
 import { MemoryView } from '../components/MemoryView';
 import { IdeSkeleton } from '../components/PageSkeletons';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
-import { SaveStatus } from '../components/SaveStatus';
+import { SaveAction, SaveStatus } from '../components/SaveStatus';
 import { usePageReady } from '../components/Skeleton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
@@ -159,7 +159,7 @@ function PseudoExpansionNotice({
             key={row.address}
             style={{
               display: 'grid',
-              gridTemplateColumns: '4ch 10ch 10ch 1fr',
+              gridTemplateColumns: '4ch minmax(0, 1fr)',
               gap: 8,
               alignItems: 'start',
               color: i + 1 === pseudoExpansion.index ? theme.text : theme.subText,
@@ -167,8 +167,6 @@ function PseudoExpansionNotice({
             }}
           >
             <span style={{ fontFamily: 'monospace' }}>{i + 1}/{pseudoExpansion.total}</span>
-            <span style={{ fontFamily: 'monospace' }}>{formatWordValue(row.address, 'hex')}</span>
-            <span style={{ fontFamily: 'monospace' }}>{formatWordValue(row.binary, 'hex')}</span>
             <span>
               <span style={{ display: 'block', fontFamily: 'monospace', color: theme.text }}>{row.assembly}</span>
               <span style={{ display: 'block', marginTop: 2, lineHeight: '15px' }}>{explainExpandedInstruction(row.assembly)}</span>
@@ -686,7 +684,7 @@ export default function IdePage() {
 
   const handleSaveLocal = () => {
     flushNow();
-    setOutput(isLoggedIn ? 'Saved to account.' : 'Saved to browser.');
+    if (isLoggedIn) setOutput('Saved to account.');
   };
 
   const handleLogout = () => {
@@ -1039,6 +1037,7 @@ export default function IdePage() {
   if (!ready) return <IdeSkeleton theme={theme} />;
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+  const saveHotkey = isMac ? '⌘S' : 'Ctrl+S';
   const assembleKey = isMac ? '⌘ Enter' : 'Ctrl+Enter';
 
   return (
@@ -1403,6 +1402,7 @@ export default function IdePage() {
 
             <div style={{ flex: 1 }} />
             <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} />
+            <SaveAction onClick={handleSaveLocal} hotkey={saveHotkey} showHotkeys={showHotkeys} />
             <div style={{ width: 1, height: 16, backgroundColor: theme.border, flexShrink: 0, margin: '0 4px' }} />
             <div
               className="sim-status-pill"
@@ -1435,7 +1435,8 @@ export default function IdePage() {
           }}>
             <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 17, flexShrink: 0 }}><Logo size={22} /></Link>
             <div style={{ flex: 1 }} />
-            <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt}onRetry={() => flushNow()} compact />
+            <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} compact />
+            <SaveAction onClick={handleSaveLocal} hotkey={saveHotkey} showHotkeys={showHotkeys} />
             <ThemeSwitch />
             <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Docs</Link>
             {/* TEMP: login disabled

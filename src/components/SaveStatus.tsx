@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AutosaveStatus } from '../hooks/useAutosave';
+import { ActionIcon } from './ActionIcons';
 
 interface SaveStatusProps {
   status: AutosaveStatus;
@@ -64,5 +65,65 @@ export function SaveStatus({ status, lastSavedAt, onRetry, compact = false }: Sa
       />
       {!compact && <span>{LABEL[status]}</span>}
     </span>
+  );
+}
+
+export function SaveAction({
+  onClick,
+  hotkey,
+  showHotkeys,
+  disabled = false,
+}: {
+  onClick: () => void;
+  hotkey: string;
+  showHotkeys: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={`Save (${hotkey})`}
+      aria-label={`Save (${hotkey})`}
+      style={{
+        backgroundColor: '#2563eb',
+        border: 'none',
+        borderRadius: 6,
+        color: '#fff',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        height: 28,
+        padding: '0 12px',
+        fontSize: 12,
+        fontWeight: 700,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+        whiteSpace: 'nowrap',
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      <ActionIcon name="Save" size={13} />
+      <span>Save</span>
+      {showHotkeys && (
+        <span
+          style={{
+            fontSize: 12,
+            fontFamily: 'ui-monospace, monospace',
+            fontWeight: 700,
+            color: '#1e3a8a',
+            backgroundColor: '#ffffff',
+            padding: '2px 6px',
+            borderRadius: 4,
+            lineHeight: '16px',
+            marginLeft: 4,
+            flexShrink: 0,
+            boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+          }}
+        >
+          {hotkey}
+        </span>
+      )}
+    </button>
   );
 }

@@ -199,6 +199,27 @@ function formatProgramAddress(address: number, format: ProgramFormat): string {
   return formatWordValue(address, 'hex');
 }
 
+const PSEUDO_SOURCE_SET = new Set([
+  'li', 'la', 'move', 'nop', 'not', 'neg', 'negu', 'abs',
+  'b', 'beqz', 'bnez', 'blt', 'bgt', 'ble', 'bge',
+]);
+
+function getSourceMnemonic(source: string): string | null {
+  const cleaned = source.replace(/#.*$/, '').trim();
+  if (!cleaned || cleaned.startsWith('.')) return null;
+  const withoutLabel = cleaned.replace(/^([A-Za-z_]\w*):\s*/, '');
+  const mnemonic = withoutLabel.trimStart().split(/[\s,\t(]/)[0]?.toLowerCase();
+  return mnemonic || null;
+}
+
+function getPseudoCue(row: TextSegmentRow): string | null {
+  const sourceMnemonic = getSourceMnemonic(row.source);
+  if (!sourceMnemonic || !PSEUDO_SOURCE_SET.has(sourceMnemonic)) return null;
+  const assemblyMnemonic = row.assembly.trimStart().split(/[\s,\t(]/)[0]?.toLowerCase();
+  if (!assemblyMnemonic || assemblyMnemonic === sourceMnemonic) return null;
+  return sourceMnemonic;
+}
+
 function decodeInstruction(row: TextSegmentRow): DecodedInstruction {
   const word = row.binary >>> 0;
   const opcode = (word >>> 26) & 0x3f;
@@ -371,6 +392,7 @@ export function ProgramPanel({ theme, tick }: ProgramPanelProps) {
                     const isSelected = activeRow?.address === row.address;
                     const isCurrent = row.address === currentPc;
                     const rowPadY = format === 'binary' ? 7 : 9;
+                    const pseudoCue = getPseudoCue(row);
                     return (
                       <button
                         key={row.address}
@@ -396,7 +418,14 @@ export function ProgramPanel({ theme, tick }: ProgramPanelProps) {
                         </span>
                         <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0, flexWrap: 'wrap', userSelect: 'text' }}>
                           <span style={{ fontFamily: 'monospace', color: theme.text, minWidth: 0, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap', userSelect: 'text' }}>{formatInstructionDisplay(row.assembly)}</span>
-                          {isCurrent && <span style={{ color: '#2563eb', fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap' }}>Current</span>}
+                          <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                            {pseudoCue && (
+                              <span style={{ border: `1px solid ${theme.border}`, borderRadius: 999, padding: '2px 6px', color: theme.subText, fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
+                                pseudo: {pseudoCue}
+                              </span>
+                            )}
+                            {isCurrent && <span style={{ color: '#2563eb', fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap' }}>Current</span>}
+                          </span>
                         </span>
                       </button>
                     );
@@ -410,6 +439,11 @@ export function ProgramPanel({ theme, tick }: ProgramPanelProps) {
                     <div>
                       <div style={{ color: theme.subText, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>Decoded fields</div>
                       <div style={{ marginTop: 4, color: theme.text, fontFamily: 'monospace', fontSize: 13, whiteSpace: 'pre-wrap' }}>{formatInstructionDisplay(activeRow.assembly)}</div>
+                      {getPseudoCue(activeRow) && (
+                        <div style={{ marginTop: 6, color: theme.subText, fontSize: 11, lineHeight: '16px' }}>
+                          Pseudo instruction {getPseudoCue(activeRow)} expands into the real machine instruction below.
+                        </div>
+                      )}
                     </div>
                     <div style={{ color: theme.subText, fontFamily: 'monospace', fontSize: format === 'binary' ? 10 : 11, whiteSpace: 'pre-line', lineHeight: format === 'binary' ? '12px' : '16px' }}>{formatProgramAddress(activeRow.address, format)}</div>
                   </div>
