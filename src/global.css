@@ -392,7 +392,7 @@ input, textarea {
    ================================================ */
 
 .ide-activity-bar {
-  width: 66px;
+  width: 92px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -404,8 +404,8 @@ input, textarea {
 }
 
 .ide-activity-icon {
-  width: 58px;
-  padding: 5px 2px;
+  width: 84px;
+  padding: 6px 4px;
   border-radius: 5px;
   border: none;
   border-left: 2px solid transparent;
@@ -414,7 +414,7 @@ input, textarea {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   color: #64748b;
   transition: color 100ms ease-out, background-color 100ms ease-out;
 }
@@ -435,7 +435,9 @@ input, textarea {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.2px;
-  line-height: 1;
+  line-height: 1.05;
+  white-space: normal;
+  text-align: center;
 }
 
 .ide-sidebar {

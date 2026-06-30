@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { InstructionStats } from './InstructionStats';
 import {
   analyzeCache,
-  exportAssemblerListing,
   formatWordValue,
   getCompiledTextSegment,
   getSpecialRegisters,
@@ -76,16 +75,6 @@ function formatDecimalToken(token: string): string {
 
 function formatInstructionDisplay(assembly: string): string {
   return normalizeAssemblySpacing(assembly.replace(NUMBER_TOKEN_RE, match => formatDecimalToken(match)));
-}
-
-function downloadText(filename: string, text: string) {
-  const blob = new Blob([text], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 function SmallButton({ theme, children, onClick }: { theme: Theme; children: React.ReactNode; onClick: () => void }) {
@@ -358,24 +347,18 @@ export function ProgramPanel({ theme, tick }: ProgramPanelProps) {
             <PanelToggle theme={theme} active={format === 'binary'} label="Binary" onClick={() => setFormat('binary')} />
           </ToggleGroup>
           <div style={{ flex: 1 }} />
-          <SmallButton theme={theme} onClick={() => downloadText('assembler-listing.txt', exportAssemblerListing())}>
-            Download assembler listing
-          </SmallButton>
         </div>
-        <HelpText theme={theme}>
-          Downloads a text file with addresses, machine words, assembled instructions, and source-line mapping.
-        </HelpText>
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 10, display: 'grid', gap: 10, alignContent: 'start' }}>
         {tab === 'instructions' && (
           rows.length === 0 ? <Empty theme={theme} text="Assemble a program to inspect the instructions the CPU will run." /> : (
             <>
-              <div style={{ padding: '10px 12px', border: `1px solid ${theme.border}`, borderRadius: 10, backgroundColor: theme.card }}>
-                <HelpText theme={theme}>
-                  Machine code is the stored 32-bit word in memory. Instruction is the human-readable assembly form produced by the assembler.
-                </HelpText>
-              </div>
+                <div style={{ padding: '10px 12px', border: `1px solid ${theme.border}`, borderRadius: 10, backgroundColor: theme.card }}>
+                  <HelpText theme={theme}>
+                    Machine code is the stored 32-bit word in memory. Instruction is the cleaned, normalized assembly form shown to make the listing easier to read.
+                  </HelpText>
+                </div>
 
               <div style={{ border: `1px solid ${theme.border}`, borderRadius: 10, backgroundColor: theme.card, overflow: 'hidden' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: instructionGridColumns, gap: 10, padding: '10px 12px', borderBottom: `1px solid ${theme.border}`, color: theme.subText, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', fontFamily: 'monospace' }}>
@@ -402,16 +385,17 @@ export function ProgramPanel({ theme, tick }: ProgramPanelProps) {
                           border: 'none',
                           borderBottom: `1px solid ${theme.border}22`,
                           backgroundColor: isSelected ? '#2563eb18' : isCurrent ? `${theme.border}28` : 'transparent',
-                          cursor: 'pointer',
+                          cursor: 'text',
                           textAlign: 'left',
+                          userSelect: 'text',
                         }}
                       >
-                        <span style={{ fontFamily: 'monospace', color: theme.subText, whiteSpace: 'pre-line', lineHeight: format === 'binary' ? '12px' : '16px', fontSize: format === 'binary' ? 10 : 12, letterSpacing: format === 'binary' ? '0.2px' : 0 }}>{formatProgramAddress(row.address, format)}</span>
-                        <span style={{ fontFamily: 'monospace', color: theme.text, whiteSpace: 'pre-line', lineHeight: format === 'binary' ? '12px' : '16px', fontSize: format === 'binary' ? 10 : 12, letterSpacing: format === 'binary' ? '0.2px' : 0 }}>
+                        <span style={{ fontFamily: 'monospace', color: theme.subText, whiteSpace: 'pre-line', lineHeight: format === 'binary' ? '12px' : '16px', fontSize: format === 'binary' ? 10 : 12, letterSpacing: format === 'binary' ? '0.2px' : 0, userSelect: 'text' }}>{formatProgramAddress(row.address, format)}</span>
+                        <span style={{ fontFamily: 'monospace', color: theme.text, whiteSpace: 'pre-line', lineHeight: format === 'binary' ? '12px' : '16px', fontSize: format === 'binary' ? 10 : 12, letterSpacing: format === 'binary' ? '0.2px' : 0, userSelect: 'text' }}>
                           {formatProgramWord(row.binary, format)}
                         </span>
-                        <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
-                          <span style={{ fontFamily: 'monospace', color: theme.text, minWidth: 0, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{formatInstructionDisplay(row.assembly)}</span>
+                        <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0, flexWrap: 'wrap', userSelect: 'text' }}>
+                          <span style={{ fontFamily: 'monospace', color: theme.text, minWidth: 0, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap', userSelect: 'text' }}>{formatInstructionDisplay(row.assembly)}</span>
                           {isCurrent && <span style={{ color: '#2563eb', fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap' }}>Current</span>}
                         </span>
                       </button>

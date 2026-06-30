@@ -132,9 +132,24 @@ export function RegisterPanel({ registers, theme, valueFormat = 'hex', setValueF
             ['HI', special.hi],
             ['LO', special.lo],
           ].map(([label, value]) => (
-            <div key={label} style={{ borderRadius: 8, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, padding: '8px 10px' }}>
+            <div key={label} style={{ minWidth: 0, borderRadius: 8, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, padding: '8px 10px' }}>
               <div style={{ color: theme.subText, fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>{label}</div>
-              <div style={{ marginTop: 4, color: theme.text, fontFamily: 'monospace', fontSize: 12, fontWeight: 700 }}>{formatWordValue(value as number, valueFormat)}</div>
+              <div
+                title={formatWordValue(value as number, valueFormat)}
+                style={{
+                  marginTop: 4,
+                  minWidth: 0,
+                  color: theme.text,
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {formatWordValue(value as number, valueFormat)}
+              </div>
             </div>
           ))}
         </div>

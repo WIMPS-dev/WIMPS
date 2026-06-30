@@ -204,7 +204,7 @@ function ToolLibraryPanel({
               onClick={() => onToggleTool(tool.id)}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '20px 1fr',
+                gridTemplateColumns: '22px 1fr',
                 gap: 10,
                 alignItems: 'center',
                 textAlign: 'left',
@@ -216,7 +216,7 @@ function ToolLibraryPanel({
                 cursor: 'pointer',
               }}
             >
-              <ActionIcon name={tool.icon} size={16} />
+              <ActionIcon name={tool.icon} size={18} />
               <span>
                 <span style={{ display: 'block', fontSize: 12, fontWeight: 700 }}>{tool.label}</span>
                 <span style={{ display: 'block', marginTop: 2, fontSize: 11, color: theme.subText }}>{tool.description}</span>
@@ -319,7 +319,7 @@ export default function IdePage() {
     try { const v = localStorage.getItem('sidebar_open'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
-    try { const v = localStorage.getItem('sidebar_width'); return v ? Math.max(160, Math.min(480, Number(v))) : 260; } catch { return 260; }
+    try { const v = localStorage.getItem('sidebar_width'); return v ? Math.max(340, Math.min(640, Number(v))) : 360; } catch { return 360; }
   });
   const [registerEditable, setRegisterEditable] = useState(false);
   const [memoryEditable, setMemoryEditable] = useState(false);
@@ -1689,7 +1689,7 @@ export default function IdePage() {
               aria-label="Files"
               aria-pressed={activeSidebarView === 'files' && sidebarOpen}
             >
-              <ActionIcon name="Files" size={16} />
+              <ActionIcon name="Files" size={18} />
               <span>Files</span>
             </button>
 
@@ -1703,7 +1703,7 @@ export default function IdePage() {
                 aria-label={tool.label}
                 aria-pressed={activeSidebarView === tool.id && sidebarOpen}
               >
-                <ActionIcon name={tool.icon} size={16} />
+                <ActionIcon name={tool.icon} size={18} />
                 <span>{tool.label}</span>
               </button>
             ))}
@@ -1718,7 +1718,7 @@ export default function IdePage() {
               aria-label="Manage Tools"
               aria-pressed={activeSidebarView === 'tool-library' && sidebarOpen}
             >
-              <ActionIcon name="Tools" size={16} />
+              <ActionIcon name="Tools" size={18} />
               <span>Tools</span>
             </button>
           </div>
