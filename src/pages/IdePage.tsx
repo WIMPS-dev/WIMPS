@@ -49,6 +49,9 @@ const ENABLED_TOOLS_KEY = 'ide_enabled_tools';
 const ACTIVE_TOOL_KEY = 'ide_active_tool';
 
 const DEFAULT_TABS: CodeTab[] = [{ id: '1', name: 'file1.asm', code: '', isDirty: false }];
+const SIDEBAR_MIN_WIDTH = 340;
+const SIDEBAR_MAX_WIDTH = 960;
+const SIDEBAR_DEFAULT_WIDTH = 400;
 
 const buildInitialRegisters = (): RegisterValue[] =>
   ['$zero','$at','$v0','$v1','$a0','$a1','$a2','$a3',
@@ -319,7 +322,7 @@ export default function IdePage() {
     try { const v = localStorage.getItem('sidebar_open'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
-    try { const v = localStorage.getItem('sidebar_width'); return v ? Math.max(340, Math.min(640, Number(v))) : 360; } catch { return 360; }
+    try { const v = localStorage.getItem('sidebar_width'); return v ? Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Number(v))) : SIDEBAR_DEFAULT_WIDTH; } catch { return SIDEBAR_DEFAULT_WIDTH; }
   });
   const [registerEditable, setRegisterEditable] = useState(false);
   const [memoryEditable, setMemoryEditable] = useState(false);
@@ -894,7 +897,7 @@ export default function IdePage() {
     const startX = e.clientX;
     const startWidth = sidebarWidth;
     const onMove = (ev: MouseEvent) => {
-      setSidebarWidth(Math.max(160, Math.min(480, startWidth + (ev.clientX - startX))));
+      setSidebarWidth(Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, startWidth + (ev.clientX - startX))));
     };
     const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);

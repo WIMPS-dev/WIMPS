@@ -5,6 +5,16 @@ import type { Theme } from '../theme/themes';
 const DEFAULT_ADDR = '0x10010000';
 const WORDS_PER_ROW = 4;
 const ROW_COUNT_OPTIONS = [32, 64, 128, 256, 512];
+const FORMAT_BUTTON_MIN_WIDTH: Record<ValueFormat, number> = {
+  hex: 44,
+  dec: 44,
+  bin: 44,
+};
+const FORMAT_CELL_WIDTH: Record<ValueFormat, string> = {
+  hex: '12ch',
+  dec: '13ch',
+  bin: '36ch',
+};
 
 interface MemoryViewProps {
   theme: Theme;
@@ -32,22 +42,23 @@ function FormatToggle({
 }) {
   return (
     <div style={{ display: 'flex', gap: 4 }}>
-      {(['hex', 'dec', 'bin'] as const).map(format => (
-        <button
-          key={format}
-          type="button"
-          onClick={() => setValueFormat?.(format)}
-          style={{
-            backgroundColor: valueFormat === format ? '#2563eb' : theme.bg,
-            color: valueFormat === format ? '#fff' : theme.subText,
-            border: `1px solid ${valueFormat === format ? '#2563eb' : theme.border}`,
-            borderRadius: 6,
-            padding: '4px 7px',
-            fontSize: 10,
-            fontWeight: 700,
-            cursor: 'pointer',
-            textTransform: 'uppercase',
-          }}
+        {(['hex', 'dec', 'bin'] as const).map(format => (
+          <button
+            key={format}
+            type="button"
+            onClick={() => setValueFormat?.(format)}
+            style={{
+              minWidth: FORMAT_BUTTON_MIN_WIDTH[format],
+              backgroundColor: valueFormat === format ? '#2563eb' : theme.bg,
+              color: valueFormat === format ? '#fff' : theme.subText,
+              border: `1px solid ${valueFormat === format ? '#2563eb' : theme.border}`,
+              borderRadius: 6,
+              padding: '4px 8px',
+              fontSize: 10,
+              fontWeight: 700,
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+            }}
         >
           {format}
         </button>
@@ -197,7 +208,7 @@ export function MemoryView({ theme, tick, valueFormat = 'hex', setValueFormat, e
       </div>
 
       {/* Table */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 12px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowX: 'auto', overflowY: 'auto', padding: '8px 12px' }}>
         {tick === 0 && rows.every(r => isZeroRow(r)) ? (
           <div style={{
             display: 'flex', flexDirection: 'column',
@@ -215,7 +226,8 @@ export function MemoryView({ theme, tick, valueFormat = 'hex', setValueFormat, e
             {/* Column headers */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '9ch repeat(4, 1fr)',
+              minWidth: `calc(9ch + ${FORMAT_CELL_WIDTH[valueFormat]} * 4 + 32px)`,
+              gridTemplateColumns: `9ch repeat(4, minmax(${FORMAT_CELL_WIDTH[valueFormat]}, 1fr))`,
               gap: '0 8px',
               padding: '0 4px 4px',
               borderBottom: `1px solid ${theme.border}`,
@@ -236,7 +248,8 @@ export function MemoryView({ theme, tick, valueFormat = 'hex', setValueFormat, e
                 key={ri}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '9ch repeat(4, 1fr)',
+                  minWidth: `calc(9ch + ${FORMAT_CELL_WIDTH[valueFormat]} * 4 + 32px)`,
+                  gridTemplateColumns: `9ch repeat(4, minmax(${FORMAT_CELL_WIDTH[valueFormat]}, 1fr))`,
                   gap: '0 8px',
                   padding: '2px 4px',
                   borderRadius: 4,
@@ -270,6 +283,7 @@ export function MemoryView({ theme, tick, valueFormat = 'hex', setValueFormat, e
                           color: isZero ? theme.subText + '50' : theme.text,
                           textAlign: 'right',
                           minWidth: 0,
+                          width: '100%',
                           backgroundColor: 'transparent',
                           border: `1px solid ${editing[w.address] !== undefined ? theme.border : 'transparent'}`,
                           borderRadius: 4,
@@ -287,6 +301,7 @@ export function MemoryView({ theme, tick, valueFormat = 'hex', setValueFormat, e
                           color: isZero ? theme.subText + '50' : theme.text,
                           textAlign: 'right',
                           minWidth: 0,
+                          width: '100%',
                           padding: '2px 3px',
                         }}
                       >
