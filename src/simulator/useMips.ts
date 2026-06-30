@@ -188,7 +188,8 @@ function appendOutputLine(line: string) {
 }
 
 function appendFinishedLine() {
-  appendOutputLine('=== Program finished ===');
+  if (outputBuffer !== '' && !outputBuffer.endsWith('\n')) outputBuffer += '\n';
+  outputBuffer += '=== Program finished ===\n';
 }
 
 function normalizeStatements(): TextSegmentRow[] {
@@ -376,7 +377,7 @@ export function getState(): SimulatorState {
     lineNumber: getLineNumberForPc(pc),
     isWaiting: isBlockedForInput,
     terminated: instance.terminated,
-    canUndo: instance.canUndo && outputSnapshots.length > 0,
+    canUndo: outputSnapshots.length > 0,
   };
 }
 
@@ -429,9 +430,28 @@ export function stepSim(): SimulatorState {
 }
 
 export function stepBackSim(): SimulatorState {
-  if (!instance.canUndo || outputSnapshots.length === 0) return getState();
-  outputBuffer = outputSnapshots.pop()!;
-  instance.undo();
+  if (outputSnapshots.length === 0) return getState();
+  if (instance.terminated) {
+    const replaySteps = outputSnapshots.length - 1;
+    if (!reinitialize()) return getState();
+    outputSnapshots = [];
+    for (let i = 0; i < replaySteps && !instance.terminated && !isBlockedForInput; i++) {
+      if (outputSnapshots.length >= UNDO_SIZE) outputSnapshots.shift();
+      outputSnapshots.push(outputBuffer);
+      trackCurrentInstruction();
+      instance.step();
+    }
+    return getState();
+  }
+  const previousOutput = outputBuffer;
+  const snapshot = outputSnapshots.pop()!;
+  outputBuffer = snapshot;
+  try {
+    instance.undo();
+  } catch {
+    outputBuffer = previousOutput;
+    outputSnapshots.push(snapshot);
+  }
   return getState();
 }
 
