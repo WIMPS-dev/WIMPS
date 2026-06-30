@@ -16,7 +16,7 @@ import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getApiHeaders, getAuthToken, uniquifyName } from '../helpers/authStorage';
 import { useAutosave } from '../hooks/useAutosave';
 import type { InstrStats, PseudoExpansionInfo, ValueFormat } from '../simulator/useMips';
-import { assemble, continueSim, feedInput, formatWordValue, getCurrentPseudoExpansionRows, getInstructionStats, getPseudoExpansion, getState, resetSim, runSim, runSimWithLimit, runUntilLine, runWithLimit, setMemoryWord, setRegisterValue, stepBackSim, stepSim } from '../simulator/useMips';
+import { assemble, continueSim, feedInput, formatWordValue, getCurrentPseudoExpansionRows, getInstructionStats, getPseudoExpansion, getState, resetSim, runSim, runSimWithLimit, runWithLimit, setMemoryWord, setRegisterValue, stepBackSim, stepSim } from '../simulator/useMips';
 import type { CodeTab } from '../types';
 import { normalizeTab, readSavedFiles, writeSavedFiles } from '../helpers/tabUtils';
 
@@ -133,6 +133,40 @@ function PanelTabButton({
     >
       {label}
     </button>
+  );
+}
+
+function RunSpeedControl({
+  theme,
+  runSpeed,
+  setRunSpeed,
+  isTerminated,
+}: {
+  theme: ReturnType<typeof useTheme>['theme'];
+  runSpeed: number;
+  setRunSpeed: (value: number) => void;
+  isTerminated: boolean;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+      <span style={{ color: theme.subText, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase' }}>Speed</span>
+      <input
+        type="range"
+        min={0}
+        max={4}
+        step={1}
+        value={runSpeed}
+        disabled={isTerminated}
+        onChange={e => setRunSpeed(Number(e.target.value))}
+        aria-label="Run speed"
+        title={['Crawl', 'Slow', 'Normal', 'Fast', 'Max'][runSpeed]}
+        style={{
+          width: 92,
+          accentColor: '#2563eb',
+          cursor: isTerminated ? 'not-allowed' : 'pointer',
+        }}
+      />
+    </div>
   );
 }
 
@@ -337,9 +371,7 @@ export default function IdePage() {
     try { const v = localStorage.getItem('show_hotkeys'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [runOptionsOpen, setRunOptionsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
-  const runOptionsRef = useRef<HTMLDivElement>(null);
 
   const prevRegistersRef = useRef<RegisterValue[]>([]);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -456,17 +488,6 @@ export default function IdePage() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [settingsOpen]);
-
-  useEffect(() => {
-    if (!runOptionsOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (runOptionsRef.current && !runOptionsRef.current.contains(e.target as Node)) {
-        setRunOptionsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [runOptionsOpen]);
 
   const activeCode = useMemo(() => tabs.find(t => t.id === activeTabId)?.code ?? '', [tabs, activeTabId]);
 
@@ -614,11 +635,6 @@ export default function IdePage() {
       runTimerRef.current = setTimeout(tick, delay);
     };
     runTimerRef.current = setTimeout(tick, delay);
-  };
-
-  const handleRunToLine = () => {
-    const state = runUntilLine(cursorLine ?? activeLine ?? 1, Array.from(breakpoints));
-    applyState(state);
   };
 
   const handleContinue = () => {
@@ -937,7 +953,6 @@ export default function IdePage() {
   // Editor actions
   // ---------------------------------------------------------------------------
   const runLabel = canStepBack || isWaiting ? 'Continue' : 'Run';
-  const runToLineLabel = `Run to Selected Line (${cursorLine ?? activeLine ?? 1})`;
   const primaryDebugActions: { label: 'Run' | 'Continue' | 'Step Back' | 'Step' | 'Reset'; onPress: () => void; enabled: boolean; title: string; hotkey: string }[] = [
     { label: runLabel, onPress: runLabel === 'Continue' ? handleContinue : handleRun, enabled: isAssembled && !isTerminated, title: `${runLabel} (${runLabel === 'Continue' ? 'F8' : 'F5'})`, hotkey: runLabel === 'Continue' ? 'F8' : 'F5' },
     { label: 'Step Back', onPress: handleStepBack, enabled: isAssembled && canStepBack, title: 'Step Back (F9)', hotkey: 'F9' },
@@ -1322,84 +1337,7 @@ export default function IdePage() {
                 )}
               </button>
             ))}
-
-            {isAssembled && (
-              <div ref={runOptionsRef} style={{ position: 'relative' }}>
-                <button
-                  type="button"
-                  onClick={() => setRunOptionsOpen(o => !o)}
-                  aria-expanded={runOptionsOpen}
-                  style={{
-                    backgroundColor: runOptionsOpen ? '#2563eb22' : 'transparent',
-                    border: `1px solid ${runOptionsOpen ? '#2563eb' : theme.border}`,
-                    borderRadius: 6,
-                    color: runOptionsOpen ? '#2563eb' : theme.text,
-                    cursor: 'pointer',
-                    height: 28,
-                    padding: '0 10px',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Run options
-                </button>
-                {runOptionsOpen && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 6px)',
-                    left: 0,
-                    width: 240,
-                    maxWidth: 'calc(100vw - 24px)',
-                    backgroundColor: theme.card,
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: 10,
-                    boxShadow: '0 12px 28px rgba(0,0,0,0.35)',
-                    padding: 10,
-                    zIndex: 1000,
-                    display: 'grid',
-                    gap: 10,
-                  }}>
-                    <button
-                      type="button"
-                      onClick={() => { handleRunToLine(); setRunOptionsOpen(false); }}
-                      disabled={!isAssembled || isTerminated}
-                      style={{
-                        backgroundColor: theme.bg,
-                        border: `1px solid ${theme.border}`,
-                        borderRadius: 6,
-                        color: theme.text,
-                        cursor: !isAssembled || isTerminated ? 'not-allowed' : 'pointer',
-                        opacity: !isAssembled || isTerminated ? 0.45 : 1,
-                        padding: '8px 10px',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        textAlign: 'left',
-                      }}
-                    >
-                      {runToLineLabel}
-                    </button>
-                    <label style={{ display: 'grid', gap: 5 }}>
-                      <span style={{ color: theme.subText, fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>Speed</span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={4}
-                        step={1}
-                        value={runSpeed}
-                        disabled={isTerminated}
-                        onChange={e => setRunSpeed(Number(e.target.value))}
-                        aria-label="Run speed"
-                      />
-                      <span style={{ color: theme.text, fontSize: 11, fontWeight: 700 }}>
-                        {['Crawl', 'Slow', 'Normal', 'Fast', 'Max'][runSpeed]}
-                      </span>
-                    </label>
-                  </div>
-                )}
-              </div>
-            )}
-
+            <RunSpeedControl theme={theme} runSpeed={runSpeed} setRunSpeed={setRunSpeed} isTerminated={isTerminated} />
             <div style={{ flex: 1 }} />
             <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} />
             <SaveAction onClick={handleSaveLocal} hotkey={saveHotkey} showHotkeys={showHotkeys} />
@@ -1506,77 +1444,7 @@ export default function IdePage() {
               );
             })}
 
-            {isAssembled && (
-              <div ref={runOptionsRef} style={{ position: 'relative', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={() => setRunOptionsOpen(o => !o)}
-                  aria-expanded={runOptionsOpen}
-                  style={{
-                    backgroundColor: runOptionsOpen ? '#2563eb22' : theme.card,
-                    border: `1px solid ${runOptionsOpen ? '#2563eb' : theme.border}`,
-                    borderRadius: 6,
-                    color: runOptionsOpen ? '#2563eb' : theme.text,
-                    cursor: 'pointer',
-                    minWidth: 44,
-                    height: 36,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '0 10px',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Run options
-                </button>
-                {runOptionsOpen && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 6px)',
-                    left: 0,
-                    width: 220,
-                    backgroundColor: theme.card,
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: 10,
-                    boxShadow: '0 12px 28px rgba(0,0,0,0.35)',
-                    padding: 10,
-                    zIndex: 1000,
-                    display: 'grid',
-                    gap: 10,
-                  }}>
-                    <button
-                      type="button"
-                      onClick={() => { handleRunToLine(); setRunOptionsOpen(false); }}
-                      disabled={isTerminated}
-                      style={{
-                        backgroundColor: theme.bg,
-                        border: `1px solid ${theme.border}`,
-                        borderRadius: 6,
-                        color: theme.text,
-                        cursor: isTerminated ? 'not-allowed' : 'pointer',
-                        opacity: isTerminated ? 0.45 : 1,
-                        padding: '8px 10px',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        textAlign: 'left',
-                      }}
-                    >
-                      {runToLineLabel}
-                    </button>
-                    <label style={{ display: 'grid', gap: 5 }}>
-                      <span style={{ color: theme.subText, fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>Speed</span>
-                      <input type="range" min={0} max={4} step={1} value={runSpeed} disabled={isTerminated} onChange={e => setRunSpeed(Number(e.target.value))} aria-label="Run speed" />
-                      <span style={{ color: theme.text, fontSize: 11, fontWeight: 700 }}>
-                        {['Crawl', 'Slow', 'Normal', 'Fast', 'Max'][runSpeed]}
-                      </span>
-                    </label>
-                  </div>
-                )}
-              </div>
-            )}
-
+            <RunSpeedControl theme={theme} runSpeed={runSpeed} setRunSpeed={setRunSpeed} isTerminated={isTerminated} />
             {[
               { label: 'Import', onPress: handleUpload },
               { label: 'Export', onPress: handleDownload },
