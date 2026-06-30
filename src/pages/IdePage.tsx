@@ -788,8 +788,7 @@ export default function IdePage() {
         e.stopPropagation();
         if (e.key === 'f' || e.key === 'F') codeEditorRef.current?.find();
         else if (e.key === 'h' || e.key === 'H') codeEditorRef.current?.replace();
-        else if (e.shiftKey) codeEditorRef.current?.previousMatch();
-        else codeEditorRef.current?.nextMatch();
+        else codeEditorRef.current?.gotoLine();
         return;
       }
 

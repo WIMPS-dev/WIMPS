@@ -30,8 +30,7 @@ export type CodeEditorHandle = {
   focus: () => void;
   find: () => void;
   replace: () => void;
-  nextMatch: () => void;
-  previousMatch: () => void;
+  gotoLine: () => void;
 };
 
 export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function CodeEditor({
@@ -77,13 +76,9 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
       editorRef.current?.focus();
       editorRef.current?.getAction('editor.action.startFindReplaceAction')?.run();
     },
-    nextMatch: () => {
+    gotoLine: () => {
       editorRef.current?.focus();
-      editorRef.current?.getAction('editor.action.nextMatchFindAction')?.run();
-    },
-    previousMatch: () => {
-      editorRef.current?.focus();
-      editorRef.current?.getAction('editor.action.previousMatchFindAction')?.run();
+      editorRef.current?.getAction('editor.action.gotoLine')?.run();
     },
   }), []);
 
