@@ -101,6 +101,11 @@ function makeEmptyCounts(): Record<InstrCategory, number> {
   return { arithmetic: 0, logic: 0, memory: 0, branch: 0, jump: 0, syscall: 0, other: 0 };
 }
 
+function normalizeSourceText(src: string): string {
+  // ponytail: normalize Windows CRLF before handing source to @specy/mips.
+  return src.replace(/\r\n?/g, '\n');
+}
+
 // ---------------------------------------------------------------------------
 // Module state
 // ---------------------------------------------------------------------------
@@ -284,6 +289,7 @@ function restart(): boolean {
   inputCursor = 0;
   isBlockedForInput = false;
   resetInstrStats();
+  source = normalizeSourceText(source);
   sourceLines = source.split('\n');
   instance = makeMipsfromSource(source);
   instance.setUndoSize(UNDO_SIZE);
@@ -296,6 +302,7 @@ function restart(): boolean {
 
 function reinitialize(): boolean {
   resetInstrStats();
+  source = normalizeSourceText(source);
   sourceLines = source.split('\n');
   instance = makeMipsfromSource(source);
   instance.setUndoSize(UNDO_SIZE);
@@ -349,8 +356,8 @@ function executeLimited(limit: number, breakpointAddresses: Set<number>): Simula
 // ---------------------------------------------------------------------------
 
 export function assemble(src: string) {
-  source = src;
-  sourceLines = src.split('\n');
+  source = normalizeSourceText(src);
+  sourceLines = source.split('\n');
   outputBuffer = '';
   outputSnapshots = [];
   allInputs = [];
