@@ -1310,9 +1310,8 @@ export default function IdePage() {
                   background: 'none',
                   border: 'none',
                   borderRadius: 5,
-                  color: theme.text,
+                  color: a.enabled ? theme.text : theme.subText,
                   cursor: a.enabled ? 'pointer' : 'not-allowed',
-                  opacity: a.enabled ? 1 : 0.35,
                   height: 28,
                   padding: '0 8px',
                   fontSize: 12,
@@ -1321,25 +1320,29 @@ export default function IdePage() {
                   alignItems: 'center',
                   gap: 5,
                   whiteSpace: 'nowrap',
-                  transition: 'opacity 0.15s',
+                  transition: 'color 0.15s',
                 }}
               >
                 <ActionIcon name={a.label} size={13} />
                 <span>{a.label}</span>
                 {showHotkeys && (
                   <span style={{
-                    fontSize: 11, fontFamily: 'monospace', fontWeight: 700,
-                    color: theme.subText, opacity: a.enabled ? 0.7 : 0.4,
-                    padding: '1px 4px', borderRadius: 3,
-                    border: `1px solid ${theme.border}`,
+                    fontSize: 11, fontFamily: 'monospace', fontWeight: 800,
+                    color: a.enabled ? theme.text : theme.subText,
+                    padding: '1px 6px', borderRadius: 4,
+                    border: `1px solid ${a.enabled ? theme.text + '66' : theme.border}`,
+                    backgroundColor: a.enabled ? theme.bg : theme.card,
                     lineHeight: '14px', marginLeft: 1, flexShrink: 0,
+                    boxShadow: a.enabled ? '0 1px 1px rgba(0,0,0,0.08)' : 'none',
                   }}>{a.hotkey}</span>
                 )}
               </button>
             ))}
             <RunSpeedControl theme={theme} runSpeed={runSpeed} setRunSpeed={setRunSpeed} isTerminated={isTerminated} />
             <div style={{ flex: 1 }} />
-            <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} />
+            <div style={{ marginRight: 8 }}>
+              <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} />
+            </div>
             <SaveAction onClick={handleSaveLocal} hotkey={saveHotkey} showHotkeys={showHotkeys} />
             <div style={{ width: 1, height: 16, backgroundColor: theme.border, flexShrink: 0, margin: '0 4px' }} />
             <div
@@ -1373,7 +1376,9 @@ export default function IdePage() {
           }}>
             <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 17, flexShrink: 0 }}><Logo size={22} /></Link>
             <div style={{ flex: 1 }} />
-            <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} compact />
+            <div style={{ marginRight: 8 }}>
+              <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} compact />
+            </div>
             <SaveAction onClick={handleSaveLocal} hotkey={saveHotkey} showHotkeys={showHotkeys} />
             <ThemeSwitch />
             <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Docs</Link>

@@ -12,7 +12,7 @@ interface SaveStatusProps {
 const DOT: Record<AutosaveStatus, string> = {
   idle:    '#94a3b8',
   saving:  '#2563eb',
-  saved:   '#94a3b8',
+  saved:   '#10b981',
   error:   '#ef4444',
   offline: '#f59e0b',
 };
@@ -47,7 +47,7 @@ export function SaveStatus({ status, lastSavedAt, onRetry, compact = false }: Sa
         display: 'flex',
         alignItems: 'center',
         gap: 5,
-        color: '#94a3b8',
+        color: status === 'saved' ? '#10b981' : '#94a3b8',
         fontSize: 12,
         cursor: isClickable ? 'pointer' : 'default',
         userSelect: 'none',
