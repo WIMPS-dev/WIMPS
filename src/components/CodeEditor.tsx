@@ -1,6 +1,6 @@
 import Editor, { type BeforeMount, type OnMount } from '@monaco-editor/react';
 import type * as Monaco from 'monaco-editor';
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
   MIPS_LANGUAGE_ID,
   defineMipsThemes,
@@ -26,7 +26,15 @@ interface CodeEditorProps {
   tabSize?: number;
 }
 
-export function CodeEditor({
+export type CodeEditorHandle = {
+  focus: () => void;
+  find: () => void;
+  replace: () => void;
+  nextMatch: () => void;
+  previousMatch: () => void;
+};
+
+export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function CodeEditor({
   code,
   setCode,
   theme,
@@ -40,7 +48,7 @@ export function CodeEditor({
   onToggleSidebar,
   fontSize = 15,
   tabSize = 4,
-}: CodeEditorProps) {
+}, ref) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
   const activeDecoRef = useRef<string[]>([]);
@@ -58,6 +66,26 @@ export function CodeEditor({
   useEffect(() => { onBreakpointToggleRef.current = onBreakpointToggle; }, [onBreakpointToggle]);
   useEffect(() => { onToggleSidebarRef.current = onToggleSidebar; }, [onToggleSidebar]);
   useEffect(() => { onCursorLineChangeRef.current = onCursorLineChange; }, [onCursorLineChange]);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => editorRef.current?.focus(),
+    find: () => {
+      editorRef.current?.focus();
+      editorRef.current?.getAction('actions.find')?.run();
+    },
+    replace: () => {
+      editorRef.current?.focus();
+      editorRef.current?.getAction('editor.action.startFindReplaceAction')?.run();
+    },
+    nextMatch: () => {
+      editorRef.current?.focus();
+      editorRef.current?.getAction('editor.action.nextMatchFindAction')?.run();
+    },
+    previousMatch: () => {
+      editorRef.current?.focus();
+      editorRef.current?.getAction('editor.action.previousMatchFindAction')?.run();
+    },
+  }), []);
 
   const isDark = theme.bg === THEMES.dark.bg;
 
@@ -213,6 +241,9 @@ export function CodeEditor({
             scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
             overviewRulerLanes: 2,
             fixedOverflowWidgets: true,
+            find: {
+              addExtraSpaceOnTop: false,
+            },
           }}
         />
 
@@ -236,4 +267,4 @@ export function CodeEditor({
       </div>
     </div>
   );
-}
+});

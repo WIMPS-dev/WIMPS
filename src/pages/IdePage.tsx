@@ -19,6 +19,7 @@ import type { InstrStats, PseudoExpansionInfo, ValueFormat } from '../simulator/
 import { assemble, continueSim, feedInput, formatWordValue, getCurrentPseudoExpansionRows, getInstructionStats, getPseudoExpansion, getSourceLineForAddress, getState, resetSim, runSim, runSimWithLimit, runWithLimit, setMemoryWord, setRegisterValue, stepBackSim, stepSim } from '../simulator/useMips';
 import type { CodeTab } from '../types';
 import { normalizeTab, readSavedFiles, writeSavedFiles } from '../helpers/tabUtils';
+import type { CodeEditorHandle } from '../components/CodeEditor';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
@@ -387,6 +388,7 @@ export default function IdePage() {
 
   const prevRegistersRef = useRef<RegisterValue[]>([]);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const codeEditorRef = useRef<CodeEditorHandle | null>(null);
   const [changedRegisters, setChangedRegisters] = useState<Set<string>>(new Set());
 
   const [editorHeightPct, setEditorHeightPct] = useState(70);
@@ -779,6 +781,18 @@ export default function IdePage() {
       const metaOrCtrl = e.ctrlKey || e.metaKey;
       const inInput = target.tagName === 'INPUT' || target.tagName === 'SELECT';
 
+      // Browser-level editor shortcuts: keep the user's focus in the file and
+      // route find/replace/navigation to Monaco instead of the browser.
+      if (metaOrCtrl && (e.key === 'f' || e.key === 'F' || e.key === 'h' || e.key === 'H' || e.key === 'g' || e.key === 'G')) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'f' || e.key === 'F') codeEditorRef.current?.find();
+        else if (e.key === 'h' || e.key === 'H') codeEditorRef.current?.replace();
+        else if (e.shiftKey) codeEditorRef.current?.previousMatch();
+        else codeEditorRef.current?.nextMatch();
+        return;
+      }
+
       // Ctrl/Cmd+S — immediate save from anywhere (including editor)
       if (metaOrCtrl && e.key === 's') {
         e.preventDefault();
@@ -838,8 +852,8 @@ export default function IdePage() {
       }
     };
 
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
   }, [canStepBack, isAssembled, isTerminated, isWaiting,
       handleAssemble, handleRun, handleContinue, handleStep, handleStepBack, handleReset,
       handleSaveLocal]);
@@ -1696,7 +1710,7 @@ export default function IdePage() {
               ) : (
                 <>
                   {showPseudoPopups && <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} pseudoExpansionAddress={pseudoExpansionAddress} />}
-                  <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} fontSize={fontSize} tabSize={tabSize} />
+                  <CodeEditor ref={codeEditorRef} code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} fontSize={fontSize} tabSize={tabSize} />
                 </>
               )}
             </div>
@@ -1716,7 +1730,7 @@ export default function IdePage() {
           {mobileView === 'editor' && (
             <>
               {showPseudoPopups && <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} pseudoExpansionAddress={pseudoExpansionAddress} />}
-              <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} onAssemble={handleAssemble} fontSize={fontSize} tabSize={tabSize} />
+              <CodeEditor ref={codeEditorRef} code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} onAssemble={handleAssemble} fontSize={fontSize} tabSize={tabSize} />
             </>
           )}
           {mobileView === 'console' && (
