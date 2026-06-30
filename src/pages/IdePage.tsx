@@ -16,7 +16,7 @@ import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getApiHeaders, getAuthToken, uniquifyName } from '../helpers/authStorage';
 import { useAutosave } from '../hooks/useAutosave';
 import type { InstrStats, PseudoExpansionInfo, ValueFormat } from '../simulator/useMips';
-import { assemble, continueSim, feedInput, formatWordValue, getCurrentPseudoExpansionRows, getInstructionStats, getPseudoExpansion, getState, resetSim, runSim, runSimWithLimit, runWithLimit, setMemoryWord, setRegisterValue, stepBackSim, stepSim } from '../simulator/useMips';
+import { assemble, continueSim, feedInput, formatWordValue, getCurrentPseudoExpansionRows, getInstructionStats, getPseudoExpansion, getSourceLineForAddress, getState, resetSim, runSim, runSimWithLimit, runWithLimit, setMemoryWord, setRegisterValue, stepBackSim, stepSim } from '../simulator/useMips';
 import type { CodeTab } from '../types';
 import { normalizeTab, readSavedFiles, writeSavedFiles } from '../helpers/tabUtils';
 
@@ -173,9 +173,11 @@ function RunSpeedControl({
 function PseudoExpansionNotice({
   theme,
   pseudoExpansion,
+  pseudoExpansionAddress,
 }: {
   theme: ReturnType<typeof useTheme>['theme'];
   pseudoExpansion: PseudoExpansionInfo | null;
+  pseudoExpansionAddress: number | null;
 }) {
   if (!pseudoExpansion) return null;
 
@@ -188,7 +190,7 @@ function PseudoExpansionNotice({
         Source line {pseudoExpansion.sourceLine} expands into {pseudoExpansion.total} machine instructions. Step moves through the real instructions below one at a time.
       </div>
       <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
-        {getCurrentPseudoExpansionRows().map((row, i) => (
+        {getCurrentPseudoExpansionRows(pseudoExpansionAddress ?? undefined).map((row, i) => (
           <div
             key={row.address}
             style={{
@@ -211,6 +213,11 @@ function PseudoExpansionNotice({
     </div>
   );
 }
+
+type StepHistoryEntry = {
+  line: number;
+  pc: number;
+};
 
 function ToolLibraryPanel({
   theme,
@@ -360,7 +367,9 @@ export default function IdePage() {
   const [memoryEditable, setMemoryEditable] = useState(false);
   const [instrStats, setInstrStats] = useState<InstrStats | null>(null);
   const [pseudoExpansion, setPseudoExpansion] = useState<PseudoExpansionInfo | null>(null);
+  const [pseudoExpansionAddress, setPseudoExpansionAddress] = useState<number | null>(null);
   const [simTick, setSimTick] = useState(0);
+  const stepHistoryRef = useRef<StepHistoryEntry[]>([]);
   const [fontSize, setFontSize] = useState<number>(() => {
     try { const v = localStorage.getItem('editor_font_size'); return v ? Math.max(10, Math.min(24, Number(v))) : 15; } catch { return 15; }
   });
@@ -369,6 +378,9 @@ export default function IdePage() {
   });
   const [showHotkeys, setShowHotkeys] = useState<boolean>(() => {
     try { const v = localStorage.getItem('show_hotkeys'); return v === null ? true : v === 'true'; } catch { return true; }
+  });
+  const [showPseudoPopups, setShowPseudoPopups] = useState<boolean>(() => {
+    try { const v = localStorage.getItem('show_pseudo_popups'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -391,6 +403,16 @@ export default function IdePage() {
 
   const tabsRef = useRef(tabs);
   useEffect(() => { tabsRef.current = tabs; }, [tabs]);
+
+  const getLastSteppedLine = () => {
+    const history = stepHistoryRef.current;
+    return history.length > 0 ? history[history.length - 1].line : null;
+  };
+
+  const getLastStepPc = () => {
+    const history = stepHistoryRef.current;
+    return history.length > 0 ? history[history.length - 1].pc : null;
+  };
 
   const enabledTools = useMemo(
     () => TOOL_DEFINITIONS.filter(tool => enabledToolIds.includes(tool.id)),
@@ -477,6 +499,7 @@ export default function IdePage() {
   useEffect(() => { try { localStorage.setItem('editor_font_size',   String(fontSize));           } catch {} }, [fontSize]);
   useEffect(() => { try { localStorage.setItem('editor_tab_size',    String(tabSize));            } catch {} }, [tabSize]);
   useEffect(() => { try { localStorage.setItem('show_hotkeys',       String(showHotkeys));        } catch {} }, [showHotkeys]);
+  useEffect(() => { try { localStorage.setItem('show_pseudo_popups', String(showPseudoPopups));   } catch {} }, [showPseudoPopups]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -560,7 +583,10 @@ export default function IdePage() {
     return () => document.removeEventListener('visibilitychange', handler);
   }, [flushNow]);
 
-  const applyState = (state: ReturnType<typeof getState>) => {
+  const applyState = (
+    state: ReturnType<typeof getState>,
+    options?: { activeLineOverride?: number | null; pseudoExpansionAddressOverride?: number | null },
+  ) => {
     const prev = prevRegistersRef.current;
     const next = state.registers;
     if (prev.length > 0) {
@@ -574,12 +600,16 @@ export default function IdePage() {
     prevRegistersRef.current = next;
     setRegisters(next);
     setOutput(state.output);
-    setActiveLine(state.lineNumber);
+    setActiveLine(options && 'activeLineOverride' in options ? options.activeLineOverride ?? null : state.lineNumber);
     setIsWaiting(state.isWaiting);
     setCanStepBack(state.canUndo);
     setIsTerminated(state.terminated);
     setInstrStats(getInstructionStats());
-    setPseudoExpansion(getPseudoExpansion());
+    const pseudoAddress = options && 'pseudoExpansionAddressOverride' in options
+      ? options.pseudoExpansionAddressOverride ?? null
+      : state.pc;
+    setPseudoExpansionAddress(pseudoAddress);
+    setPseudoExpansion(pseudoAddress == null ? null : getPseudoExpansion(pseudoAddress));
     setSimTick(t => t + 1);
   };
 
@@ -590,6 +620,7 @@ export default function IdePage() {
     setIsWaiting(false);
     setChangedRegisters(new Set());
     prevRegistersRef.current = [];
+    stepHistoryRef.current = [];
     const result = assemble(activeCode);
     if (!result.ok) {
       setOutput(`Assembly failed:\n${result.error}`);
@@ -599,14 +630,15 @@ export default function IdePage() {
     } else {
       setIsAssembled(true);
       setErrorLines([]);
-      applyState(getState());
+      applyState(getState(), { activeLineOverride: null, pseudoExpansionAddressOverride: null });
     }
   };
 
   const handleRun = () => {
     stopAutoRun();
+    stepHistoryRef.current = [];
     if (runSpeed === 4) {
-      applyState(runSim(Array.from(breakpoints)));
+      applyState(runSim(Array.from(breakpoints)), { pseudoExpansionAddressOverride: null });
     } else {
       startTimedRun(true);
     }
@@ -627,7 +659,7 @@ export default function IdePage() {
         ? runSimWithLimit(batch, Array.from(breakpoints))
         : runWithLimit(batch, Array.from(breakpoints));
       first = false;
-      applyState(state);
+      applyState(state, { pseudoExpansionAddressOverride: null });
       if (state.terminated || state.isWaiting) {
         stopAutoRun();
         return;
@@ -639,8 +671,9 @@ export default function IdePage() {
 
   const handleContinue = () => {
     stopAutoRun();
+    stepHistoryRef.current = [];
     if (runSpeed === 4) {
-      applyState(continueSim(Array.from(breakpoints)));
+      applyState(continueSim(Array.from(breakpoints)), { pseudoExpansionAddressOverride: null });
     } else {
       startTimedRun(false);
     }
@@ -648,14 +681,24 @@ export default function IdePage() {
 
   const handleStep = () => {
     stopAutoRun();
+    const beforeState = getState();
+    const currentLine = getSourceLineForAddress(beforeState.pc) ?? beforeState.lineNumber;
     const state = stepSim();
-    applyState(state);
+    if (currentLine != null) stepHistoryRef.current.push({ line: currentLine, pc: beforeState.pc });
+    applyState(state, {
+      activeLineOverride: getLastSteppedLine(),
+      pseudoExpansionAddressOverride: getLastStepPc(),
+    });
   };
 
   const handleStepBack = () => {
     stopAutoRun();
+    stepHistoryRef.current.pop();
     const state = stepBackSim();
-    applyState(state);
+    applyState(state, {
+      activeLineOverride: getLastSteppedLine(),
+      pseudoExpansionAddressOverride: getLastStepPc(),
+    });
   };
 
   const handleReset = () => {
@@ -665,6 +708,7 @@ export default function IdePage() {
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     setChangedRegisters(new Set());
     prevRegistersRef.current = [];
+    stepHistoryRef.current = [];
     setOutput('');
     setActiveLine(null);
     setIsWaiting(false);
@@ -685,8 +729,9 @@ export default function IdePage() {
   };
 
   const handleFeedInput = useCallback((value: string) => {
+    stepHistoryRef.current = [];
     const state = feedInput(value);
-    applyState(state);
+    applyState(state, { pseudoExpansionAddressOverride: null });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1233,6 +1278,19 @@ export default function IdePage() {
                       <button key={t} type="button" onClick={() => setTabSize(t)} style={{ flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${tabSize === t ? '#2563eb' : theme.border}`, backgroundColor: tabSize === t ? '#2563eb22' : 'transparent', color: tabSize === t ? '#2563eb' : theme.subText }}>{t} spaces</button>
                     ))}
                   </div>
+                  {/* Pseudo popups */}
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Pseudo Popups</div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPseudoPopups(v => !v)}
+                    style={{
+                      width: '100%', padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                      border: `1px solid ${showPseudoPopups ? '#2563eb' : theme.border}`,
+                      backgroundColor: showPseudoPopups ? '#2563eb22' : 'transparent',
+                      color: showPseudoPopups ? '#2563eb' : theme.subText,
+                      marginBottom: 14,
+                    }}
+                  >{showPseudoPopups ? 'Visible' : 'Hidden'}</button>
                   {/* Hotkeys */}
                   <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Hotkey Labels</div>
                   <button
@@ -1637,7 +1695,7 @@ export default function IdePage() {
                 </div>
               ) : (
                 <>
-                  <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} />
+                  {showPseudoPopups && <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} pseudoExpansionAddress={pseudoExpansionAddress} />}
                   <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} fontSize={fontSize} tabSize={tabSize} />
                 </>
               )}
@@ -1657,7 +1715,7 @@ export default function IdePage() {
           {mobileView === 'files' && <FileExplorer theme={theme} isLoggedIn={isLoggedIn} tabs={tabs} setTabs={setTabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} removeTabLocally={removeTabLocally} onFilesLoaded={setClosedFileNames} onUpload={handleUpload} onDownload={handleDownload} />}
           {mobileView === 'editor' && (
             <>
-              <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} />
+              {showPseudoPopups && <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} pseudoExpansionAddress={pseudoExpansionAddress} />}
               <CodeEditor code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} onAssemble={handleAssemble} fontSize={fontSize} tabSize={tabSize} />
             </>
           )}

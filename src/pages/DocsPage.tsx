@@ -575,6 +575,9 @@ hypotenuse:
             if (group.length === 0) return null;
             return (
               <Accordion key={key} title={label} theme={theme} badge={`${group.length}`}>
+                <div style={{ marginBottom: 10, fontSize: 12, color: theme.subText, lineHeight: '18px' }}>
+                  Pseudo instructions are marked with <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, backgroundColor: `${TYPE_COLOR.P}22`, color: TYPE_COLOR.P }}>P</span> in every category. This accordion only holds misc aliases such as <Mono>move</Mono>; pseudo forms like <Mono>li</Mono>, <Mono>la</Mono>, and <Mono>blt</Mono> stay with their normal categories.
+                </div>
                 <div style={{ marginBottom: 6, fontSize: 12, color: theme.subText }}>
                   <span style={{ marginRight: 12 }}>
                     <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, backgroundColor: `${TYPE_COLOR.R}22`, color: TYPE_COLOR.R }}>R</span>

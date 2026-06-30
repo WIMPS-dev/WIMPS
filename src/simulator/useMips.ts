@@ -381,6 +381,15 @@ export function getState(): SimulatorState {
   };
 }
 
+export function getSourceLineForAddress(address: number): number | null {
+  try {
+    const stmt = instance.getStatementAtAddress(address >>> 0);
+    return stmt?.sourceLine ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function runSim(breakpointLines: number[] = []): SimulatorState {
   if (!source) return getState();
   if (!restart()) return getState();
@@ -539,10 +548,10 @@ export function getCompiledTextSegment(): TextSegmentRow[] {
   return normalizeStatements();
 }
 
-export function getPseudoExpansion(): PseudoExpansionInfo | null {
+export function getPseudoExpansion(address: number = instance.programCounter >>> 0): PseudoExpansionInfo | null {
   if (instance.terminated) return null;
   const rows = normalizeStatements();
-  const current = rows.find(r => r.address === (instance.programCounter >>> 0));
+  const current = rows.find(r => r.address === (address >>> 0));
   if (!current) return null;
   const sameLine = rows.filter(r => r.sourceLine === current.sourceLine);
   if (sameLine.length <= 1) return null;
@@ -553,8 +562,8 @@ export function getPseudoExpansion(): PseudoExpansionInfo | null {
   };
 }
 
-export function getCurrentPseudoExpansionRows(): TextSegmentRow[] {
-  const info = getPseudoExpansion();
+export function getCurrentPseudoExpansionRows(address?: number): TextSegmentRow[] {
+  const info = getPseudoExpansion(address);
   if (!info) return [];
   return normalizeStatements().filter(r => r.sourceLine === info.sourceLine);
 }

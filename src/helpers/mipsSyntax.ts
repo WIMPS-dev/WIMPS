@@ -53,7 +53,7 @@ export const INSTRUCTIONS: InstructionDoc[] = [
   { syntax: 'addiu $t,$s,imm',  mnemonic: 'addiu',  type: 'I', category: 'arithmetic', desc: 'Add immediate, no overflow trap',               example: 'addiu $sp,$sp,-8' },
   { syntax: 'sub $d,$s,$t',     mnemonic: 'sub',    type: 'R', category: 'arithmetic', desc: 'Signed subtraction; traps on overflow',         example: 'sub $t0,$t1,$t2' },
   { syntax: 'subu $d,$s,$t',    mnemonic: 'subu',   type: 'R', category: 'arithmetic', desc: 'Unsigned subtraction; no overflow trap',        example: 'subu $t0,$t1,$t2' },
-  { syntax: 'mul $d,$s,$t',     mnemonic: 'mul',    type: 'R', category: 'arithmetic', desc: 'Multiply; lower 32 bits to $d (pseudo)',        example: 'mul $t0,$t1,$t2' },
+  { syntax: 'mul $d,$s,$t',     mnemonic: 'mul',    type: 'R', category: 'arithmetic', desc: 'Multiply; lower 32 bits to $d',                 example: 'mul $t0,$t1,$t2' },
   { syntax: 'mulo $d,$s,$t',    mnemonic: 'mulo',   type: 'P', category: 'arithmetic', desc: 'Multiply; trap if result overflows 32 bits (pseudo)', example: 'mulo $t0,$t1,$t2' },
   { syntax: 'mulou $d,$s,$t',   mnemonic: 'mulou',  type: 'P', category: 'arithmetic', desc: 'Unsigned multiply; trap on overflow (pseudo)',  example: 'mulou $t0,$t1,$t2' },
   { syntax: 'mult $s,$t',       mnemonic: 'mult',   type: 'R', category: 'arithmetic', desc: 'Signed 32×32 multiply; 64-bit result → HI:LO', example: 'mult $t1,$t2' },
@@ -232,7 +232,7 @@ export const INSTRUCTION_CATEGORIES: { label: string; key: string }[] = [
   { key: 'branch',      label: 'Branches' },
   { key: 'jump',        label: 'Jumps & Calls' },
   { key: 'system',      label: 'System' },
-  { key: 'pseudo',      label: 'Pseudo — misc' },
+  { key: 'pseudo',      label: 'Pseudo — misc aliases' },
 ];
 
 // ---------------------------------------------------------------------------

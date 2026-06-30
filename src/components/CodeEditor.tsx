@@ -108,7 +108,7 @@ export function CodeEditor({
       ? [{ range: new monaco.Range(activeLine, 1, activeLine, 1), options: { isWholeLine: true, className: 'mips-active-line' } }]
       : [];
     activeDecoRef.current = ed.deltaDecorations(activeDecoRef.current, decos);
-    if (activeLine) ed.revealLineInCenterIfOutsideViewport(activeLine);
+    if (activeLine) ed.revealLineInCenter(activeLine);
   }, [activeLine, ready]);
 
   // Breakpoint glyph dots
