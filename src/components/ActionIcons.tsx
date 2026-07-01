@@ -58,7 +58,14 @@ export function ActionIcon({ name, size = 14 }: ActionIconProps) {
       return <svg {...common}><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h10"/><circle cx="17" cy="17" r="2"/></svg>;
     case 'Assemble':
     default:
-      // wrench — "build / assemble"
-      return <svg {...common}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>;
+      // crossed wrench + hammer
+      return (
+        <svg {...common}>
+          <path d="M14.7 4.8a4.2 4.2 0 0 0 1.64 5.52L7.8 18.86a2.2 2.2 0 0 1-3.11-3.11l8.54-8.54a4.2 4.2 0 0 0 5.52 1.64l-2.68-2.68 1.42-1.37 2.68 2.68a4.2 4.2 0 0 0-5.47-2.68z" />
+          <path d="M13.2 13.35 18.9 7.6l2.5 2.5-5.73 5.7" />
+          <path d="m10.85 15.7-3.55 3.56" />
+          <path d="m16.5 5.25 2.25 2.25" />
+        </svg>
+      );
   }
 }

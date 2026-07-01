@@ -2,11 +2,13 @@ import React from 'react';
 
 interface LogoProps {
   size?: number;
+  gap?: number;
+  textSize?: number;
 }
 
-export function Logo({ size = 22 }: LogoProps) {
+export function Logo({ size = 22, gap = 7, textSize = 14 }: LogoProps) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap }}>
       <svg
         width={size}
         height={size}
@@ -27,7 +29,7 @@ export function Logo({ size = 22 }: LogoProps) {
         <rect x="18" y="23" width="3" height="5" rx="1" fill="#60a5fa"/>
         <rect x="13" y="13" width="6" height="6" rx="1" fill="white" opacity="0.92"/>
       </svg>
-      WIMPS
+      <span style={{ fontSize: textSize, lineHeight: 1, fontWeight: 800 }}>WIMPS</span>
     </span>
   );
 }

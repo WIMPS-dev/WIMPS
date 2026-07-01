@@ -6,6 +6,7 @@ export const normalizeTab = (item: any): CodeTab => ({
   _id: item?._id ? String(item._id) : undefined,
   name: item?.name || 'untitled.asm',
   code: item?.code || '',
+  kind: item?.kind === 'docs' ? 'docs' : 'code',
   isDirty: Boolean(item?.isDirty),
 });
 

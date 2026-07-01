@@ -8,6 +8,7 @@ import { Logo } from '../components/Logo';
 import { PerformancePanel, ProgramPanel } from '../components/MarsParityPanels';
 import { MemoryView } from '../components/MemoryView';
 import { IdeSkeleton } from '../components/PageSkeletons';
+import { DocsContent } from './DocsPage';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { SaveAction, SaveStatus } from '../components/SaveStatus';
 import { usePageReady } from '../components/Skeleton';
@@ -53,6 +54,8 @@ const DEFAULT_TABS: CodeTab[] = [{ id: '1', name: 'file1.asm', code: '', isDirty
 const SIDEBAR_MIN_WIDTH = 340;
 const SIDEBAR_MAX_WIDTH = 960;
 const SIDEBAR_DEFAULT_WIDTH = 400;
+const DOCS_TAB_ID = 'wimps-docs';
+const DOCS_TAB_NAME = 'Documentation';
 
 const buildInitialRegisters = (): RegisterValue[] =>
   ['$zero','$at','$v0','$v1','$a0','$a1','$a2','$a3',
@@ -142,15 +145,17 @@ function RunSpeedControl({
   runSpeed,
   setRunSpeed,
   isTerminated,
+  showLabel = true,
 }: {
   theme: ReturnType<typeof useTheme>['theme'];
   runSpeed: number;
   setRunSpeed: (value: number) => void;
   isTerminated: boolean;
+  showLabel?: boolean;
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-      <span style={{ color: theme.subText, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase' }}>Speed</span>
+      {showLabel && <span style={{ color: theme.subText, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase' }}>Speed</span>}
       <input
         type="range"
         min={0}
@@ -168,6 +173,164 @@ function RunSpeedControl({
         }}
       />
     </div>
+  );
+}
+
+function DocsTabPanel({ theme }: { theme: ReturnType<typeof useTheme>['theme'] }) {
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', backgroundColor: theme.bg }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '12px 16px',
+        borderBottom: `1px solid ${theme.border}`,
+        backgroundColor: theme.card,
+      }}>
+        <div>
+          <div style={{ color: theme.text, fontSize: 14, fontWeight: 700 }}>Documentation</div>
+          <div style={{ color: theme.subText, fontSize: 12 }}>Read-only reference tab</div>
+        </div>
+        <span style={{
+          color: '#2563eb',
+          backgroundColor: '#2563eb18',
+          border: '1px solid #2563eb55',
+          borderRadius: 999,
+          padding: '4px 10px',
+          fontSize: 11,
+          fontWeight: 700,
+        }}>Read only</span>
+      </div>
+      <DocsContent embedded />
+    </div>
+  );
+}
+
+function SettingsPanel({
+  theme,
+  isDark,
+  toggleTheme,
+  fontSize,
+  setFontSize,
+  tabSize,
+  setTabSize,
+  showPseudoPopups,
+  setShowPseudoPopups,
+  showHotkeys,
+  setShowHotkeys,
+  runSpeed,
+  setRunSpeed,
+  isTerminated,
+}: {
+  theme: ReturnType<typeof useTheme>['theme'];
+  isDark: boolean;
+  toggleTheme: () => void;
+  fontSize: number;
+  setFontSize: React.Dispatch<React.SetStateAction<number>>;
+  tabSize: 2 | 4;
+  setTabSize: React.Dispatch<React.SetStateAction<2 | 4>>;
+  showPseudoPopups: boolean;
+  setShowPseudoPopups: React.Dispatch<React.SetStateAction<boolean>>;
+  showHotkeys: boolean;
+  setShowHotkeys: React.Dispatch<React.SetStateAction<boolean>>;
+  runSpeed: number;
+  setRunSpeed: (value: number) => void;
+  isTerminated: boolean;
+}) {
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    minHeight: 24,
+    marginBottom: 6,
+    whiteSpace: 'nowrap',
+  };
+  const labelStyle: React.CSSProperties = {
+    color: theme.subText,
+    fontSize: 11,
+    fontWeight: 700,
+    flexShrink: 0,
+  };
+
+  return (
+    <>
+      <div style={rowStyle}>
+        <span style={labelStyle}>Theme</span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {(['dark', 'light'] as const).map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => { if ((t === 'dark') !== isDark) toggleTheme(); }}
+              style={{
+                flex: 1,
+                padding: '4px 8px',
+                borderRadius: 0,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                border: `1px solid ${(t === 'dark') === isDark ? '#2563eb' : theme.border}`,
+                backgroundColor: (t === 'dark') === isDark ? '#2563eb22' : 'transparent',
+                color: (t === 'dark') === isDark ? '#2563eb' : theme.subText,
+              }}
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={rowStyle}>
+        <span style={labelStyle}>Font Size</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button type="button" onClick={() => setFontSize(s => Math.max(10, s - 1))} disabled={fontSize <= 10} style={{ width: 22, height: 22, borderRadius: 0, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize <= 10 ? 'not-allowed' : 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize <= 10 ? 0.4 : 1 }} aria-label="Decrease font size">-</button>
+          <span style={{ minWidth: 40, textAlign: 'center', fontSize: 12, fontWeight: 700, color: theme.text, fontVariantNumeric: 'tabular-nums' }}>{fontSize}px</span>
+          <button type="button" onClick={() => setFontSize(s => Math.min(24, s + 1))} disabled={fontSize >= 24} style={{ width: 22, height: 22, borderRadius: 0, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize >= 24 ? 'not-allowed' : 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize >= 24 ? 0.4 : 1 }} aria-label="Increase font size">+</button>
+          <button type="button" onClick={() => setFontSize(15)} style={{ padding: '3px 7px', borderRadius: 0, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.subText }}>Reset</button>
+        </div>
+      </div>
+      <div style={rowStyle}>
+        <span style={labelStyle}>Tab Size</span>
+        <div style={{ display: 'flex', gap: 6 }}>
+        {([2, 4] as const).map(t => (
+          <button key={t} type="button" onClick={() => setTabSize(t)} style={{ flex: 1, padding: '4px 8px', borderRadius: 0, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${tabSize === t ? '#2563eb' : theme.border}`, backgroundColor: tabSize === t ? '#2563eb22' : 'transparent', color: tabSize === t ? '#2563eb' : theme.subText }}>{t} spaces</button>
+        ))}
+        </div>
+      </div>
+      <div style={rowStyle}>
+        <span style={labelStyle}>Pseudo Popups</span>
+        <button
+          type="button"
+          onClick={() => setShowPseudoPopups(v => !v)}
+          style={{
+            padding: '4px 8px', borderRadius: 0, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+            border: `1px solid ${showPseudoPopups ? '#2563eb' : theme.border}`,
+            backgroundColor: showPseudoPopups ? '#2563eb22' : 'transparent',
+            color: showPseudoPopups ? '#2563eb' : theme.subText,
+          }}
+        >{showPseudoPopups ? 'Visible' : 'Hidden'}</button>
+      </div>
+      <div style={rowStyle}>
+        <span style={labelStyle}>Hotkey Labels</span>
+        <button
+          type="button"
+          onClick={() => setShowHotkeys(v => !v)}
+          style={{
+            padding: '4px 8px', borderRadius: 0, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+            border: `1px solid ${showHotkeys ? '#2563eb' : theme.border}`,
+            backgroundColor: showHotkeys ? '#2563eb22' : 'transparent',
+            color: showHotkeys ? '#2563eb' : theme.subText,
+          }}
+        >{showHotkeys ? 'Visible' : 'Hidden'}</button>
+      </div>
+      <div style={{ ...rowStyle, marginBottom: 0 }}>
+        <span style={labelStyle}>Speed</span>
+        <div style={{ width: 128 }}>
+          <RunSpeedControl theme={theme} runSpeed={runSpeed} setRunSpeed={setRunSpeed} isTerminated={isTerminated} showLabel={false} />
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -299,7 +462,8 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
     const parsed = JSON.parse(raw);
     if (parsed && Array.isArray(parsed.tabs)) {
       if (parsed.tabs.length > 0) {
-        const tabs: CodeTab[] = parsed.tabs.map(normalizeTab);
+        const tabs: CodeTab[] = parsed.tabs.map(normalizeTab).filter((tab: CodeTab) => tab.kind !== 'docs');
+        if (tabs.length === 0) return { tabs: DEFAULT_TABS, activeTabId: DEFAULT_TABS[0].id };
         // activeTabId must reference a real (post-normalize) tab id, otherwise
         // activeCode never matches and the editor desyncs from React state.
         const activeTabId = tabs.some(t => t.id === parsed.activeTabId) ? parsed.activeTabId : tabs[0].id;
@@ -310,7 +474,8 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
     }
     // legacy: plain array
     if (Array.isArray(parsed) && parsed.length > 0) {
-      const tabs = parsed.map(normalizeTab);
+      const tabs = parsed.map(normalizeTab).filter((tab: CodeTab) => tab.kind !== 'docs');
+      if (tabs.length === 0) return { tabs: DEFAULT_TABS, activeTabId: DEFAULT_TABS[0].id };
       return { tabs, activeTabId: tabs[0].id };
     }
   } catch {}
@@ -319,7 +484,13 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
 }
 
 function writeLocalState(tabs: CodeTab[], activeTabId: string) {
-  try { localStorage.setItem('saved_tabs', JSON.stringify({ tabs, activeTabId })); } catch {}
+  try {
+    const persistedTabs = tabs.filter(tab => tab.kind !== 'docs');
+    const persistedActiveTabId = persistedTabs.some(tab => tab.id === activeTabId)
+      ? activeTabId
+      : (persistedTabs[0]?.id ?? '');
+    localStorage.setItem('saved_tabs', JSON.stringify({ tabs: persistedTabs, activeTabId: persistedActiveTabId }));
+  } catch {}
 }
 
 // ---------------------------------------------------------------------------
@@ -378,13 +549,16 @@ export default function IdePage() {
     try { const v = localStorage.getItem('editor_tab_size'); return v === '2' ? 2 : 4; } catch { return 4; }
   });
   const [showHotkeys, setShowHotkeys] = useState<boolean>(() => {
-    try { const v = localStorage.getItem('show_hotkeys'); return v === null ? true : v === 'true'; } catch { return true; }
+    try { const v = localStorage.getItem('show_hotkeys'); return v === null ? false : v === 'true'; } catch { return false; }
   });
   const [showPseudoPopups, setShowPseudoPopups] = useState<boolean>(() => {
     try { const v = localStorage.getItem('show_pseudo_popups'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const [openMenu, setOpenMenu] = useState<'file' | 'edit' | 'run' | 'help' | 'settings' | null>(null);
+  const menuBarRef = useRef<HTMLDivElement>(null);
+  const [explorerAction, setExplorerAction] = useState<{ type: 'new-file' | 'new-folder'; nonce: number } | null>(null);
 
   const prevRegistersRef = useRef<RegisterValue[]>([]);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -514,19 +688,62 @@ export default function IdePage() {
     return () => document.removeEventListener('mousedown', handler);
   }, [settingsOpen]);
 
-  const activeCode = useMemo(() => tabs.find(t => t.id === activeTabId)?.code ?? '', [tabs, activeTabId]);
+  useEffect(() => {
+    if (!openMenu) return;
+    const handlePointer = (e: MouseEvent) => {
+      if (menuBarRef.current && !menuBarRef.current.contains(e.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenMenu(null);
+    };
+    document.addEventListener('mousedown', handlePointer);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handlePointer);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [openMenu]);
+
+  const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId) ?? null, [tabs, activeTabId]);
+  const activeCode = activeTab?.code ?? '';
+  const isDocsTab = activeTab?.kind === 'docs';
+  const canEditActiveTab = activeTab != null && !isDocsTab;
 
   const clearDerivedSimMetadata = () => {
     setInstrStats(null);
     setPseudoExpansion(null);
   };
 
+  const makeDocsTab = useCallback((id = DOCS_TAB_ID): CodeTab => ({
+    id,
+    name: DOCS_TAB_NAME,
+    code: '',
+    kind: 'docs',
+    isDirty: false,
+  }), []);
+
+  const openDocsTab = useCallback((alwaysNew = false) => {
+    const docId = alwaysNew ? `${DOCS_TAB_ID}-${Date.now()}` : DOCS_TAB_ID;
+    setTabs(prev => {
+      if (!alwaysNew) {
+        const existing = prev.find(tab => tab.kind === 'docs' && tab.id === DOCS_TAB_ID);
+        if (existing) return prev;
+      }
+      return [...prev, makeDocsTab(docId)];
+    });
+    setActiveTabId(docId);
+    setOpenMenu(null);
+  }, [makeDocsTab]);
+
   const setActiveCode = useCallback((code: string) => {
+    if (!canEditActiveTab) return;
     setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, code, isDirty: true } : t));
     setIsAssembled(false);
     setErrorLines([]);
     clearDerivedSimMetadata();
-  }, [activeTabId]);
+  }, [activeTabId, canEditActiveTab]);
 
   // Reset assembled state and error markers when switching tabs
   useEffect(() => {
@@ -616,6 +833,7 @@ export default function IdePage() {
   };
 
   const handleAssemble = () => {
+    if (!canEditActiveTab) return;
     stopAutoRun();
     resetSim();
     setActiveLine(null);
@@ -961,6 +1179,30 @@ export default function IdePage() {
     URL.revokeObjectURL(url);
   };
 
+  const closeActiveTab = useCallback(() => {
+    if (!activeTab) return;
+    if (tabs.length === 1) return;
+    flushNow();
+    const idx = tabs.findIndex(t => t.id === activeTab.id);
+    const next = tabs[idx === 0 ? 1 : idx - 1];
+    setTabs(prev => prev.filter(t => t.id !== activeTab.id));
+    setActiveTabId(next.id);
+    setOpenMenu(null);
+  }, [activeTab, flushNow, tabs]);
+
+  const focusEditor = useCallback(() => {
+    codeEditorRef.current?.focus();
+    setOpenMenu(null);
+  }, []);
+
+  const triggerExplorerAction = useCallback((type: 'new-file' | 'new-folder') => {
+    setActiveSidebarView('files');
+    setSidebarOpen(true);
+    setMobileView('files');
+    setExplorerAction({ type, nonce: Date.now() });
+    setOpenMenu(null);
+  }, []);
+
   // ---------------------------------------------------------------------------
   // Drag-to-resize
   // ---------------------------------------------------------------------------
@@ -1112,6 +1354,8 @@ export default function IdePage() {
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
   const saveHotkey = isMac ? '⌘S' : 'Ctrl+S';
   const assembleKey = isMac ? '⌘ Enter' : 'Ctrl+Enter';
+  const topBarDivider = <div style={{ width: 1, height: 16, backgroundColor: theme.border, flexShrink: 0 }} />;
+  const toolBarDivider = <div style={{ width: 1, height: 14, backgroundColor: theme.border, flexShrink: 0 }} />;
 
   return (
     <div style={{
@@ -1126,23 +1370,222 @@ export default function IdePage() {
     } as React.CSSProperties}>
       {/* Top bar */}
       {wide ? (
-        /* ── Desktop: file toolbar + debug toolbar ── */
         <>
-          {/* Row 1 — file toolbar: logo, tabs, file ops, nav */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            height: 44,
+            height: 38,
             borderBottom: `1px solid ${theme.border}`,
             backgroundColor: theme.card,
             flexShrink: 0,
             gap: 8,
-            padding: '0 12px',
+            padding: '0 8px',
           }}>
-            {/* Logo */}
-            <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 16, flexShrink: 0, marginRight: 4 }}><Logo size={20} /></Link>
+            <div style={{ color: theme.text, fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
+              <Logo size={15} gap={4} textSize={11} />
+            </div>
+            {topBarDivider}
 
-            {/* Tabs */}
+            <div ref={menuBarRef} style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+              {([
+                { key: 'file', label: 'File' },
+                { key: 'edit', label: 'Edit' },
+                { key: 'run', label: 'Run' },
+                { key: 'help', label: 'Help' },
+                { key: 'settings', label: 'Settings' },
+              ] as const).map(menu => (
+                <div key={menu.key} style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenMenu(current => current === menu.key ? null : menu.key)}
+                    style={{
+                      height: 24,
+                      padding: '0 8px',
+                      borderRadius: 0,
+                      border: `1px solid ${openMenu === menu.key ? theme.border : 'transparent'}`,
+                      backgroundColor: openMenu === menu.key ? (isDark ? '#334155' : '#e2e8f0') : 'transparent',
+                      color: theme.text,
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {menu.label}
+                  </button>
+                  {openMenu === menu.key && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      left: 0,
+                      minWidth: menu.key === 'run' || menu.key === 'settings' ? 220 : 180,
+                      backgroundColor: theme.card,
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: 0,
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.22)',
+                      padding: 4,
+                      zIndex: 1000,
+                    }}>
+                      {menu.key === 'file' && [
+                        { label: 'New File', action: () => triggerExplorerAction('new-file'), disabled: false },
+                        { label: 'New Folder', action: () => triggerExplorerAction('new-folder'), disabled: false },
+                        { label: 'Import File...', action: handleUpload, disabled: false },
+                        { label: 'Export Active File', action: handleDownload, disabled: !activeTab || isDocsTab },
+                        { label: 'Close Active Tab', action: closeActiveTab, disabled: tabs.length <= 1 || !activeTab },
+                      ].map(item => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          disabled={item.disabled}
+                          onClick={() => {
+                            if (item.disabled) return;
+                            item.action();
+                            setOpenMenu(null);
+                          }}
+                          style={{
+                            width: '100%',
+                            border: 'none',
+                            background: 'transparent',
+                            color: item.disabled ? theme.subText : theme.text,
+                            cursor: item.disabled ? 'not-allowed' : 'pointer',
+                            textAlign: 'left',
+                            borderRadius: 0,
+                            padding: '6px 8px',
+                            fontSize: 12,
+                            opacity: item.disabled ? 0.45 : 1,
+                          }}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                      {menu.key === 'edit' && [
+                        { label: 'Focus Editor', action: focusEditor, disabled: !canEditActiveTab },
+                        { label: 'Find', action: () => codeEditorRef.current?.find(), disabled: !canEditActiveTab },
+                        { label: 'Replace', action: () => codeEditorRef.current?.replace(), disabled: !canEditActiveTab },
+                        { label: 'Go to Line', action: () => codeEditorRef.current?.gotoLine(), disabled: !canEditActiveTab },
+                        { label: sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar', action: () => setSidebarOpen(v => !v), disabled: false },
+                      ].map(item => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          disabled={item.disabled}
+                          onClick={() => {
+                            if (item.disabled) return;
+                            item.action();
+                            setOpenMenu(null);
+                          }}
+                          style={{
+                            width: '100%',
+                            border: 'none',
+                            background: 'transparent',
+                            color: item.disabled ? theme.subText : theme.text,
+                            cursor: item.disabled ? 'not-allowed' : 'pointer',
+                            textAlign: 'left',
+                            borderRadius: 0,
+                            padding: '6px 8px',
+                            fontSize: 12,
+                            opacity: item.disabled ? 0.45 : 1,
+                          }}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                      {menu.key === 'run' && (
+                        <>
+                          {[
+                            { label: 'Assemble', action: handleAssemble, disabled: !canEditActiveTab || isWaiting },
+                            { label: runLabel, action: runLabel === 'Continue' ? handleContinue : handleRun, disabled: !isAssembled || isTerminated },
+                            { label: 'Step Back', action: handleStepBack, disabled: !isAssembled || !canStepBack },
+                            { label: 'Step', action: handleStep, disabled: !isAssembled || isTerminated },
+                            { label: 'Reset', action: handleReset, disabled: !isAssembled },
+                          ].map(item => (
+                            <button
+                              key={item.label}
+                              type="button"
+                              disabled={item.disabled}
+                              onClick={() => {
+                                if (item.disabled) return;
+                                item.action();
+                                setOpenMenu(null);
+                              }}
+                              style={{
+                                width: '100%',
+                                border: 'none',
+                                background: 'transparent',
+                            color: item.disabled ? theme.subText : theme.text,
+                            cursor: item.disabled ? 'not-allowed' : 'pointer',
+                            textAlign: 'left',
+                            borderRadius: 0,
+                            padding: '6px 8px',
+                            fontSize: 12,
+                            opacity: item.disabled ? 0.45 : 1,
+                          }}
+                        >
+                              {item.label}
+                            </button>
+                          ))}
+                          <div style={{ height: 1, backgroundColor: theme.border, margin: '6px 4px' }} />
+                          <div style={{ padding: '4px 10px 2px', color: theme.subText, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                            Speed
+                          </div>
+                          <div style={{ padding: '4px 10px 8px' }}>
+                            <RunSpeedControl theme={theme} runSpeed={runSpeed} setRunSpeed={setRunSpeed} isTerminated={isTerminated} showLabel={false} />
+                          </div>
+                        </>
+                      )}
+                      {menu.key === 'help' && [
+                        { label: 'Open Docs', action: () => openDocsTab(false) },
+                        { label: 'Standalone Docs Page', action: () => window.open('/docs', '_blank', 'noopener,noreferrer') },
+                      ].map(item => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => {
+                            item.action();
+                            setOpenMenu(null);
+                          }}
+                          style={{
+                            width: '100%',
+                            border: 'none',
+                            background: 'transparent',
+                            color: theme.text,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            borderRadius: 0,
+                            padding: '6px 8px',
+                            fontSize: 12,
+                          }}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                      {menu.key === 'settings' && (
+                        <div style={{ padding: '6px 8px' }}>
+                          <SettingsPanel
+                            theme={theme}
+                            isDark={isDark}
+                            toggleTheme={toggleTheme}
+                            fontSize={fontSize}
+                            setFontSize={setFontSize}
+                            tabSize={tabSize}
+                            setTabSize={setTabSize}
+                            showPseudoPopups={showPseudoPopups}
+                            setShowPseudoPopups={setShowPseudoPopups}
+                            showHotkeys={showHotkeys}
+                            setShowHotkeys={setShowHotkeys}
+                            runSpeed={runSpeed}
+                            setRunSpeed={setRunSpeed}
+                            isTerminated={isTerminated}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {topBarDivider}
+
             <div style={{ display: 'flex', flex: 1, minWidth: 0, alignItems: 'center', gap: 6, overflow: 'hidden' }}>
               <div
                 className="tab-scroll"
@@ -1150,7 +1593,7 @@ export default function IdePage() {
                 aria-label="Editor files"
                 style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}
               >
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: 'max-content', height: 36 }}>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: 'max-content', height: 30 }}>
                   {tabs.map(tab => (
                     <div
                       key={tab.id}
@@ -1165,8 +1608,8 @@ export default function IdePage() {
                         alignItems: 'center',
                         gap: 4,
                         padding: '0 8px',
-                        height: 32,
-                        borderRadius: 6,
+                        height: 26,
+                        borderRadius: 3,
                         backgroundColor: tab.id === activeTabId ? theme.tabActive : theme.tabInactive,
                         border: `1px solid ${theme.border}`,
                         cursor: 'pointer',
@@ -1184,12 +1627,12 @@ export default function IdePage() {
                           onBlur={commitRename}
                           onKeyDown={e => e.key === 'Enter' && commitRename()}
                           onClick={e => e.stopPropagation()}
-                          style={{ width: 90, backgroundColor: 'transparent', border: 'none', outline: 'none', color: theme.text, fontSize: 12 }}
+                          style={{ width: 90, backgroundColor: 'transparent', border: 'none', outline: 'none', color: theme.text, fontSize: 11 }}
                         />
                       ) : (
                         <span
-                          onDoubleClick={e => startRename(tab, e)}
-                          style={{ fontSize: 12, color: theme.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}
+                          onDoubleClick={e => tab.kind === 'docs' ? undefined : startRename(tab, e)}
+                          style={{ fontSize: 11, color: theme.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 92 }}
                         >
                           {tab.name}{tab.isDirty ? ' •' : ''}
                         </span>
@@ -1208,23 +1651,19 @@ export default function IdePage() {
                   ))}
                 </div>
               </div>
-
-              {/* New tab */}
               <button
                 type="button"
                 onClick={() => addTab()}
                 aria-label="New tab"
                 className="ide-new-tab"
-                style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, color: theme.subText, cursor: 'pointer', width: 28, height: 28, fontSize: 18, flexShrink: 0 }}
+                style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 2, color: theme.subText, cursor: 'pointer', width: 22, height: 22, fontSize: 15, flexShrink: 0 }}
               >
                 +
               </button>
             </div>
+            {topBarDivider}
 
-            {/* Nav */}
             <div ref={settingsRef} style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, position: 'relative' }}>
-              <div style={{ width: 1, height: 20, backgroundColor: theme.border }} />
-              <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>Docs</Link>
               <button
                 type="button"
                 onClick={() => setSettingsOpen(o => !o)}
@@ -1233,95 +1672,56 @@ export default function IdePage() {
                 aria-expanded={settingsOpen}
                 className="ide-settings-btn"
                 style={{
-                  background: settingsOpen ? '#2563eb22' : 'transparent',
-                  border: `1px solid ${settingsOpen ? '#2563eb' : theme.border}`,
-                  cursor: 'pointer', padding: '4px 8px',
-                  borderRadius: 6, color: settingsOpen ? '#2563eb' : theme.text,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: settingsOpen ? '#2563eb22' : (isDark ? '#1e293b' : '#f8fafc'),
+                  border: `1px solid ${settingsOpen ? '#2563eb' : (isDark ? '#475569' : '#cbd5e1')}`,
+                  cursor: 'pointer',
+                  padding: '3px 6px',
+                  borderRadius: 0,
+                  color: settingsOpen ? '#2563eb' : theme.text,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   transition: 'border-color 0.15s, color 0.15s, background 0.15s',
+                  boxShadow: settingsOpen ? '0 0 0 1px #2563eb22' : '0 1px 2px rgba(0,0,0,0.12)',
                 }}
               >
-                <ActionIcon name="Settings" size={16} />
+                <ActionIcon name="Settings" size={14} />
               </button>
               {settingsOpen && (
                 <div style={{
                   position: 'absolute',
                   top: '100%',
                   right: 0,
-                  marginTop: 6,
+                  marginTop: 4,
                   backgroundColor: theme.card,
                   border: `1px solid ${theme.border}`,
-                  borderRadius: 10,
-                  padding: '10px 12px',
-                  width: 180,
+                  borderRadius: 0,
+                  padding: '8px 10px',
+                  width: 250,
                   boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
                   zIndex: 1000,
                 }}>
-                  {/* Theme */}
-                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Theme</div>
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-                    {(['dark', 'light'] as const).map(t => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => { if ((t === 'dark') !== isDark) toggleTheme(); }}
-                        style={{
-                          flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                          border: `1px solid ${(t === 'dark') === isDark ? '#2563eb' : theme.border}`,
-                          backgroundColor: (t === 'dark') === isDark ? '#2563eb22' : 'transparent',
-                          color: (t === 'dark') === isDark ? '#2563eb' : theme.subText,
-                        }}
-                      >
-                        {t.charAt(0).toUpperCase() + t.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Font size */}
-                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Font Size</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <button type="button" onClick={() => setFontSize(s => Math.max(10, s - 1))} disabled={fontSize <= 10} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize <= 10 ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize <= 10 ? 0.4 : 1 }} aria-label="Decrease font size">−</button>
-                    <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600, color: theme.text, fontVariantNumeric: 'tabular-nums' }}>{fontSize}px</span>
-                    <button type="button" onClick={() => setFontSize(s => Math.min(24, s + 1))} disabled={fontSize >= 24} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, cursor: fontSize >= 24 ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: fontSize >= 24 ? 0.4 : 1 }} aria-label="Increase font size">+</button>
-                  </div>
-                  <button type="button" onClick={() => setFontSize(15)} style={{ width: '100%', padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.subText, marginBottom: 14 }}>Reset to default</button>
-                  {/* Tab size */}
-                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Tab Size</div>
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-                    {([2, 4] as const).map(t => (
-                      <button key={t} type="button" onClick={() => setTabSize(t)} style={{ flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${tabSize === t ? '#2563eb' : theme.border}`, backgroundColor: tabSize === t ? '#2563eb22' : 'transparent', color: tabSize === t ? '#2563eb' : theme.subText }}>{t} spaces</button>
-                    ))}
-                  </div>
-                  {/* Pseudo popups */}
-                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Pseudo Popups</div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPseudoPopups(v => !v)}
-                    style={{
-                      width: '100%', padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                      border: `1px solid ${showPseudoPopups ? '#2563eb' : theme.border}`,
-                      backgroundColor: showPseudoPopups ? '#2563eb22' : 'transparent',
-                      color: showPseudoPopups ? '#2563eb' : theme.subText,
-                      marginBottom: 14,
-                    }}
-                  >{showPseudoPopups ? 'Visible' : 'Hidden'}</button>
-                  {/* Hotkeys */}
-                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: theme.subText, marginBottom: 6, textTransform: 'uppercase' }}>Hotkey Labels</div>
-                  <button
-                    type="button"
-                    onClick={() => setShowHotkeys(v => !v)}
-                    style={{
-                      width: '100%', padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                      border: `1px solid ${showHotkeys ? '#2563eb' : theme.border}`,
-                      backgroundColor: showHotkeys ? '#2563eb22' : 'transparent',
-                      color: showHotkeys ? '#2563eb' : theme.subText,
-                    }}
-                  >{showHotkeys ? 'Visible' : 'Hidden'}</button>
+                  <SettingsPanel
+                    theme={theme}
+                    isDark={isDark}
+                    toggleTheme={toggleTheme}
+                    fontSize={fontSize}
+                    setFontSize={setFontSize}
+                    tabSize={tabSize}
+                    setTabSize={setTabSize}
+                    showPseudoPopups={showPseudoPopups}
+                    setShowPseudoPopups={setShowPseudoPopups}
+                    showHotkeys={showHotkeys}
+                    setShowHotkeys={setShowHotkeys}
+                    runSpeed={runSpeed}
+                    setRunSpeed={setRunSpeed}
+                    isTerminated={isTerminated}
+                  />
                 </div>
               )}
             </div>
           </div>
 
-          {/* Row 2 — debug toolbar: primary actions + run options + status */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -1334,16 +1734,17 @@ export default function IdePage() {
           }}>
             <button
               type="button"
-              onClick={handleAssemble}
+              onClick={canEditActiveTab && !isWaiting ? handleAssemble : undefined}
               title="Assemble (Ctrl+Enter)"
               aria-label="Assemble"
               className="ide-action-btn ide-active"
               style={{
-                backgroundColor: '#2563eb',
+                backgroundColor: canEditActiveTab ? '#2563eb' : theme.card,
                 border: 'none',
                 borderRadius: 6,
-                color: '#fff',
-                cursor: 'pointer',
+                color: canEditActiveTab ? '#fff' : theme.subText,
+                cursor: canEditActiveTab ? 'pointer' : 'not-allowed',
+                opacity: canEditActiveTab ? 1 : 0.55,
                 height: 28,
                 padding: '0 12px',
                 fontSize: 12,
@@ -1367,6 +1768,7 @@ export default function IdePage() {
                 }}>{assembleKey}</span>
               )}
             </button>
+            {toolBarDivider}
 
             {primaryDebugActions.map(a => (
               <button
@@ -1378,10 +1780,12 @@ export default function IdePage() {
                 aria-disabled={!a.enabled}
                 className="ide-action-btn"
                 style={{
-                  background: 'none',
-                  border: 'none',
+                  backgroundColor: (a.label === 'Run' || a.label === 'Continue') && isAssembled ? '#16a34a18' : 'transparent',
+                  border: `1px solid ${(a.label === 'Run' || a.label === 'Continue') && isAssembled ? '#16a34a55' : 'transparent'}`,
                   borderRadius: 5,
-                  color: a.enabled ? theme.text : theme.subText,
+                  color: (a.label === 'Run' || a.label === 'Continue') && isAssembled
+                    ? (a.enabled ? '#16a34a' : '#86efac')
+                    : (a.enabled ? theme.text : theme.subText),
                   cursor: a.enabled ? 'pointer' : 'not-allowed',
                   height: 28,
                   padding: '0 8px',
@@ -1409,8 +1813,8 @@ export default function IdePage() {
                 )}
               </button>
             ))}
-            <RunSpeedControl theme={theme} runSpeed={runSpeed} setRunSpeed={setRunSpeed} isTerminated={isTerminated} />
             <div style={{ flex: 1 }} />
+            {toolBarDivider}
             <div style={{ marginRight: 8 }}>
               <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} />
             </div>
@@ -1445,7 +1849,7 @@ export default function IdePage() {
             padding: '0 14px',
             gap: 10,
           }}>
-            <Link to="/" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 17, flexShrink: 0 }}><Logo size={22} /></Link>
+            <div style={{ color: theme.text, fontWeight: 800, fontSize: 17, flexShrink: 0 }}><Logo size={20} gap={5} textSize={12} /></div>
             <div style={{ flex: 1 }} />
             <div style={{ marginRight: 8 }}>
               <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} compact />
@@ -1478,13 +1882,14 @@ export default function IdePage() {
             }}
           >
             {[
-              { label: 'Assemble',  onPress: handleAssemble,  disabled: false },
+              { label: 'Assemble',  onPress: handleAssemble,  disabled: !canEditActiveTab || isWaiting },
               { label: runLabel,    onPress: runLabel === 'Continue' ? handleContinue : handleRun, disabled: !isAssembled || isTerminated },
               { label: 'Step Back', onPress: handleStepBack,  disabled: !isAssembled || !canStepBack },
               { label: 'Step',      onPress: handleStep,      disabled: !isAssembled || isTerminated },
               { label: 'Reset',     onPress: handleReset,     disabled: !isAssembled },
             ].map(a => {
-              const isBlue = a.label === 'Assemble' || (isAssembled && a.label !== 'Reset');
+              const isAssemble = a.label === 'Assemble';
+              const isRunAction = a.label === 'Run' || a.label === 'Continue';
               const isDisabled = Boolean(a.disabled);
               return (
                 <button
@@ -1494,12 +1899,12 @@ export default function IdePage() {
                   title={a.label}
                   aria-label={a.label}
                   disabled={isDisabled}
-                  className={`ide-action-btn${isBlue ? ' ide-active' : ''}`}
+                  className={`ide-action-btn${isAssemble ? ' ide-active' : ''}`}
                   style={{
-                    backgroundColor: isBlue ? '#2563eb' : theme.card,
-                    border: `1px solid ${isBlue ? '#2563eb' : theme.border}`,
+                    backgroundColor: isAssemble ? '#2563eb' : isRunAction && isAssembled ? '#16a34a18' : theme.card,
+                    border: `1px solid ${isAssemble ? '#2563eb' : isRunAction && isAssembled ? '#16a34a55' : theme.border}`,
                     borderRadius: 6,
-                    color: isBlue ? '#fff' : theme.text,
+                    color: isAssemble ? '#fff' : isRunAction && isAssembled ? '#16a34a' : theme.text,
                     cursor: isDisabled ? 'not-allowed' : 'pointer',
                     opacity: isDisabled ? 0.35 : 1,
                     minWidth: 44,
@@ -1519,8 +1924,6 @@ export default function IdePage() {
                 </button>
               );
             })}
-
-            <RunSpeedControl theme={theme} runSpeed={runSpeed} setRunSpeed={setRunSpeed} isTerminated={isTerminated} />
             {[
               { label: 'Import', onPress: handleUpload },
               { label: 'Export', onPress: handleDownload },
@@ -1683,7 +2086,7 @@ export default function IdePage() {
                       : TOOL_DEFINITIONS.find(tool => tool.id === activeSidebarView)?.title.toUpperCase()) ?? 'TOOLS'}
                 </div>
                 <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                  {activeSidebarView === 'files' && <FileExplorer theme={theme} isLoggedIn={isLoggedIn} tabs={tabs} setTabs={setTabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} removeTabLocally={removeTabLocally} onFilesLoaded={setClosedFileNames} onUpload={handleUpload} onDownload={handleDownload} />}
+                  {activeSidebarView === 'files' && <FileExplorer theme={theme} isLoggedIn={isLoggedIn} tabs={tabs} setTabs={setTabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} removeTabLocally={removeTabLocally} onFilesLoaded={setClosedFileNames} onUpload={handleUpload} onDownload={handleDownload} externalAction={explorerAction} />}
                   {activeSidebarView === 'tool-library' && <ToolLibraryPanel theme={theme} enabledToolIds={enabledToolIds} onToggleTool={toggleToolEnabled} />}
                   {activeSidebarView !== 'files' && activeSidebarView !== 'tool-library' && renderToolPanel(activeSidebarView)}
                 </div>
@@ -1706,6 +2109,8 @@ export default function IdePage() {
                     Create a new file or open one<br />from the Files panel
                   </div>
                 </div>
+              ) : isDocsTab ? (
+                <DocsTabPanel theme={theme} />
               ) : (
                 <>
                   {showPseudoPopups && <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} pseudoExpansionAddress={pseudoExpansionAddress} />}
@@ -1725,11 +2130,17 @@ export default function IdePage() {
       ) : (
         /* Mobile single-panel */
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {mobileView === 'files' && <FileExplorer theme={theme} isLoggedIn={isLoggedIn} tabs={tabs} setTabs={setTabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} removeTabLocally={removeTabLocally} onFilesLoaded={setClosedFileNames} onUpload={handleUpload} onDownload={handleDownload} />}
+          {mobileView === 'files' && <FileExplorer theme={theme} isLoggedIn={isLoggedIn} tabs={tabs} setTabs={setTabs} activeTabId={activeTabId} setActiveTabId={setActiveTabId} removeTabLocally={removeTabLocally} onFilesLoaded={setClosedFileNames} onUpload={handleUpload} onDownload={handleDownload} externalAction={explorerAction} />}
           {mobileView === 'editor' && (
             <>
-              {showPseudoPopups && <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} pseudoExpansionAddress={pseudoExpansionAddress} />}
-              <CodeEditor ref={codeEditorRef} code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} onAssemble={handleAssemble} fontSize={fontSize} tabSize={tabSize} />
+              {isDocsTab ? (
+                <DocsTabPanel theme={theme} />
+              ) : (
+                <>
+                  {showPseudoPopups && <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} pseudoExpansionAddress={pseudoExpansionAddress} />}
+                  <CodeEditor ref={codeEditorRef} code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} onAssemble={handleAssemble} fontSize={fontSize} tabSize={tabSize} />
+                </>
+              )}
             </>
           )}
           {mobileView === 'console' && (

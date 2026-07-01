@@ -212,12 +212,12 @@ function InstrRow({ i, theme }: { i: typeof INSTRUCTIONS[0]; theme: Theme }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
-export default function DocsPage() {
+type DocsContentProps = {
+  embedded?: boolean;
+};
+
+export function DocsContent({ embedded = false }: DocsContentProps) {
   const { theme } = useTheme();
-  const ready = usePageReady();
   const [search, setSearch] = useState('');
 
   const q = search.trim().toLowerCase();
@@ -246,51 +246,31 @@ export default function DocsPage() {
     ) : DIRECTIVES,
     [q]);
 
-  if (!ready) return <DocsSkeleton theme={theme} />;
-
   return (
-    <div style={{
-      height: '100vh', backgroundColor: theme.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-      '--ide-ink': theme.text,
-      '--ide-card': theme.card,
-      '--ide-hover': theme.resizer,
-      '--hp-ink': theme.text,
-    } as React.CSSProperties}>
+    <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ maxWidth: 820, margin: '0 auto', padding: embedded ? '20px 24px 64px' : '32px 24px 80px' }}>
 
-      {/* Nav */}
-      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-        <Link to="/" className="ide-nav-link" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 18 }}><Logo size={22} /></Link>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <ThemeSwitch />
-          <Link to="/ide" className="ide-sign-out" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '6px 14px', border: `1px solid ${theme.border}`, borderRadius: 8 }}>IDE</Link>
-        </div>
-      </nav>
+        <h1 style={{ color: theme.text, fontSize: embedded ? 24 : 28, fontWeight: 800, marginBottom: 6, textWrap: 'balance' } as React.CSSProperties}>Docs</h1>
+        <p style={{ color: theme.subText, fontSize: 14, marginBottom: 28, maxWidth: '56ch' }}>
+          Platform guide and complete MIPS reference. Search to filter instructions, syscalls, and directives.
+        </p>
 
-      {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ maxWidth: 820, margin: '0 auto', padding: '32px 24px 80px' }}>
-
-          <h1 style={{ color: theme.text, fontSize: 28, fontWeight: 800, marginBottom: 6, textWrap: 'balance' } as React.CSSProperties}>Docs</h1>
-          <p style={{ color: theme.subText, fontSize: 14, marginBottom: 28, maxWidth: '56ch' }}>
-            Platform guide and complete MIPS reference. Search to filter instructions, syscalls, and directives.
-          </p>
-
-          {/* Search */}
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search instructions, syscalls, directives..."
-            aria-label="Search documentation"
-            className="docs-search"
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              backgroundColor: theme.card,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 10, padding: '12px 16px',
-              fontSize: 14, color: theme.text,
-              outline: 'none', marginBottom: 28,
-            }}
-          />
+        {/* Search */}
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search instructions, syscalls, directives..."
+          aria-label="Search documentation"
+          className="docs-search"
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            backgroundColor: theme.card,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 10, padding: '12px 16px',
+            fontSize: 14, color: theme.text,
+            outline: 'none', marginBottom: 28,
+          }}
+        />
 
           {/* ── WIMPS guide (hidden while searching) ──────────────────────── */}
           {!q && (
@@ -603,8 +583,36 @@ hypotenuse:
             );
           })}
 
-        </div>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+export default function DocsPage() {
+  const { theme } = useTheme();
+  const ready = usePageReady();
+
+  if (!ready) return <DocsSkeleton theme={theme} />;
+
+  return (
+    <div style={{
+      height: '100vh', backgroundColor: theme.bg, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      '--ide-ink': theme.text,
+      '--ide-card': theme.card,
+      '--ide-hover': theme.resizer,
+      '--hp-ink': theme.text,
+    } as React.CSSProperties}>
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
+        <Link to="/" className="ide-nav-link" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 18 }}><Logo size={22} /></Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <ThemeSwitch />
+          <Link to="/ide" className="ide-sign-out" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '6px 14px', border: `1px solid ${theme.border}`, borderRadius: 8 }}>IDE</Link>
+        </div>
+      </nav>
+      <DocsContent />
     </div>
   );
 }

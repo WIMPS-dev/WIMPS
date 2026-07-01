@@ -683,9 +683,10 @@ export interface FileExplorerProps {
   onFilesLoaded: (names: Set<string>) => void;
   onUpload: () => void;
   onDownload: () => void;
+  externalAction?: { type: 'new-file' | 'new-folder'; nonce: number } | null;
 }
 
-export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, setActiveTabId, removeTabLocally, onFilesLoaded, onUpload, onDownload }: FileExplorerProps) {
+export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, setActiveTabId, removeTabLocally, onFilesLoaded, onUpload, onDownload, externalAction }: FileExplorerProps) {
   const [serverFiles, setServerFiles] = useState<CodeTab[]>([]);
   const [localFiles, setLocalFiles] = useState<CodeTab[]>([]);
   const [loading, setLoading] = useState(false);
@@ -982,6 +983,12 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     setSelectedFolderPath(parentPath || null);
     setCollapsedFolders(prev => { const next = new Set(prev); next.delete(parentPath); return next; });
   }, []);
+
+  useEffect(() => {
+    if (!externalAction) return;
+    if (externalAction.type === 'new-file') startNewFile('');
+    else startNewFolder('');
+  }, [externalAction, startNewFile, startNewFolder]);
 
   const openTabIds = new Set(tabs.map(t => t.id));
   const userFiles = isLoggedIn ? serverFiles : localFiles;
