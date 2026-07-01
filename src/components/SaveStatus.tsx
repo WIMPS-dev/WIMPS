@@ -46,9 +46,10 @@ export function SaveStatus({ status, lastSavedAt, onRetry, compact = false }: Sa
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 5,
+        gap: 4,
         color: status === 'saved' ? '#10b981' : '#94a3b8',
-        fontSize: 12,
+        fontSize: 11,
+        lineHeight: 1,
         cursor: isClickable ? 'pointer' : 'default',
         userSelect: 'none',
       }}
@@ -56,8 +57,8 @@ export function SaveStatus({ status, lastSavedAt, onRetry, compact = false }: Sa
       <span
         className={isPulse ? 'save-status-pulse' : undefined}
         style={{
-          width: 6,
-          height: 6,
+          width: 5,
+          height: 5,
           borderRadius: '50%',
           backgroundColor: DOT[status],
           flexShrink: 0,

@@ -1756,48 +1756,36 @@ export default function IdePage() {
             </button>
           </div>
 
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            height: 40,
-            borderBottom: `1px solid ${theme.border}`,
-            backgroundColor: theme.bg,
-            flexShrink: 0,
-            padding: '0 12px',
-            gap: 6,
-          }}>
+          <div className="ide-commandbar" style={{ flexShrink: 0 }}>
             <button
               type="button"
               onClick={canEditActiveTab && !isWaiting ? handleAssemble : undefined}
               title="Assemble (Ctrl+Enter)"
               aria-label="Assemble"
-              className="ide-action-btn ide-active"
+              className="ide-commandbar-primary"
               style={{
                 backgroundColor: canEditActiveTab ? '#2563eb' : theme.card,
                 border: 'none',
-                borderRadius: 6,
+                borderRadius: 4,
                 color: canEditActiveTab ? '#fff' : theme.subText,
                 cursor: canEditActiveTab ? 'pointer' : 'not-allowed',
                 opacity: canEditActiveTab ? 1 : 0.55,
-                height: 28,
-                padding: '0 12px',
-                fontSize: 12,
+                height: 26,
+                padding: '0 10px',
+                fontSize: 11,
                 fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
                 whiteSpace: 'nowrap',
               }}
             >
-              <ActionIcon name="Assemble" size={13} />
+              <ActionIcon name="Assemble" size={12} />
               <span>Assemble</span>
               {showHotkeys && (
                 <span style={{
-                  fontSize: 12, fontFamily: 'ui-monospace, monospace', fontWeight: 700,
+                  fontSize: 10, fontFamily: 'ui-monospace, monospace', fontWeight: 700,
                   color: '#1e3a8a',
                   backgroundColor: '#ffffff',
-                  padding: '2px 6px', borderRadius: 4,
-                  lineHeight: '16px', marginLeft: 4, flexShrink: 0,
+                  padding: '1px 5px', borderRadius: 3,
+                  lineHeight: '14px', marginLeft: 3, flexShrink: 0,
                   boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
                 }}>{assembleKey}</span>
               )}
@@ -1812,36 +1800,34 @@ export default function IdePage() {
                 title={a.title}
                 aria-label={a.label}
                 aria-disabled={!a.enabled}
-                className="ide-action-btn"
+                className="ide-commandbar-secondary"
                 style={{
-                  backgroundColor: (a.label === 'Run' || a.label === 'Continue') && isAssembled ? '#16a34a18' : 'transparent',
-                  border: `1px solid ${(a.label === 'Run' || a.label === 'Continue') && isAssembled ? '#16a34a55' : 'transparent'}`,
-                  borderRadius: 5,
+                  backgroundColor: (a.label === 'Run' || a.label === 'Continue') && isAssembled ? '#16a34a18' : theme.card,
+                  border: `1px solid ${(a.label === 'Run' || a.label === 'Continue') && isAssembled ? '#16a34a55' : theme.border}`,
+                  borderRadius: 4,
                   color: (a.label === 'Run' || a.label === 'Continue') && isAssembled
                     ? (a.enabled ? '#16a34a' : '#86efac')
                     : (a.enabled ? theme.text : theme.subText),
                   cursor: a.enabled ? 'pointer' : 'not-allowed',
-                  height: 28,
-                  padding: '0 8px',
-                  fontSize: 12,
+                  height: 26,
+                  padding: '0 7px',
+                  fontSize: 11,
                   fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
                   whiteSpace: 'nowrap',
                   transition: 'color 0.15s',
+                  opacity: a.enabled ? 1 : 0.55,
                 }}
               >
-                <ActionIcon name={a.label} size={13} />
+                <ActionIcon name={a.label} size={12} />
                 <span>{a.label}</span>
                 {showHotkeys && (
                   <span style={{
-                    fontSize: 11, fontFamily: 'monospace', fontWeight: 800,
+                    fontSize: 10, fontFamily: 'monospace', fontWeight: 800,
                     color: a.enabled ? theme.text : theme.subText,
-                    padding: '1px 6px', borderRadius: 4,
+                    padding: '1px 5px', borderRadius: 3,
                     border: `1px solid ${a.enabled ? theme.text + '66' : theme.border}`,
                     backgroundColor: a.enabled ? theme.bg : theme.card,
-                    lineHeight: '14px', marginLeft: 1, flexShrink: 0,
+                    lineHeight: '13px', marginLeft: 1, flexShrink: 0,
                     boxShadow: a.enabled ? '0 1px 1px rgba(0,0,0,0.08)' : 'none',
                   }}>{a.hotkey}</span>
                 )}
@@ -1855,8 +1841,10 @@ export default function IdePage() {
               aria-live="polite"
               style={{
                 color: STATUS_CONFIG[simStatus].color,
-                backgroundColor: STATUS_CONFIG[simStatus].bg,
-                borderColor: STATUS_CONFIG[simStatus].border,
+                backgroundColor: 'transparent',
+                borderColor: 'transparent',
+                padding: 0,
+                fontSize: 11,
               }}
             >
               {STATUS_CONFIG[simStatus].label}
