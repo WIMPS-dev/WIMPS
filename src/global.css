@@ -388,25 +388,104 @@ input, textarea {
 }
 
 /* ================================================
+   VS Code-style desktop shell
+   ================================================ */
+
+.ide-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  background: var(--ide-titlebar-bg, #181f2d);
+  border-bottom: 1px solid var(--ide-border);
+}
+
+.ide-menubar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ide-tabbar {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 8px;
+  background: var(--ide-tabbar-bg, #151c29);
+  border-bottom: 1px solid var(--ide-border);
+}
+
+.ide-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 32px;
+}
+
+.ide-new-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ide-commandbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+  background: var(--ide-commandbar-bg, #101826);
+  border-bottom: 1px solid var(--ide-border);
+}
+
+.ide-commandbar-primary,
+.ide-commandbar-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ide-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 22px;
+  padding: 0 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+}
+
+.ide-statusbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* ================================================
    Left activity bar + sidebar
    ================================================ */
 
 .ide-activity-bar {
-  width: 92px;
+  width: 52px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 6px 0;
-  gap: 2px;
+  gap: 6px;
   background-color: var(--ide-card);
   border-right: 1px solid var(--ide-border);
 }
 
 .ide-activity-icon {
-  width: 84px;
-  padding: 6px 4px;
-  border-radius: 5px;
+  width: 100%;
+  padding: 7px 0;
+  border-radius: 0;
   border: none;
   border-left: 2px solid transparent;
   background: transparent;
@@ -414,7 +493,7 @@ input, textarea {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   color: #64748b;
   transition: color 100ms ease-out, background-color 100ms ease-out;
 }
@@ -432,9 +511,9 @@ input, textarea {
   border-left-color: #2563eb;
 }
 .ide-activity-icon span {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.3px;
   line-height: 1.05;
   white-space: normal;
   text-align: center;
@@ -449,7 +528,7 @@ input, textarea {
 }
 
 .ide-sidebar-header {
-  padding: 6px 10px;
+  padding: 7px 10px;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 1px;
