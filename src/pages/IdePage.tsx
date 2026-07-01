@@ -1355,6 +1355,8 @@ export default function IdePage() {
   const saveHotkey = isMac ? '⌘S' : 'Ctrl+S';
   const assembleKey = isMac ? '⌘ Enter' : 'Ctrl+Enter';
   const toolBarDivider = <div style={{ width: 1, height: 14, backgroundColor: theme.border, flexShrink: 0 }} />;
+  const statusLeftItems = [activeTab?.name ?? 'No file', isDocsTab ? 'Docs' : 'MIPS'];
+  const statusRightItems = [STATUS_CONFIG[simStatus].label, cursorLine ? `Ln ${cursorLine}` : null].filter(Boolean) as string[];
 
   return (
     <div style={{
@@ -2045,6 +2047,7 @@ export default function IdePage() {
 
       {/* Main layout */}
       {wide ? (
+        <>
         <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
 
           {/* Activity bar */}
@@ -2144,6 +2147,15 @@ export default function IdePage() {
           </div>
 
         </div>
+        <div className="ide-statusbar" role="status" aria-live="polite">
+          <div className="ide-statusbar-group">
+            {statusLeftItems.map(item => <span key={item}>{item}</span>)}
+          </div>
+          <div className="ide-statusbar-group">
+            {statusRightItems.map(item => <span key={item}>{item}</span>)}
+          </div>
+        </div>
+        </>
       ) : (
         /* Mobile single-panel */
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
