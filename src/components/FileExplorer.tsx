@@ -27,6 +27,8 @@ interface FileTreeCtx {
   selectedFolderPath: string | null;
   editingFolderPath: string | null;
   editFolderName: string;
+  editingFileId: string | null;
+  editFileName: string;
   creatingFileAt: string | null;
   newFileName: string;
   creatingFolderAt: string | null;
@@ -38,6 +40,10 @@ interface FileTreeCtx {
   setEditFolderName(v: string): void;
   commitRenameFolder(): void;
   cancelRenameFolder(): void;
+  startRenameFile(tab: CodeTab): void;
+  setEditFileName(v: string): void;
+  commitRenameFile(): void;
+  cancelRenameFile(): void;
   setCreatingFileAt(p: string | null): void;
   setNewFileName(v: string): void;
   commitNewFile(folderPath: string): void;
@@ -392,7 +398,9 @@ interface FileRowProps {
 }
 
 function FileRow({ file, isActive, isOpen, isDeleting, isHovered, depth, theme, onClick, onDelete, onMouseEnter, onMouseLeave, onDragStart }: FileRowProps) {
+  const ctx = React.useContext(TreeCtx);
   const indent = depth * 14;
+  const isRenaming = ctx.editingFileId === file.id;
   return (
     <div
       onMouseEnter={onMouseEnter}
@@ -412,15 +420,47 @@ function FileRow({ file, isActive, isOpen, isDeleting, isHovered, depth, theme, 
         <span style={{ color: isActive ? theme.linkColor : theme.subText, flexShrink: 0 }}>
           <FileIcon />
         </span>
-        <span style={{
-          fontSize: 13, color: isActive ? theme.text : isOpen ? theme.text : theme.subText,
-          fontWeight: isActive ? 600 : 400,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {file.name}
-        </span>
+        {isRenaming ? (
+          <input
+            autoFocus
+            value={ctx.editFileName}
+            onChange={e => ctx.setEditFileName(e.target.value)}
+            onBlur={ctx.commitRenameFile}
+            onKeyDown={e => {
+              if (e.key === 'Enter') ctx.commitRenameFile();
+              if (e.key === 'Escape') ctx.cancelRenameFile();
+              e.stopPropagation();
+            }}
+            onClick={e => e.stopPropagation()}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              background: ctx.theme.bg,
+              border: `1px solid ${ctx.theme.linkColor}`,
+              borderRadius: 3,
+              color: ctx.theme.text,
+              fontSize: 13,
+              padding: '1px 4px',
+              outline: 'none',
+            }}
+          />
+        ) : (
+          <span
+            onDoubleClick={e => {
+              e.stopPropagation();
+              ctx.startRenameFile(file);
+            }}
+            style={{
+              fontSize: 13, color: isActive ? theme.text : isOpen ? theme.text : theme.subText,
+              fontWeight: isActive ? 600 : 400,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}
+          >
+            {file.name}
+          </span>
+        )}
       </div>
-      {isHovered && !isDeleting && (
+      {isHovered && !isDeleting && !isRenaming && (
         <button
           type="button"
           onClick={e => { e.stopPropagation(); onDelete(); }}
@@ -531,6 +571,29 @@ const iconBtnStyle: React.CSSProperties = {
   color: 'currentColor', padding: 3, display: 'flex',
   alignItems: 'center', borderRadius: 4, flexShrink: 0,
 };
+
+function ensureAsmExtension(name: string): string {
+  return /\.[^./\\]+$/.test(name) ? name : `${name}.asm`;
+}
+
+function siblingFileNames(files: CodeTab[], folderPath: string, excludeId?: string): Set<string> {
+  return new Set(
+    files
+      .filter(file => (file.path ?? '') === folderPath && file.id !== excludeId)
+      .map(file => file.name),
+  );
+}
+
+function siblingFolderNames(folderPaths: Set<string>, parentPath: string, excludePath?: string): Set<string> {
+  const names = new Set<string>();
+  for (const path of folderPaths) {
+    if (path === excludePath) continue;
+    const currentParent = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+    if (currentParent !== parentPath) continue;
+    names.add(path.includes('/') ? path.slice(path.lastIndexOf('/') + 1) : path);
+  }
+  return names;
+}
 
 function FolderRow({ node, depth }: { node: Extract<TreeNode, { kind: 'folder' }>; depth: number }) {
   const ctx = React.useContext(TreeCtx);
@@ -701,6 +764,8 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [editingFolderPath, setEditingFolderPath] = useState<string | null>(null);
   const [editFolderName, setEditFolderName] = useState('');
+  const [editingFileId, setEditingFileId] = useState<string | null>(null);
+  const [editFileName, setEditFileName] = useState('');
   const [creatingFileAt, setCreatingFileAt] = useState<string | null>(null);
   const [newFileName, setNewFileName] = useState('');
   const [creatingFolderAt, setCreatingFolderAt] = useState<string | null>(null);
@@ -805,6 +870,8 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     setTabs(updater);
   }, [isLoggedIn, setTabs, setServerFiles, setLocalFiles]);
 
+  const userFiles = isLoggedIn ? serverFiles : localFiles;
+
   const startNewFile = useCallback((folderPath: string) => {
     setCreatingFileAt(folderPath);
     setNewFileName('');
@@ -813,16 +880,17 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
   }, []);
 
   const commitNewFile = useCallback((folderPath: string) => {
-    const name = newFileName.trim();
+    const rawName = newFileName.trim();
     setCreatingFileAt(null);
     setNewFileName('');
-    if (!name) return;
+    if (!rawName) return;
+    const name = uniquifyName(ensureAsmExtension(rawName), siblingFileNames(userFiles, folderPath));
     const id = String(Date.now());
     const newTab: CodeTab = { id, name, path: folderPath, code: '', isDirty: false };
     updateUserFiles(files => [...files, newTab]);
     setActiveTabId(id);
     setSelectedFolderPath(folderPath || null);
-  }, [newFileName, updateUserFiles, setActiveTabId]);
+  }, [newFileName, setActiveTabId, updateUserFiles, userFiles]);
 
   const deleteFolder = useCallback((node: Extract<TreeNode, { kind: 'folder' }>) => {
     const userFiles = isLoggedIn ? serverFiles : localFiles;
@@ -860,10 +928,11 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
   }, [isLoggedIn, serverFiles, localFiles, activeTabId, tabs, updateUserFiles, setActiveTabId]);
 
   const commitNewFolder = useCallback((parentPath: string) => {
-    const name = newFolderName.trim();
+    const rawName = newFolderName.trim();
     setCreatingFolderAt(null);
     setNewFolderName('');
-    if (!name) return;
+    if (!rawName) return;
+    const name = uniquifyName(rawName, siblingFolderNames(folderPaths, parentPath));
     const folderPath = parentPath ? `${parentPath}/${name}` : name;
     setFolderPaths(prev => new Set([...prev, folderPath]));
     setSelectedFolderPath(folderPath);
@@ -872,7 +941,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
       next.delete(folderPath);
       return next;
     });
-  }, [newFolderName]);
+  }, [folderPaths, newFolderName]);
 
   const startRenameFolder = useCallback((fullPath: string, currentName: string) => {
     setEditingFolderPath(fullPath);
@@ -881,14 +950,15 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
 
   const commitRenameFolder = useCallback(() => {
     if (!editingFolderPath) return;
-    const newName = editFolderName.trim();
+    const rawName = editFolderName.trim();
     setEditingFolderPath(null);
     setEditFolderName('');
-    if (!newName) return;
+    if (!rawName) return;
 
     const parentPath = editingFolderPath.includes('/')
       ? editingFolderPath.slice(0, editingFolderPath.lastIndexOf('/'))
       : '';
+    const newName = uniquifyName(rawName, siblingFolderNames(folderPaths, parentPath, editingFolderPath));
     const newFullPath = parentPath ? `${parentPath}/${newName}` : newName;
     if (newFullPath === editingFolderPath) return;
 
@@ -911,11 +981,34 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
       if (prev.startsWith(editingFolderPath + '/')) return newFullPath + prev.slice(editingFolderPath.length);
       return prev;
     });
-  }, [editingFolderPath, editFolderName, updateUserFiles]);
+  }, [editingFolderPath, editFolderName, folderPaths, updateUserFiles]);
 
   const cancelRenameFolder = useCallback(() => {
     setEditingFolderPath(null);
     setEditFolderName('');
+  }, []);
+
+  const startRenameFile = useCallback((tab: CodeTab) => {
+    setEditingFileId(tab.id);
+    setEditFileName(tab.name);
+  }, []);
+
+  const commitRenameFile = useCallback(() => {
+    if (!editingFileId) return;
+    const file = userFiles.find(entry => entry.id === editingFileId) ?? tabs.find(entry => entry.id === editingFileId);
+    const rawName = editFileName.trim();
+    setEditingFileId(null);
+    setEditFileName('');
+    if (!file || !rawName) return;
+    const folderPath = file.path ?? '';
+    const nextName = uniquifyName(ensureAsmExtension(rawName), siblingFileNames(userFiles, folderPath, editingFileId));
+    if (nextName === file.name) return;
+    updateUserFiles(files => files.map(entry => entry.id === editingFileId ? { ...entry, name: nextName, isDirty: true } : entry));
+  }, [editFileName, editingFileId, tabs, updateUserFiles, userFiles]);
+
+  const cancelRenameFile = useCallback(() => {
+    setEditingFileId(null);
+    setEditFileName('');
   }, []);
 
   const onDragStart = useCallback((e: React.DragEvent, item: TreeNode) => {
@@ -943,13 +1036,19 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     if (dragged.kind === 'file') {
       const currentFolder = tabFolder(dragged.tab);
       if (currentFolder === targetFolderPath) return;
-      updateUserFiles(files => moveFile(files, dragged.tab.id, targetFolderPath));
+      updateUserFiles(files => {
+        const nextName = uniquifyName(dragged.tab.name, siblingFileNames(files, targetFolderPath, dragged.tab.id));
+        return moveFile(files, dragged.tab.id, targetFolderPath).map(file =>
+          file.id === dragged.tab.id ? { ...file, name: nextName } : file,
+        );
+      });
     } else {
       const src = dragged.fullPath;
       if (src === targetFolderPath) return;
       if (targetFolderPath === src || targetFolderPath.startsWith(src + '/')) return;
       const folderName = src.includes('/') ? src.slice(src.lastIndexOf('/') + 1) : src;
-      const newPath = targetFolderPath ? `${targetFolderPath}/${folderName}` : folderName;
+      const nextFolderName = uniquifyName(folderName, siblingFolderNames(folderPaths, targetFolderPath, src));
+      const newPath = targetFolderPath ? `${targetFolderPath}/${nextFolderName}` : nextFolderName;
       if (newPath === src) return;
       updateUserFiles(files => renameFolderPrefix(files, src, newPath));
       const rewriteDrag = (prev: Set<string>) => {
@@ -970,7 +1069,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
         return prev;
       });
     }
-  }, [updateUserFiles]);
+  }, [folderPaths, updateUserFiles]);
 
   const onDrop = useCallback((e: React.DragEvent, targetFolderPath: string) => {
     e.preventDefault();
@@ -991,7 +1090,6 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
   }, [externalAction, startNewFile, startNewFolder]);
 
   const openTabIds = new Set(tabs.map(t => t.id));
-  const userFiles = isLoggedIn ? serverFiles : localFiles;
 
   const handleDelete = (file: CodeTab) =>
     isLoggedIn ? handleDeleteCloud(file) : handleDeleteLocal(file);
@@ -1000,6 +1098,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     theme, activeTabId, openTabIds, deletingId, collapsedFolders,
     hoveredPath: hoveredId, dragOverPath, selectedFolderPath,
     editingFolderPath, editFolderName,
+    editingFileId, editFileName,
     creatingFileAt, newFileName,
     creatingFolderAt, newFolderName,
     toggleCollapse: (path) => setCollapsedFolders(prev => {
@@ -1013,6 +1112,10 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
     setEditFolderName,
     commitRenameFolder,
     cancelRenameFolder,
+    startRenameFile,
+    setEditFileName,
+    commitRenameFile,
+    cancelRenameFile,
     setCreatingFileAt,
     setNewFileName,
     commitNewFile,

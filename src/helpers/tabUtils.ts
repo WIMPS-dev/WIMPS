@@ -14,13 +14,13 @@ export function readSavedFiles(): CodeTab[] {
   try {
     const raw = localStorage.getItem('saved_files');
     const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed)) return parsed.map(normalizeTab);
+    if (Array.isArray(parsed)) return parsed.map(normalizeTab).filter(tab => tab.kind !== 'docs');
   } catch {}
   return [];
 }
 
 export function writeSavedFiles(files: CodeTab[]): void {
-  try { localStorage.setItem('saved_files', JSON.stringify(files)); } catch {}
+  try { localStorage.setItem('saved_files', JSON.stringify(files.filter(file => file.kind !== 'docs'))); } catch {}
 }
 
 // ---------------------------------------------------------------------------

@@ -104,7 +104,7 @@ input, textarea {
 /* Tab strip — thin visible scrollbar */
 .tab-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #334155 transparent;
+  scrollbar-color: var(--scrollbar-thumb, #334155) transparent;
 }
 .tab-scroll::-webkit-scrollbar {
   height: 3px;
@@ -113,11 +113,11 @@ input, textarea {
   background: transparent;
 }
 .tab-scroll::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--scrollbar-thumb, #334155);
   border-radius: 2px;
 }
 .tab-scroll::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--scrollbar-thumb-hover, #475569);
 }
 
 /* Custom scrollbar */
@@ -129,11 +129,11 @@ input, textarea {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--scrollbar-thumb, #334155);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--scrollbar-thumb-hover, #475569);
 }
 
 /* ================================================
@@ -395,7 +395,7 @@ input, textarea {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 32px;
+  min-height: 32px;
   padding: 0 10px;
   background: var(--ide-titlebar-bg, #181f2d);
   border-bottom: 1px solid var(--ide-border);
@@ -407,11 +407,15 @@ input, textarea {
   gap: 2px;
 }
 
+.ide-menu-item:hover:not(:disabled) {
+  background-color: var(--ide-hover, #334155) !important;
+}
+
 .ide-tabbar {
   display: flex;
   align-items: center;
-  min-height: 34px;
-  padding: 0 8px;
+  min-height: 35px;
+  padding: 0;
   background: var(--ide-tabbar-bg, #151c29);
   border-bottom: 1px solid var(--ide-border);
 }
@@ -419,22 +423,49 @@ input, textarea {
 .ide-tab {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   min-width: 0;
-  height: 32px;
+  height: 35px;
+  padding: 0 12px;
+  border-right: 1px solid var(--ide-border);
+  background: var(--ide-tabbar-bg, #151c29);
+}
+
+.ide-tab:hover {
+  background: var(--ide-hover, #334155);
+}
+
+.ide-tab.ide-tab--active {
+  background: var(--ide-active-tab-bg, var(--ide-card));
+}
+
+.ide-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}
+
+.ide-tab-close:hover {
+  background: var(--ide-hover, #334155);
 }
 
 .ide-new-tab {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 28px;
+  height: 35px;
+  border-left: 1px solid var(--ide-border);
 }
 
 .ide-commandbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 34px;
+  gap: 8px;
+  min-height: 40px;
   padding: 0 10px;
   background: var(--ide-commandbar-bg, #101826);
   border-bottom: 1px solid var(--ide-border);
@@ -452,10 +483,10 @@ input, textarea {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 22px;
+  min-height: 24px;
   padding: 0 10px;
-  background: #2563eb;
-  color: #fff;
+  background: var(--ide-statusbar-bg, #2563eb);
+  color: var(--ide-statusbar-ink, #fff);
   font-size: 11px;
 }
 
@@ -471,20 +502,20 @@ input, textarea {
    ================================================ */
 
 .ide-activity-bar {
-  width: 52px;
+  width: 64px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 6px 0;
   gap: 6px;
-  background-color: var(--ide-card);
+  background-color: var(--ide-rail-bg, var(--ide-card));
   border-right: 1px solid var(--ide-border);
 }
 
 .ide-activity-icon {
   width: 100%;
-  padding: 7px 0;
+  padding: 8px 0;
   border-radius: 0;
   border: none;
   border-left: 2px solid transparent;
@@ -494,7 +525,7 @@ input, textarea {
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  color: #64748b;
+  color: var(--ide-muted, #64748b);
   transition: color 100ms ease-out, background-color 100ms ease-out;
 }
 .ide-activity-icon:hover {
@@ -514,9 +545,12 @@ input, textarea {
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.3px;
-  line-height: 1.05;
+  line-height: 1.15;
   white-space: normal;
   text-align: center;
+  max-width: 54px;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .ide-sidebar {
@@ -524,7 +558,8 @@ input, textarea {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background-color: var(--ide-card);
+  background-color: var(--ide-sidebar-bg, var(--ide-card));
+  border-right: 1px solid var(--ide-border);
 }
 
 .ide-sidebar-header {
@@ -532,7 +567,7 @@ input, textarea {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 1px;
-  color: #94a3b8;
+  color: var(--ide-muted-strong, #94a3b8);
   border-bottom: 1px solid var(--ide-border);
   flex-shrink: 0;
 }
@@ -552,13 +587,13 @@ input, textarea {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background-color: #94a3b8;
+  background-color: var(--ide-resizer-dot, #94a3b8);
   opacity: 0.3;
   box-shadow:
-    -16px 0 0 #94a3b8,
-    -8px  0 0 #94a3b8,
-     8px  0 0 #94a3b8,
-     16px 0 0 #94a3b8;
+    -16px 0 0 var(--ide-resizer-dot, #94a3b8),
+    -8px  0 0 var(--ide-resizer-dot, #94a3b8),
+     8px  0 0 var(--ide-resizer-dot, #94a3b8),
+     16px 0 0 var(--ide-resizer-dot, #94a3b8);
   transition: opacity 100ms ease-out;
 }
 .ide-editor-handle:hover,
@@ -585,13 +620,13 @@ input, textarea {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background-color: #94a3b8;
+  background-color: var(--ide-resizer-dot, #94a3b8);
   opacity: 0.3;
   box-shadow:
-    0 -16px 0 #94a3b8,
-    0  -8px 0 #94a3b8,
-    0   8px 0 #94a3b8,
-    0  16px 0 #94a3b8;
+    0 -16px 0 var(--ide-resizer-dot, #94a3b8),
+    0  -8px 0 var(--ide-resizer-dot, #94a3b8),
+    0   8px 0 var(--ide-resizer-dot, #94a3b8),
+    0  16px 0 var(--ide-resizer-dot, #94a3b8);
   transition: opacity 100ms ease-out;
 }
 .ide-sidebar-handle:hover,

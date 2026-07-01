@@ -12,7 +12,6 @@ import { DocsContent } from './DocsPage';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
 import { SaveAction, SaveStatus } from '../components/SaveStatus';
 import { usePageReady } from '../components/Skeleton';
-import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getApiHeaders, getAuthToken, uniquifyName } from '../helpers/authStorage';
 import { useAutosave } from '../hooks/useAutosave';
@@ -21,6 +20,7 @@ import { assemble, continueSim, feedInput, formatWordValue, getCurrentPseudoExpa
 import type { CodeTab } from '../types';
 import { normalizeTab, readSavedFiles, writeSavedFiles } from '../helpers/tabUtils';
 import type { CodeEditorHandle } from '../components/CodeEditor';
+import { getIdeChromeVars } from '../theme/ideChrome';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
@@ -43,7 +43,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   { id: 'memory', label: 'Memory', title: 'Memory', icon: 'Memory', defaultEnabled: true, description: 'Memory inspector and word editor.' },
   { id: 'display', label: 'Bitmap Display', title: 'Bitmap Display', icon: 'Bitmap', defaultEnabled: false, description: 'Bitmap display viewer.' },
   { id: 'program', label: 'Program', title: 'Program', icon: 'Segments', defaultEnabled: false, description: 'Instruction and label views.' },
-  { id: 'performance', label: 'Performance', title: 'Performance', icon: 'Stats', defaultEnabled: false, description: 'Instruction counts and performance stats.' },
+  { id: 'performance', label: 'Analysis', title: 'Analysis', icon: 'Stats', defaultEnabled: false, description: 'Instruction counts and cache analysis.' },
 ];
 
 const DEFAULT_ENABLED_TOOL_IDS = TOOL_DEFINITIONS.filter(tool => tool.defaultEnabled).map(tool => tool.id);
@@ -462,7 +462,7 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
     const parsed = JSON.parse(raw);
     if (parsed && Array.isArray(parsed.tabs)) {
       if (parsed.tabs.length > 0) {
-        const tabs: CodeTab[] = parsed.tabs.map(normalizeTab).filter((tab: CodeTab) => tab.kind !== 'docs');
+        const tabs: CodeTab[] = parsed.tabs.map(normalizeTab);
         if (tabs.length === 0) return { tabs: DEFAULT_TABS, activeTabId: DEFAULT_TABS[0].id };
         // activeTabId must reference a real (post-normalize) tab id, otherwise
         // activeCode never matches and the editor desyncs from React state.
@@ -474,7 +474,7 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
     }
     // legacy: plain array
     if (Array.isArray(parsed) && parsed.length > 0) {
-      const tabs = parsed.map(normalizeTab).filter((tab: CodeTab) => tab.kind !== 'docs');
+      const tabs = parsed.map(normalizeTab);
       if (tabs.length === 0) return { tabs: DEFAULT_TABS, activeTabId: DEFAULT_TABS[0].id };
       return { tabs, activeTabId: tabs[0].id };
     }
@@ -485,11 +485,10 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
 
 function writeLocalState(tabs: CodeTab[], activeTabId: string) {
   try {
-    const persistedTabs = tabs.filter(tab => tab.kind !== 'docs');
-    const persistedActiveTabId = persistedTabs.some(tab => tab.id === activeTabId)
+    const persistedActiveTabId = tabs.some(tab => tab.id === activeTabId)
       ? activeTabId
-      : (persistedTabs[0]?.id ?? '');
-    localStorage.setItem('saved_tabs', JSON.stringify({ tabs: persistedTabs, activeTabId: persistedActiveTabId }));
+      : (tabs[0]?.id ?? '');
+    localStorage.setItem('saved_tabs', JSON.stringify({ tabs, activeTabId: persistedActiveTabId }));
   } catch {}
 }
 
@@ -1362,18 +1361,13 @@ export default function IdePage() {
     <div style={{
       height: '100vh', display: 'flex', flexDirection: 'column',
       backgroundColor: theme.bg, overflow: 'hidden',
-      '--ide-ink': theme.text,
-      '--ide-card': theme.card,
-      '--ide-hover': isDark ? '#334155' : 'rgba(0,0,0,0.07)',
-      '--ide-border': theme.border,
-      '--ide-active-icon': isDark ? '#7dd3fc' : '#1d4ed8',
-      '--ide-icon-hover': isDark ? '#94a3b8' : '#1e293b',
+      ...getIdeChromeVars(theme, isDark),
     } as React.CSSProperties}>
       {/* Top bar */}
       {wide ? (
         <>
           <div className="ide-titlebar" style={{ flexShrink: 0 }}>
-            <div style={{ color: theme.text, fontWeight: 800, fontSize: 13, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+            <div style={{ color: theme.text, fontWeight: 800, fontSize: 13, flexShrink: 0, display: 'flex', alignItems: 'center', userSelect: 'none' }}>
               <Logo size={15} gap={4} textSize={11} />
             </div>
             <div ref={menuBarRef} className="ide-menubar" style={{ flexShrink: 0 }}>
@@ -1391,14 +1385,17 @@ export default function IdePage() {
                     style={{
                       height: 24,
                       padding: '0 8px',
-                      borderRadius: 0,
+                      borderRadius: openMenu === menu.key ? '4px 4px 0 0' : 4,
                       border: `1px solid ${openMenu === menu.key ? theme.border : 'transparent'}`,
-                      backgroundColor: openMenu === menu.key ? (isDark ? '#334155' : '#e2e8f0') : 'transparent',
+                      borderBottomColor: openMenu === menu.key ? theme.card : 'transparent',
+                      backgroundColor: openMenu === menu.key ? 'var(--ide-menu-active)' : 'transparent',
                       color: theme.text,
                       cursor: 'pointer',
                       fontSize: 12,
-                      fontWeight: 600,
+                      fontWeight: 400,
                       lineHeight: 1,
+                      position: 'relative',
+                      zIndex: openMenu === menu.key ? 1001 : 'auto',
                     }}
                   >
                     {menu.label}
@@ -1406,14 +1403,15 @@ export default function IdePage() {
                   {openMenu === menu.key && (
                     <div style={{
                       position: 'absolute',
-                      top: 'calc(100% + 6px)',
-                      left: 0,
-                      minWidth: menu.key === 'run' || menu.key === 'settings' ? 220 : 180,
+                      top: 'calc(100% - 1px)',
+                      left: -1,
+                      minWidth: menu.key === 'run' || menu.key === 'settings' ? 228 : 196,
                       backgroundColor: theme.card,
                       border: `1px solid ${theme.border}`,
-                      borderRadius: 0,
-                      boxShadow: '0 10px 30px rgba(0,0,0,0.22)',
-                      padding: 4,
+                      borderTop: `1px solid ${theme.card}`,
+                      borderRadius: '0 6px 6px 6px',
+                      boxShadow: isDark ? '0 8px 18px rgba(0,0,0,0.22)' : '0 10px 18px rgba(15,23,42,0.12)',
+                      padding: '4px 0',
                       zIndex: 1000,
                     }}>
                       {menu.key === 'file' && [
@@ -1421,11 +1419,12 @@ export default function IdePage() {
                         { label: 'New Folder', action: () => triggerExplorerAction('new-folder'), disabled: false },
                         { label: 'Import File...', action: handleUpload, disabled: false },
                         { label: 'Export Active File', action: handleDownload, disabled: !activeTab || isDocsTab },
-                        { label: 'Close Active Tab', action: closeActiveTab, disabled: tabs.length <= 1 || !activeTab },
+                        { label: 'Close Active Tab', action: closeActiveTab, disabled: tabs.length <= 1 || !activeTab, hotkey: isMac ? '⌘W' : 'Ctrl+W' },
                       ].map(item => (
                         <button
                           key={item.label}
                           type="button"
+                          className="ide-menu-item"
                           disabled={item.disabled}
                           onClick={() => {
                             if (item.disabled) return;
@@ -1440,24 +1439,28 @@ export default function IdePage() {
                             cursor: item.disabled ? 'not-allowed' : 'pointer',
                             textAlign: 'left',
                             borderRadius: 0,
-                            padding: '6px 8px',
-                            fontSize: 12,
+                            padding: '5px 14px',
+                            fontSize: 13,
                             opacity: item.disabled ? 0.45 : 1,
                           }}
                         >
-                          {item.label}
+                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
+                            <span>{item.label}</span>
+                            {item.hotkey ? <span style={{ color: theme.subText, fontSize: 12 }}>{item.hotkey}</span> : null}
+                          </span>
                         </button>
                       ))}
                       {menu.key === 'edit' && [
                         { label: 'Focus Editor', action: focusEditor, disabled: !canEditActiveTab },
-                        { label: 'Find', action: () => codeEditorRef.current?.find(), disabled: !canEditActiveTab },
-                        { label: 'Replace', action: () => codeEditorRef.current?.replace(), disabled: !canEditActiveTab },
-                        { label: 'Go to Line', action: () => codeEditorRef.current?.gotoLine(), disabled: !canEditActiveTab },
-                        { label: sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar', action: () => setSidebarOpen(v => !v), disabled: false },
+                        { label: 'Find', action: () => codeEditorRef.current?.find(), disabled: !canEditActiveTab, hotkey: isMac ? '⌘F' : 'Ctrl+F' },
+                        { label: 'Replace', action: () => codeEditorRef.current?.replace(), disabled: !canEditActiveTab, hotkey: isMac ? '⌘H' : 'Ctrl+H' },
+                        { label: 'Go to Line', action: () => codeEditorRef.current?.gotoLine(), disabled: !canEditActiveTab, hotkey: isMac ? '⌘G' : 'Ctrl+G' },
+                        { label: sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar', action: () => setSidebarOpen(v => !v), disabled: false, hotkey: isMac ? '⌘B' : 'Ctrl+B' },
                       ].map(item => (
                         <button
                           key={item.label}
                           type="button"
+                          className="ide-menu-item"
                           disabled={item.disabled}
                           onClick={() => {
                             if (item.disabled) return;
@@ -1472,26 +1475,30 @@ export default function IdePage() {
                             cursor: item.disabled ? 'not-allowed' : 'pointer',
                             textAlign: 'left',
                             borderRadius: 0,
-                            padding: '6px 8px',
-                            fontSize: 12,
+                            padding: '5px 14px',
+                            fontSize: 13,
                             opacity: item.disabled ? 0.45 : 1,
                           }}
                         >
-                          {item.label}
+                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
+                            <span>{item.label}</span>
+                            {item.hotkey ? <span style={{ color: theme.subText, fontSize: 12 }}>{item.hotkey}</span> : null}
+                          </span>
                         </button>
                       ))}
                       {menu.key === 'run' && (
                         <>
                           {[
-                            { label: 'Assemble', action: handleAssemble, disabled: !canEditActiveTab || isWaiting },
-                            { label: runLabel, action: runLabel === 'Continue' ? handleContinue : handleRun, disabled: !isAssembled || isTerminated },
-                            { label: 'Step Back', action: handleStepBack, disabled: !isAssembled || !canStepBack },
-                            { label: 'Step', action: handleStep, disabled: !isAssembled || isTerminated },
-                            { label: 'Reset', action: handleReset, disabled: !isAssembled },
+                            { label: 'Assemble', action: handleAssemble, disabled: !canEditActiveTab || isWaiting, hotkey: isMac ? '⌘↵' : 'Ctrl+Enter' },
+                            { label: runLabel, action: runLabel === 'Continue' ? handleContinue : handleRun, disabled: !isAssembled || isTerminated, hotkey: runLabel === 'Continue' ? 'F8' : 'F5' },
+                            { label: 'Step Back', action: handleStepBack, disabled: !isAssembled || !canStepBack, hotkey: 'F9' },
+                            { label: 'Step', action: handleStep, disabled: !isAssembled || isTerminated, hotkey: 'F10' },
+                            { label: 'Reset', action: handleReset, disabled: !isAssembled, hotkey: 'Esc' },
                           ].map(item => (
                             <button
                               key={item.label}
                               type="button"
+                              className="ide-menu-item"
                               disabled={item.disabled}
                               onClick={() => {
                                 if (item.disabled) return;
@@ -1502,34 +1509,38 @@ export default function IdePage() {
                                 width: '100%',
                                 border: 'none',
                                 background: 'transparent',
-                            color: item.disabled ? theme.subText : theme.text,
-                            cursor: item.disabled ? 'not-allowed' : 'pointer',
-                            textAlign: 'left',
-                            borderRadius: 0,
-                            padding: '6px 8px',
-                            fontSize: 12,
-                            opacity: item.disabled ? 0.45 : 1,
-                          }}
-                        >
-                              {item.label}
+                                color: item.disabled ? theme.subText : theme.text,
+                                cursor: item.disabled ? 'not-allowed' : 'pointer',
+                                textAlign: 'left',
+                                borderRadius: 0,
+                                padding: '5px 14px',
+                                fontSize: 13,
+                                opacity: item.disabled ? 0.45 : 1,
+                              }}
+                            >
+                              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
+                                <span>{item.label}</span>
+                                {item.hotkey ? <span style={{ color: theme.subText, fontSize: 12 }}>{item.hotkey}</span> : null}
+                              </span>
                             </button>
                           ))}
-                          <div style={{ height: 1, backgroundColor: theme.border, margin: '6px 4px' }} />
-                          <div style={{ padding: '4px 10px 2px', color: theme.subText, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                          <div style={{ height: 1, backgroundColor: theme.border, margin: '5px 0' }} />
+                          <div style={{ padding: '4px 14px 2px', color: theme.subText, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>
                             Speed
                           </div>
-                          <div style={{ padding: '4px 10px 8px' }}>
+                          <div style={{ padding: '4px 14px 8px' }}>
                             <RunSpeedControl theme={theme} runSpeed={runSpeed} setRunSpeed={setRunSpeed} isTerminated={isTerminated} showLabel={false} />
                           </div>
                         </>
                       )}
                       {menu.key === 'help' && [
-                        { label: 'Open Docs', action: () => openDocsTab(false) },
-                        { label: 'Standalone Docs Page', action: () => window.open('/docs', '_blank', 'noopener,noreferrer') },
+                        { label: 'Open Docs', action: () => openDocsTab(false), hotkey: undefined },
+                        { label: 'Standalone Docs Page', action: () => window.open('/docs', '_blank', 'noopener,noreferrer'), hotkey: undefined },
                       ].map(item => (
                         <button
                           key={item.label}
                           type="button"
+                          className="ide-menu-item"
                           onClick={() => {
                             item.action();
                             setOpenMenu(null);
@@ -1542,15 +1553,18 @@ export default function IdePage() {
                             cursor: 'pointer',
                             textAlign: 'left',
                             borderRadius: 0,
-                            padding: '6px 8px',
-                            fontSize: 12,
+                            padding: '5px 14px',
+                            fontSize: 13,
                           }}
                         >
-                          {item.label}
+                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
+                            <span>{item.label}</span>
+                            {item.hotkey ? <span style={{ color: theme.subText, fontSize: 12 }}>{item.hotkey}</span> : null}
+                          </span>
                         </button>
                       ))}
                       {menu.key === 'settings' && (
-                        <div style={{ padding: '6px 8px' }}>
+                        <div style={{ padding: '6px 10px' }}>
                           <SettingsPanel
                             theme={theme}
                             isDark={isDark}
@@ -1576,54 +1590,7 @@ export default function IdePage() {
             </div>
             <div style={{ flex: 1 }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} compact />
-              <SaveAction onClick={handleSaveLocal} hotkey={saveHotkey} showHotkeys={showHotkeys} />
-              <button
-                type="button"
-                onClick={handleUpload}
-                title="Import file"
-                aria-label="Import file"
-                style={{
-                  background: isDark ? '#1e293b' : '#f8fafc',
-                  border: `1px solid ${isDark ? '#475569' : '#cbd5e1'}`,
-                  cursor: 'pointer',
-                  width: 26,
-                  height: 26,
-                  borderRadius: 4,
-                  color: theme.text,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 0,
-                }}
-              >
-                <ActionIcon name="Import" size={12} />
-              </button>
-              <button
-                type="button"
-                onClick={handleDownload}
-                title="Export active file"
-                aria-label="Export active file"
-                disabled={!activeTab || isDocsTab}
-                style={{
-                  background: isDark ? '#1e293b' : '#f8fafc',
-                  border: `1px solid ${isDark ? '#475569' : '#cbd5e1'}`,
-                  cursor: !activeTab || isDocsTab ? 'not-allowed' : 'pointer',
-                  width: 26,
-                  height: 26,
-                  borderRadius: 4,
-                  color: !activeTab || isDocsTab ? theme.subText : theme.text,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 0,
-                  opacity: !activeTab || isDocsTab ? 0.5 : 1,
-                }}
-              >
-                <ActionIcon name="Export" size={12} />
-              </button>
               <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 12, fontWeight: 600 }}>Docs</Link>
-              <ThemeSwitch />
             </div>
             <div ref={settingsRef} style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, position: 'relative' }}>
               <button
@@ -1634,17 +1601,16 @@ export default function IdePage() {
                 aria-expanded={settingsOpen}
                 className="ide-settings-btn"
                 style={{
-                  background: settingsOpen ? '#2563eb22' : (isDark ? '#1e293b' : '#f8fafc'),
-                  border: `1px solid ${settingsOpen ? '#2563eb' : (isDark ? '#475569' : '#cbd5e1')}`,
+                  background: settingsOpen ? '#2563eb22' : 'var(--ide-control-bg)',
+                  border: settingsOpen ? '1px solid #2563eb' : '1px solid var(--ide-control-border)',
                   cursor: 'pointer',
                   padding: '3px 6px',
-                  borderRadius: 0,
+                  borderRadius: 6,
                   color: settingsOpen ? '#2563eb' : theme.text,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   transition: 'border-color 0.15s, color 0.15s, background 0.15s',
-                  boxShadow: settingsOpen ? '0 0 0 1px #2563eb22' : '0 1px 2px rgba(0,0,0,0.12)',
                 }}
               >
                 <ActionIcon name="Settings" size={14} />
@@ -1657,10 +1623,9 @@ export default function IdePage() {
                   marginTop: 4,
                   backgroundColor: theme.card,
                   border: `1px solid ${theme.border}`,
-                  borderRadius: 0,
+                  borderRadius: 8,
                   padding: '8px 10px',
-                  width: 250,
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                  width: 244,
                   zIndex: 1000,
                 }}>
                   <SettingsPanel
@@ -1682,80 +1647,6 @@ export default function IdePage() {
                 </div>
               )}
             </div>
-          </div>
-
-          <div className="ide-tabbar" style={{ flexShrink: 0 }}>
-            <div
-              className="tab-scroll"
-              role="tablist"
-              aria-label="Editor files"
-              style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}
-            >
-              <div style={{ display: 'flex', gap: 2, alignItems: 'stretch', width: 'max-content', height: 33 }}>
-                {tabs.map(tab => (
-                  <div
-                    key={tab.id}
-                    role="tab"
-                    tabIndex={0}
-                    aria-selected={tab.id === activeTabId}
-                    onClick={() => setActiveTabId(tab.id)}
-                    onKeyDown={e => e.key === 'Enter' || e.key === ' ' ? setActiveTabId(tab.id) : undefined}
-                    className="ide-tab"
-                    style={{
-                      padding: '0 9px',
-                      borderRadius: 0,
-                      backgroundColor: tab.id === activeTabId ? theme.bg : theme.tabInactive,
-                      borderLeft: `1px solid ${theme.border}`,
-                      borderRight: `1px solid ${theme.border}`,
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                      maxWidth: 180,
-                      fontFamily: 'inherit',
-                      color: tab.id === activeTabId ? theme.text : theme.subText,
-                    }}
-                  >
-                    {editingTabId === tab.id ? (
-                      <input
-                        autoFocus
-                        aria-label="Rename tab"
-                        value={editTabName}
-                        onChange={e => setEditTabName(e.target.value)}
-                        onBlur={commitRename}
-                        onKeyDown={e => e.key === 'Enter' && commitRename()}
-                        onClick={e => e.stopPropagation()}
-                        style={{ width: 90, backgroundColor: 'transparent', border: 'none', outline: 'none', color: theme.text, fontSize: 11 }}
-                      />
-                    ) : (
-                      <span
-                        onDoubleClick={e => tab.kind === 'docs' ? undefined : startRename(tab, e)}
-                        style={{ fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 92 }}
-                      >
-                        {tab.name}{tab.isDirty ? ' •' : ''}
-                      </span>
-                    )}
-                    {tabs.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={e => closeTab(tab.id, e)}
-                        aria-label={`Close ${tab.name}`}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 13, lineHeight: 1, padding: 2, flexShrink: 0 }}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => addTab()}
-              aria-label="New tab"
-              className="ide-new-tab"
-              style={{ background: 'none', border: 'none', color: theme.subText, cursor: 'pointer', width: 24, height: 24, fontSize: 15, flexShrink: 0 }}
-            >
-              +
-            </button>
           </div>
 
           <div className="ide-commandbar" style={{ flexShrink: 0 }}>
@@ -1835,8 +1726,9 @@ export default function IdePage() {
                 )}
               </button>
             ))}
-            <div style={{ flex: 1 }} />
             {toolBarDivider}
+            <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} compact />
+            <div style={{ flex: 1 }} />
             <div
               className="sim-status-pill"
               role="status"
@@ -1851,6 +1743,76 @@ export default function IdePage() {
             >
               {STATUS_CONFIG[simStatus].label}
             </div>
+          </div>
+
+          <div className="ide-tabbar" style={{ flexShrink: 0 }}>
+            <div
+              className="tab-scroll"
+              role="tablist"
+              aria-label="Editor files"
+              style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}
+            >
+              <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', width: 'max-content', height: 35 }}>
+                {tabs.map(tab => (
+                  <div
+                    key={tab.id}
+                    role="tab"
+                    tabIndex={0}
+                    aria-selected={tab.id === activeTabId}
+                    onClick={() => setActiveTabId(tab.id)}
+                    onKeyDown={e => e.key === 'Enter' || e.key === ' ' ? setActiveTabId(tab.id) : undefined}
+                    className={`ide-tab${tab.id === activeTabId ? ' ide-tab--active' : ''}`}
+                    style={{
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      maxWidth: 220,
+                      fontFamily: 'inherit',
+                      color: tab.id === activeTabId ? theme.text : theme.subText,
+                    }}
+                  >
+                    {editingTabId === tab.id ? (
+                      <input
+                        autoFocus
+                        aria-label="Rename tab"
+                        value={editTabName}
+                        onChange={e => setEditTabName(e.target.value)}
+                        onBlur={commitRename}
+                        onKeyDown={e => e.key === 'Enter' && commitRename()}
+                        onClick={e => e.stopPropagation()}
+                        style={{ width: 110, backgroundColor: 'transparent', border: 'none', outline: 'none', color: theme.text, fontSize: 13 }}
+                      />
+                    ) : (
+                      <span
+                        onDoubleClick={e => tab.kind === 'docs' ? undefined : startRename(tab, e)}
+                        style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 144 }}
+                      >
+                        {tab.name}{tab.isDirty ? ' •' : ''}
+                      </span>
+                    )}
+                    {tabs.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={e => closeTab(tab.id, e)}
+                        aria-label={`Close ${tab.name}`}
+                        className="ide-tab-close"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => addTab()}
+              aria-label="New tab"
+              className="ide-new-tab"
+              style={{ background: 'none', borderTop: 'none', borderRight: 'none', borderBottom: 'none', color: theme.subText, cursor: 'pointer', fontSize: 15, flexShrink: 0 }}
+            >
+              +
+            </button>
           </div>
         </>
 
@@ -1874,7 +1836,6 @@ export default function IdePage() {
               <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} compact />
             </div>
             <SaveAction onClick={handleSaveLocal} hotkey={saveHotkey} showHotkeys={showHotkeys} />
-            <ThemeSwitch />
             <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Docs</Link>
             {/* TEMP: login disabled
             {isLoggedIn ? (
