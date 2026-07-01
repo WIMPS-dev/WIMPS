@@ -1046,7 +1046,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
       {/* Header action buttons */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-        gap: 2, padding: '3px 6px', borderBottom: `1px solid ${theme.border}`, flexShrink: 0,
+        gap: 1, padding: '2px 6px', borderBottom: `1px solid ${theme.border}`, flexShrink: 0,
       }}>
         <button type="button" onClick={() => startNewFile(selectedFolderPath ?? '')} title="New File" style={hdrBtn}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}>
@@ -1080,7 +1080,7 @@ export function FileExplorer({ theme, isLoggedIn, tabs, setTabs, activeTabId, se
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 8 }}>
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 6 }}>
 
         {/* YOUR FILES / CLOUD FILES */}
         <SectionHeader
