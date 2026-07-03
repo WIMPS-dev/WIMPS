@@ -305,6 +305,19 @@ input, textarea {
   border-radius: 3px;
 }
 
+/* IDE nav: Settings button */
+.ide-settings-btn {
+  transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+}
+.ide-settings-btn:hover {
+  background-color: var(--ide-card, #1f2937) !important;
+}
+.ide-settings-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 /* IDE nav: Sign out button */
 .ide-sign-out { transition: background-color 150ms ease-out; }
 .ide-sign-out:hover { background-color: var(--ide-card, #1f2937) !important; }
@@ -428,6 +441,7 @@ input, textarea {
   height: 35px;
   padding: 0 12px;
   border-right: 1px solid var(--ide-border);
+  border-top: 2px solid transparent;
   background: var(--ide-tabbar-bg, #151c29);
 }
 
@@ -436,6 +450,7 @@ input, textarea {
 }
 
 .ide-tab.ide-tab--active {
+  border-top-color: #2f7fff;
   background: var(--ide-active-tab-bg, var(--ide-card));
 }
 

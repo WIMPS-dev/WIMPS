@@ -1589,9 +1589,6 @@ export default function IdePage() {
               ))}
             </div>
             <div style={{ flex: 1 }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 12, fontWeight: 600 }}>Docs</Link>
-            </div>
             <div ref={settingsRef} style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, position: 'relative' }}>
               <button
                 type="button"
@@ -1604,16 +1601,18 @@ export default function IdePage() {
                   background: settingsOpen ? '#2563eb22' : 'var(--ide-control-bg)',
                   border: settingsOpen ? '1px solid #2563eb' : '1px solid var(--ide-control-border)',
                   cursor: 'pointer',
-                  padding: '3px 6px',
+                  padding: '5px 10px',
                   borderRadius: 6,
                   color: settingsOpen ? '#2563eb' : theme.text,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  gap: 6,
                   transition: 'border-color 0.15s, color 0.15s, background 0.15s',
                 }}
               >
                 <ActionIcon name="Settings" size={14} />
+                <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1 }}>Settings</span>
               </button>
               {settingsOpen && (
                 <div style={{
@@ -1745,75 +1744,6 @@ export default function IdePage() {
             </div>
           </div>
 
-          <div className="ide-tabbar" style={{ flexShrink: 0 }}>
-            <div
-              className="tab-scroll"
-              role="tablist"
-              aria-label="Editor files"
-              style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}
-            >
-              <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', width: 'max-content', height: 35 }}>
-                {tabs.map(tab => (
-                  <div
-                    key={tab.id}
-                    role="tab"
-                    tabIndex={0}
-                    aria-selected={tab.id === activeTabId}
-                    onClick={() => setActiveTabId(tab.id)}
-                    onKeyDown={e => e.key === 'Enter' || e.key === ' ' ? setActiveTabId(tab.id) : undefined}
-                    className={`ide-tab${tab.id === activeTabId ? ' ide-tab--active' : ''}`}
-                    style={{
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                      maxWidth: 220,
-                      fontFamily: 'inherit',
-                      color: tab.id === activeTabId ? theme.text : theme.subText,
-                    }}
-                  >
-                    {editingTabId === tab.id ? (
-                      <input
-                        autoFocus
-                        aria-label="Rename tab"
-                        value={editTabName}
-                        onChange={e => setEditTabName(e.target.value)}
-                        onBlur={commitRename}
-                        onKeyDown={e => e.key === 'Enter' && commitRename()}
-                        onClick={e => e.stopPropagation()}
-                        style={{ width: 110, backgroundColor: 'transparent', border: 'none', outline: 'none', color: theme.text, fontSize: 13 }}
-                      />
-                    ) : (
-                      <span
-                        onDoubleClick={e => tab.kind === 'docs' ? undefined : startRename(tab, e)}
-                        style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 144 }}
-                      >
-                        {tab.name}{tab.isDirty ? ' •' : ''}
-                      </span>
-                    )}
-                    {tabs.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={e => closeTab(tab.id, e)}
-                        aria-label={`Close ${tab.name}`}
-                        className="ide-tab-close"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => addTab()}
-              aria-label="New tab"
-              className="ide-new-tab"
-              style={{ background: 'none', borderTop: 'none', borderRight: 'none', borderBottom: 'none', color: theme.subText, cursor: 'pointer', fontSize: 15, flexShrink: 0 }}
-            >
-              +
-            </button>
-          </div>
         </>
 
       ) : (
@@ -2078,6 +2008,75 @@ export default function IdePage() {
 
           {/* Editor + console column */}
           <div className="editor-column" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="ide-tabbar" style={{ flexShrink: 0 }}>
+              <div
+                className="tab-scroll"
+                role="tablist"
+                aria-label="Editor files"
+                style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}
+              >
+                <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', width: 'max-content', height: 35 }}>
+                  {tabs.map(tab => (
+                    <div
+                      key={tab.id}
+                      role="tab"
+                      tabIndex={0}
+                      aria-selected={tab.id === activeTabId}
+                      onClick={() => setActiveTabId(tab.id)}
+                      onKeyDown={e => e.key === 'Enter' || e.key === ' ' ? setActiveTabId(tab.id) : undefined}
+                      className={`ide-tab${tab.id === activeTabId ? ' ide-tab--active' : ''}`}
+                      style={{
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        maxWidth: 220,
+                        fontFamily: 'inherit',
+                        color: tab.id === activeTabId ? theme.text : theme.subText,
+                      }}
+                    >
+                      {editingTabId === tab.id ? (
+                        <input
+                          autoFocus
+                          aria-label="Rename tab"
+                          value={editTabName}
+                          onChange={e => setEditTabName(e.target.value)}
+                          onBlur={commitRename}
+                          onKeyDown={e => e.key === 'Enter' && commitRename()}
+                          onClick={e => e.stopPropagation()}
+                          style={{ width: 110, backgroundColor: 'transparent', border: 'none', outline: 'none', color: theme.text, fontSize: 13 }}
+                        />
+                      ) : (
+                        <span
+                          onDoubleClick={e => tab.kind === 'docs' ? undefined : startRename(tab, e)}
+                          style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 144 }}
+                        >
+                          {tab.name}{tab.isDirty ? ' •' : ''}
+                        </span>
+                      )}
+                      {tabs.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={e => closeTab(tab.id, e)}
+                          aria-label={`Close ${tab.name}`}
+                          className="ide-tab-close"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => addTab()}
+                aria-label="New tab"
+                className="ide-new-tab"
+                style={{ background: 'none', borderTop: 'none', borderRight: 'none', borderBottom: 'none', color: theme.subText, cursor: 'pointer', fontSize: 15, flexShrink: 0 }}
+              >
+                +
+              </button>
+            </div>
             <div style={{ height: `${editorHeightPct}%`, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               {tabs.length === 0 ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: theme.subText }}>
