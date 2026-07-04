@@ -4,7 +4,6 @@ import { ActionIcon } from '../components/ActionIcons';
 import { Logo } from '../components/Logo';
 import { HomeSkeleton } from '../components/PageSkeletons';
 import { usePageReady } from '../components/Skeleton';
-import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getAuthToken } from '../helpers/authStorage';
 
@@ -105,7 +104,6 @@ export default function HomePage() {
           }}>
             Open IDE
           </Link>
-          <ThemeSwitch />
         </div>
       </nav>
 

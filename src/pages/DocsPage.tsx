@@ -4,7 +4,6 @@ import { ActionIcon } from '../components/ActionIcons';
 import { Logo } from '../components/Logo';
 import { DocsSkeleton } from '../components/PageSkeletons';
 import { usePageReady } from '../components/Skeleton';
-import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useTheme } from '../context/ThemeContext';
 import { DIRECTIVES, INSTRUCTION_CATEGORIES, INSTRUCTIONS, REGISTERS, SYSCALLS } from '../helpers/mipsSyntax';
 import type { Theme } from '../theme/themes';
@@ -608,7 +607,6 @@ export default function DocsPage() {
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
         <Link to="/" className="ide-nav-link" style={{ textDecoration: 'none', color: theme.text, fontWeight: 800, fontSize: 18 }}><Logo size={22} /></Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <ThemeSwitch />
           <Link to="/ide" className="ide-sign-out" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '6px 14px', border: `1px solid ${theme.border}`, borderRadius: 8 }}>IDE</Link>
         </div>
       </nav>
