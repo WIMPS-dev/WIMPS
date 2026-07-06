@@ -56,6 +56,12 @@ const SIDEBAR_MAX_WIDTH = 960;
 const SIDEBAR_DEFAULT_WIDTH = 400;
 const DOCS_TAB_ID = 'wimps-docs';
 const DOCS_TAB_NAME = 'Documentation';
+const WELCOME_TAB_ID = 'wimps-welcome';
+const WELCOME_TAB_NAME = 'Welcome';
+const WELCOME_SEEN_KEY = 'ide_welcome_seen';
+
+const isEphemeralTab = (tab: Pick<CodeTab, 'kind'> | null | undefined): boolean =>
+  tab?.kind === 'docs' || tab?.kind === 'welcome';
 
 const buildInitialRegisters = (): RegisterValue[] =>
   ['$zero','$at','$v0','$v1','$a0','$a1','$a2','$a3',
@@ -190,7 +196,27 @@ function DocsTabPanel({ theme }: { theme: ReturnType<typeof useTheme>['theme'] }
       }}>
         <div>
           <div style={{ color: theme.text, fontSize: 14, fontWeight: 700 }}>Documentation</div>
-          <div style={{ color: theme.subText, fontSize: 12 }}>Read-only reference tab</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2, flexWrap: 'wrap' }}>
+            <div style={{ color: theme.subText, fontSize: 12 }}>Read-only reference tab</div>
+            <button
+              type="button"
+              onClick={() => window.open('/docs', '_blank', 'noopener,noreferrer')}
+              className="ide-docs-standalone-btn"
+              style={{
+                border: `1px solid ${theme.border}`,
+                backgroundColor: theme.bg,
+                color: theme.text,
+                borderRadius: 5,
+                padding: '3px 8px',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                lineHeight: 1.2,
+              }}
+            >
+              Open Docs Page
+            </button>
+          </div>
         </div>
         <span style={{
           color: '#2563eb',
@@ -203,6 +229,164 @@ function DocsTabPanel({ theme }: { theme: ReturnType<typeof useTheme>['theme'] }
         }}>Read only</span>
       </div>
       <DocsContent embedded />
+    </div>
+  );
+}
+
+function WelcomeTabPanel({
+  theme,
+  onNewFile,
+  onOpenDocs,
+}: {
+  theme: ReturnType<typeof useTheme>['theme'];
+  onNewFile: () => void;
+  onOpenDocs: () => void;
+}) {
+  const primaryActionBtnStyle: React.CSSProperties = {
+    border: '1px solid #2563eb',
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+    borderRadius: 8,
+    padding: '10px 12px',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: 'pointer',
+    textAlign: 'left',
+  };
+
+  const secondaryActionBtnStyle: React.CSSProperties = {
+    border: `1px solid ${theme.border}`,
+    backgroundColor: theme.bg,
+    color: theme.text,
+    borderRadius: 8,
+    padding: '9px 12px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    textAlign: 'left',
+  };
+
+  const cardStyle: React.CSSProperties = {
+    border: `1px solid ${theme.border}`,
+    backgroundColor: theme.card,
+    borderRadius: 12,
+    padding: 16,
+  };
+
+  const stepStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: '32px minmax(0, 1fr)',
+    gap: 12,
+    alignItems: 'start',
+  };
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', backgroundColor: theme.bg }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '12px 16px',
+        borderBottom: `1px solid ${theme.border}`,
+        backgroundColor: theme.card,
+      }}>
+        <div>
+          <div style={{ color: theme.text, fontSize: 14, fontWeight: 700 }}>Welcome</div>
+          <div style={{ color: theme.subText, fontSize: 12 }}>Start here</div>
+        </div>
+        <span style={{
+          color: '#2563eb',
+          backgroundColor: '#2563eb18',
+          border: '1px solid #2563eb55',
+          borderRadius: 999,
+          padding: '4px 10px',
+          fontSize: 11,
+          fontWeight: 700,
+        }}>Read only</span>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '24px 20px 32px' }}>
+        <div style={{ maxWidth: 920, margin: '0 auto', display: 'grid', gap: 16 }}>
+          <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.7fr) minmax(250px, 0.9fr)' }}>
+              <div style={{ padding: '26px 24px', borderRight: `1px solid ${theme.border}` }}>
+                <div style={{ color: '#2563eb', fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
+                  Getting Started
+                </div>
+                <div style={{ color: theme.text, fontSize: 32, fontWeight: 800, lineHeight: 1.05, maxWidth: 420 }}>
+                  Write, assemble, run.
+                </div>
+                <div style={{ color: theme.subText, fontSize: 14, lineHeight: 1.65, marginTop: 12, maxWidth: 560 }}>
+                  Create a file. Assemble it. Step through execution. Check registers, memory, bitmap output, and console input without leaving the editor.
+                </div>
+              </div>
+
+              <div style={{ padding: '20px 18px', backgroundColor: theme.bg }}>
+                <div style={{ color: theme.text, fontSize: 12, fontWeight: 700, marginBottom: 10 }}>Quick actions</div>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <button type="button" onClick={onNewFile} style={primaryActionBtnStyle}>Create New File</button>
+                  <button type="button" onClick={onOpenDocs} style={secondaryActionBtnStyle}>Open Docs Tab</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ ...cardStyle, padding: '18px 18px 20px' }}>
+            <div style={{ color: theme.text, fontSize: 16, fontWeight: 700, marginBottom: 14 }}>Typical flow</div>
+            <div style={{ display: 'grid', gap: 14 }}>
+              <div style={stepStyle}>
+                <div style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, fontSize: 12, fontWeight: 800, display: 'grid', placeItems: 'center' }}>1</div>
+                <div>
+                  <div style={{ color: theme.text, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Create or open a file</div>
+                  <div style={{ color: theme.subText, fontSize: 13, lineHeight: 1.6 }}>
+                    Click <strong style={{ color: theme.text }}>+</strong> in the tab bar for a blank file. Use Files when you want to reopen saved work.
+                  </div>
+                </div>
+              </div>
+              <div style={stepStyle}>
+                <div style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, fontSize: 12, fontWeight: 800, display: 'grid', placeItems: 'center' }}>2</div>
+                <div>
+                  <div style={{ color: theme.text, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Assemble the current file</div>
+                  <div style={{ color: theme.subText, fontSize: 13, lineHeight: 1.6 }}>
+                    Click <strong style={{ color: theme.text }}>Assemble</strong> or press <strong style={{ color: theme.text }}>Ctrl+Enter</strong>. WIMPS prints assembler errors in Console with line references.
+                  </div>
+                </div>
+              </div>
+              <div style={stepStyle}>
+                <div style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, fontSize: 12, fontWeight: 800, display: 'grid', placeItems: 'center' }}>3</div>
+                <div>
+                  <div style={{ color: theme.text, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Run, step, and inspect state</div>
+                  <div style={{ color: theme.subText, fontSize: 13, lineHeight: 1.6 }}>
+                    Use <strong style={{ color: theme.text }}>Run</strong>, <strong style={{ color: theme.text }}>Continue</strong>, <strong style={{ color: theme.text }}>Step</strong>, and <strong style={{ color: theme.text }}>Step Back</strong>. Watch the side panels and Console as state changes.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+            <div style={cardStyle}>
+              <div style={{ color: theme.text, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Inspect machine state</div>
+              <div style={{ color: theme.subText, fontSize: 12, lineHeight: 1.6 }}>
+                Open the left-rail tools for registers, memory, bitmap display, program view, and analysis.
+              </div>
+            </div>
+            <div style={cardStyle}>
+              <div style={{ color: theme.text, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Use the Console</div>
+              <div style={{ color: theme.subText, fontSize: 12, lineHeight: 1.6 }}>
+                Output appears below the editor. Input syscalls pause execution and wait there for your response.
+              </div>
+            </div>
+            <div style={cardStyle}>
+              <div style={{ color: theme.text, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Need syntax help?</div>
+              <div style={{ color: theme.subText, fontSize: 12, lineHeight: 1.6 }}>
+                Open Docs for examples, shortcuts, and simulator notes.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -462,7 +646,7 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
     const parsed = JSON.parse(raw);
     if (parsed && Array.isArray(parsed.tabs)) {
       if (parsed.tabs.length > 0) {
-        const tabs: CodeTab[] = parsed.tabs.map(normalizeTab);
+        const tabs: CodeTab[] = parsed.tabs.map(normalizeTab).filter((tab: CodeTab) => !isEphemeralTab(tab));
         if (tabs.length === 0) return { tabs: DEFAULT_TABS, activeTabId: DEFAULT_TABS[0].id };
         // activeTabId must reference a real (post-normalize) tab id, otherwise
         // activeCode never matches and the editor desyncs from React state.
@@ -474,7 +658,7 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
     }
     // legacy: plain array
     if (Array.isArray(parsed) && parsed.length > 0) {
-      const tabs = parsed.map(normalizeTab);
+      const tabs = parsed.map(normalizeTab).filter((tab: CodeTab) => !isEphemeralTab(tab));
       if (tabs.length === 0) return { tabs: DEFAULT_TABS, activeTabId: DEFAULT_TABS[0].id };
       return { tabs, activeTabId: tabs[0].id };
     }
@@ -485,10 +669,11 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
 
 function writeLocalState(tabs: CodeTab[], activeTabId: string) {
   try {
-    const persistedActiveTabId = tabs.some(tab => tab.id === activeTabId)
+    const persistedTabs = tabs.filter(tab => !isEphemeralTab(tab));
+    const persistedActiveTabId = persistedTabs.some(tab => tab.id === activeTabId)
       ? activeTabId
-      : (tabs[0]?.id ?? '');
-    localStorage.setItem('saved_tabs', JSON.stringify({ tabs, activeTabId: persistedActiveTabId }));
+      : (persistedTabs[0]?.id ?? '');
+    localStorage.setItem('saved_tabs', JSON.stringify({ tabs: persistedTabs, activeTabId: persistedActiveTabId }));
   } catch {}
 }
 
@@ -708,7 +893,8 @@ export default function IdePage() {
   const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId) ?? null, [tabs, activeTabId]);
   const activeCode = activeTab?.code ?? '';
   const isDocsTab = activeTab?.kind === 'docs';
-  const canEditActiveTab = activeTab != null && !isDocsTab;
+  const isWelcomeTab = activeTab?.kind === 'welcome';
+  const canEditActiveTab = activeTab != null && !isEphemeralTab(activeTab);
 
   const clearDerivedSimMetadata = () => {
     setInstrStats(null);
@@ -720,6 +906,14 @@ export default function IdePage() {
     name: DOCS_TAB_NAME,
     code: '',
     kind: 'docs',
+    isDirty: false,
+  }), []);
+
+  const makeWelcomeTab = useCallback((id = WELCOME_TAB_ID): CodeTab => ({
+    id,
+    name: WELCOME_TAB_NAME,
+    code: '',
+    kind: 'welcome',
     isDirty: false,
   }), []);
 
@@ -735,6 +929,19 @@ export default function IdePage() {
     setActiveTabId(docId);
     setOpenMenu(null);
   }, [makeDocsTab]);
+
+  const openWelcomeTab = useCallback((alwaysNew = false) => {
+    const welcomeId = alwaysNew ? `${WELCOME_TAB_ID}-${Date.now()}` : WELCOME_TAB_ID;
+    setTabs(prev => {
+      if (!alwaysNew) {
+        const existing = prev.find(tab => tab.kind === 'welcome' && tab.id === WELCOME_TAB_ID);
+        if (existing) return prev;
+      }
+      return [...prev, makeWelcomeTab(welcomeId)];
+    });
+    setActiveTabId(welcomeId);
+    setOpenMenu(null);
+  }, [makeWelcomeTab]);
 
   const setActiveCode = useCallback((code: string) => {
     if (!canEditActiveTab) return;
@@ -790,6 +997,14 @@ export default function IdePage() {
     if (!tabs.some(t => t.isDirty)) return;
     scheduleSave();
   }, [tabs, scheduleSave]);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(WELCOME_SEEN_KEY) === 'true') return;
+      localStorage.setItem(WELCOME_SEEN_KEY, 'true');
+      openWelcomeTab(false);
+    } catch {}
+  }, [openWelcomeTab]);
 
   // Flush on tab hidden (user switches away / closes browser tab)
   useEffect(() => {
@@ -1368,7 +1583,7 @@ export default function IdePage() {
         <>
           <div className="ide-titlebar" style={{ flexShrink: 0 }}>
             <div style={{ color: theme.text, fontWeight: 800, fontSize: 13, flexShrink: 0, display: 'flex', alignItems: 'center', userSelect: 'none' }}>
-              <Logo size={15} gap={4} textSize={11} />
+              <Logo size={15} gap={0} textSize={11} showText={false} />
             </div>
             <div ref={menuBarRef} className="ide-menubar" style={{ flexShrink: 0 }}>
               {([
@@ -1534,6 +1749,7 @@ export default function IdePage() {
                         </>
                       )}
                       {menu.key === 'help' && [
+                        { label: 'Open Welcome', action: () => openWelcomeTab(false), hotkey: undefined },
                         { label: 'Open Docs', action: () => openDocsTab(false), hotkey: undefined },
                         { label: 'Standalone Docs Page', action: () => window.open('/docs', '_blank', 'noopener,noreferrer'), hotkey: undefined },
                       ].map(item => (
@@ -1760,7 +1976,7 @@ export default function IdePage() {
             padding: '0 14px',
             gap: 10,
           }}>
-            <div style={{ color: theme.text, fontWeight: 800, fontSize: 17, flexShrink: 0 }}><Logo size={20} gap={5} textSize={12} /></div>
+            <div style={{ color: theme.text, fontWeight: 800, fontSize: 17, flexShrink: 0 }}><Logo size={20} gap={0} textSize={12} showText={false} /></div>
             <div style={{ flex: 1 }} />
             <div style={{ marginRight: 8 }}>
               <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} compact />
@@ -1970,8 +2186,6 @@ export default function IdePage() {
               </button>
             ))}
 
-            <div style={{ flex: 1 }} />
-
             <button
               type="button"
               className={`ide-activity-icon${activeSidebarView === 'tool-library' && sidebarOpen ? ' ide-activity-icon--active' : ''}`}
@@ -2046,7 +2260,7 @@ export default function IdePage() {
                         />
                       ) : (
                         <span
-                          onDoubleClick={e => tab.kind === 'docs' ? undefined : startRename(tab, e)}
+                          onDoubleClick={e => isEphemeralTab(tab) ? undefined : startRename(tab, e)}
                           style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 144 }}
                         >
                           {tab.name}{tab.isDirty ? ' •' : ''}
@@ -2069,10 +2283,26 @@ export default function IdePage() {
               </div>
               <button
                 type="button"
-                onClick={() => addTab()}
+                onClick={() => triggerExplorerAction('new-file')}
                 aria-label="New tab"
                 className="ide-new-tab"
-                style={{ background: 'none', borderTop: 'none', borderRight: 'none', borderBottom: 'none', color: theme.subText, cursor: 'pointer', fontSize: 15, flexShrink: 0 }}
+                style={{
+                  background: 'none',
+                  borderTop: 'none',
+                  borderRight: 'none',
+                  borderBottom: 'none',
+                  color: theme.subText,
+                  cursor: 'pointer',
+                  fontSize: 18,
+                  fontWeight: 600,
+                  flexShrink: 0,
+                  width: 35,
+                  height: 35,
+                  display: 'grid',
+                  placeItems: 'center',
+                  lineHeight: 1,
+                  padding: 0,
+                }}
               >
                 +
               </button>
@@ -2091,6 +2321,12 @@ export default function IdePage() {
                 </div>
               ) : isDocsTab ? (
                 <DocsTabPanel theme={theme} />
+              ) : isWelcomeTab ? (
+                <WelcomeTabPanel
+                  theme={theme}
+                  onNewFile={() => triggerExplorerAction('new-file')}
+                  onOpenDocs={() => openDocsTab(false)}
+                />
               ) : (
                 <>
                   {showPseudoPopups && <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} pseudoExpansionAddress={pseudoExpansionAddress} />}
@@ -2124,6 +2360,12 @@ export default function IdePage() {
             <>
               {isDocsTab ? (
                 <DocsTabPanel theme={theme} />
+              ) : isWelcomeTab ? (
+                <WelcomeTabPanel
+                  theme={theme}
+                  onNewFile={() => triggerExplorerAction('new-file')}
+                  onOpenDocs={() => openDocsTab(false)}
+                />
               ) : (
                 <>
                   {showPseudoPopups && <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} pseudoExpansionAddress={pseudoExpansionAddress} />}

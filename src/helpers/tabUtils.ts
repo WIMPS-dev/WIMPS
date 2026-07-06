@@ -1,12 +1,14 @@
 import type { CodeTab } from '../types';
 
+const isEphemeralTab = (item: any): boolean => item?.kind === 'docs' || item?.kind === 'welcome';
+
 export const normalizeTab = (item: any): CodeTab => ({
   ...item,
   id: item?.id ?? item?._id ?? String(Date.now() + Math.random()),
   _id: item?._id ? String(item._id) : undefined,
   name: item?.name || 'untitled.asm',
   code: item?.code || '',
-  kind: item?.kind === 'docs' ? 'docs' : 'code',
+  kind: item?.kind === 'docs' ? 'docs' : item?.kind === 'welcome' ? 'welcome' : 'code',
   isDirty: Boolean(item?.isDirty),
 });
 
@@ -14,13 +16,13 @@ export function readSavedFiles(): CodeTab[] {
   try {
     const raw = localStorage.getItem('saved_files');
     const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed)) return parsed.map(normalizeTab).filter(tab => tab.kind !== 'docs');
+    if (Array.isArray(parsed)) return parsed.map(normalizeTab).filter(tab => !isEphemeralTab(tab));
   } catch {}
   return [];
 }
 
 export function writeSavedFiles(files: CodeTab[]): void {
-  try { localStorage.setItem('saved_files', JSON.stringify(files.filter(file => file.kind !== 'docs'))); } catch {}
+  try { localStorage.setItem('saved_files', JSON.stringify(files.filter(file => !isEphemeralTab(file)))); } catch {}
 }
 
 // ---------------------------------------------------------------------------

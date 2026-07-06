@@ -2,7 +2,7 @@ export interface CodeTab {
   id: string;
   name: string;
   code: string;
-  kind?: 'code' | 'docs';
+  kind?: 'code' | 'docs' | 'welcome';
   isDirty?: boolean;
   _id?: string;
   path?: string;

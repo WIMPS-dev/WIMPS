@@ -4,9 +4,10 @@ interface LogoProps {
   size?: number;
   gap?: number;
   textSize?: number;
+  showText?: boolean;
 }
 
-export function Logo({ size = 22, gap = 7, textSize = 14 }: LogoProps) {
+export function Logo({ size = 22, gap = 7, textSize = 14, showText = true }: LogoProps) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap }}>
       <svg
@@ -29,7 +30,7 @@ export function Logo({ size = 22, gap = 7, textSize = 14 }: LogoProps) {
         <rect x="18" y="23" width="3" height="5" rx="1" fill="#60a5fa"/>
         <rect x="13" y="13" width="6" height="6" rx="1" fill="white" opacity="0.92"/>
       </svg>
-      <span style={{ fontSize: textSize, lineHeight: 1, fontWeight: 800 }}>WIMPS</span>
+      {showText ? <span style={{ fontSize: textSize, lineHeight: 1, fontWeight: 800 }}>WIMPS</span> : null}
     </span>
   );
 }

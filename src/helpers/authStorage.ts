@@ -56,7 +56,7 @@ export async function migrateGuestFiles(token: string, apiBase: string): Promise
     // Skip empty files (default blank file1 created on logout) — nothing worth migrating.
     const openIds = new Set(openTabs.map((t: any) => t.id));
     let guestFiles = [...openTabs, ...savedFiles.filter((f: any) => !openIds.has(f.id))]
-      .filter((f: any) => f?.kind !== 'docs')
+      .filter((f: any) => f?.kind !== 'docs' && f?.kind !== 'welcome')
       .filter((f: any) => typeof f.code === 'string' && f.code.trim().length > 0);
 
     if (guestFiles.length === 0) return;
