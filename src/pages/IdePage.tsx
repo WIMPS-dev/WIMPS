@@ -1,26 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ActionIcon } from '../components/ActionIcons';
-import { FileExplorer } from '../components/FileExplorer';
 import { BitmapDisplay } from '../components/BitmapDisplay';
+import type { CodeEditorHandle } from '../components/CodeEditor';
 import { CodeEditor } from '../components/CodeEditor';
+import { FileExplorer } from '../components/FileExplorer';
 import { Logo } from '../components/Logo';
 import { PerformancePanel, ProgramPanel } from '../components/MarsParityPanels';
 import { MemoryView } from '../components/MemoryView';
 import { IdeSkeleton } from '../components/PageSkeletons';
-import { DocsContent } from './DocsPage';
 import { RegisterPanel, RegisterValue } from '../components/RegisterPanel';
-import { SaveAction, SaveStatus } from '../components/SaveStatus';
+import { SaveAction } from '../components/SaveStatus';
 import { usePageReady } from '../components/Skeleton';
 import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getApiHeaders, getAuthToken, uniquifyName } from '../helpers/authStorage';
+import { normalizeTab, readSavedFiles, writeSavedFiles } from '../helpers/tabUtils';
 import { useAutosave } from '../hooks/useAutosave';
 import type { InstrStats, PseudoExpansionInfo, ValueFormat } from '../simulator/useMips';
-import { assemble, continueSim, feedInput, formatWordValue, getCurrentPseudoExpansionRows, getInstructionStats, getPseudoExpansion, getSourceLineForAddress, getState, resetSim, runSim, runSimWithLimit, runWithLimit, setMemoryWord, setRegisterValue, stepBackSim, stepSim } from '../simulator/useMips';
-import type { CodeTab } from '../types';
-import { normalizeTab, readSavedFiles, writeSavedFiles } from '../helpers/tabUtils';
-import type { CodeEditorHandle } from '../components/CodeEditor';
+import { assemble, continueSim, feedInput, getCurrentPseudoExpansionRows, getInstructionStats, getPseudoExpansion, getSourceLineForAddress, getState, resetSim, runSim, runSimWithLimit, runWithLimit, setMemoryWord, setRegisterValue, stepBackSim, stepSim } from '../simulator/useMips';
 import { getIdeChromeVars } from '../theme/ideChrome';
+import type { CodeTab } from '../types';
+import { DocsContent } from './DocsPage';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
@@ -36,6 +36,15 @@ type ToolDefinition = {
   icon: string;
   defaultEnabled: boolean;
   description: string;
+};
+
+type CommandEntry = {
+  label: string;
+  keywords: string;
+  section: string;
+  disabled: boolean;
+  action: () => void;
+  hotkey?: string;
 };
 
 const TOOL_DEFINITIONS: ToolDefinition[] = [
@@ -738,11 +747,14 @@ export default function IdePage() {
   const [showPseudoPopups, setShowPseudoPopups] = useState<boolean>(() => {
     try { const v = localStorage.getItem('show_pseudo_popups'); return v === null ? true : v === 'true'; } catch { return true; }
   });
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const settingsRef = useRef<HTMLDivElement>(null);
   const [openMenu, setOpenMenu] = useState<'file' | 'edit' | 'run' | 'help' | 'settings' | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
   const [explorerAction, setExplorerAction] = useState<{ type: 'new-file' | 'new-folder'; nonce: number } | null>(null);
+  const [commandQuery, setCommandQuery] = useState('');
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandSelectedIndex, setCommandSelectedIndex] = useState(0);
+  const commandInputRef = useRef<HTMLInputElement>(null);
+  const commandRef = useRef<HTMLDivElement>(null);
 
   const prevRegistersRef = useRef<RegisterValue[]>([]);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -860,17 +872,6 @@ export default function IdePage() {
   useEffect(() => { try { localStorage.setItem('editor_tab_size',    String(tabSize));            } catch {} }, [tabSize]);
   useEffect(() => { try { localStorage.setItem('show_hotkeys',       String(showHotkeys));        } catch {} }, [showHotkeys]);
   useEffect(() => { try { localStorage.setItem('show_pseudo_popups', String(showPseudoPopups));   } catch {} }, [showPseudoPopups]);
-
-  useEffect(() => {
-    if (!settingsOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
-        setSettingsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [settingsOpen]);
 
   useEffect(() => {
     if (!openMenu) return;
@@ -1550,8 +1551,6 @@ export default function IdePage() {
       case 'performance':
         return <SidebarPanelFrame><PerformancePanel tick={simTick} theme={theme} stats={instrStats} /></SidebarPanelFrame>;
     }
-    const _exhaustive: never = toolId;
-    return _exhaustive;
   };
 
   // File toolbar: Save + import/export
@@ -1559,18 +1558,117 @@ export default function IdePage() {
   const vDragHandle = (
     <div className="ide-editor-handle" onMouseDown={startEditorVDrag} />
   );
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+
+  const focusCommandInput = useCallback(() => {
+    setCommandOpen(true);
+    setCommandSelectedIndex(0);
+    setOpenMenu(null);
+    window.requestAnimationFrame(() => commandInputRef.current?.focus());
+  }, []);
+
+  const commandEntries = useMemo(() => {
+    const base: CommandEntry[] = [
+      { label: 'New File', keywords: 'create file tab explorer', section: 'File', disabled: false, action: () => triggerExplorerAction('new-file') },
+      { label: 'New Folder', keywords: 'create folder explorer', section: 'File', disabled: false, action: () => triggerExplorerAction('new-folder') },
+      { label: 'Import File', keywords: 'upload import file', section: 'File', disabled: false, action: handleUpload },
+      { label: 'Export Active File', keywords: 'download export save file', section: 'File', disabled: !activeTab || isDocsTab || isWelcomeTab, action: handleDownload },
+      { label: 'Close Tab', keywords: 'close tab', section: 'File', disabled: tabs.length <= 1 || !activeTab, action: closeActiveTab, hotkey: isMac ? '⌘W' : 'Ctrl+W' },
+      { label: 'Focus Editor', keywords: 'editor cursor focus', section: 'Edit', disabled: !canEditActiveTab, action: focusEditor },
+      { label: 'Find', keywords: 'search find text editor', section: 'Edit', disabled: !canEditActiveTab, action: () => codeEditorRef.current?.find(), hotkey: isMac ? '⌘F' : 'Ctrl+F' },
+      { label: 'Replace', keywords: 'search replace editor', section: 'Edit', disabled: !canEditActiveTab, action: () => codeEditorRef.current?.replace(), hotkey: isMac ? '⌘H' : 'Ctrl+H' },
+      { label: 'Go to Line', keywords: 'line goto jump editor', section: 'Edit', disabled: !canEditActiveTab, action: () => codeEditorRef.current?.gotoLine(), hotkey: isMac ? '⌘G' : 'Ctrl+G' },
+      { label: sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar', keywords: 'sidebar files tools', section: 'View', disabled: false, action: () => setSidebarOpen(v => !v), hotkey: isMac ? '⌘B' : 'Ctrl+B' },
+      { label: 'Assemble', keywords: 'compile build assemble run', section: 'Run', disabled: !canEditActiveTab || isWaiting, action: handleAssemble, hotkey: isMac ? '⌘↵' : 'Ctrl+Enter' },
+      { label: runLabel, keywords: 'run continue execute', section: 'Run', disabled: !isAssembled || isTerminated, action: runLabel === 'Continue' ? handleContinue : handleRun, hotkey: runLabel === 'Continue' ? 'F8' : 'F5' },
+      { label: 'Step', keywords: 'debug step', section: 'Run', disabled: !isAssembled || isTerminated, action: handleStep, hotkey: 'F10' },
+      { label: 'Step Back', keywords: 'debug step back reverse', section: 'Run', disabled: !isAssembled || !canStepBack, action: handleStepBack, hotkey: 'F9' },
+      { label: 'Reset', keywords: 'stop reset program', section: 'Run', disabled: !isAssembled, action: handleReset, hotkey: 'Esc' },
+      { label: 'Open Welcome', keywords: 'welcome getting started help', section: 'Help', disabled: false, action: () => openWelcomeTab(false) },
+      { label: 'Open Docs', keywords: 'documentation docs help', section: 'Help', disabled: false, action: () => openDocsTab(false) },
+      { label: 'Standalone Docs Page', keywords: 'documentation docs browser page', section: 'Help', disabled: false, action: () => window.open('/docs', '_blank', 'noopener,noreferrer') },
+      { label: isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme', keywords: 'theme settings appearance dark light', section: 'Settings', disabled: false, action: toggleTheme },
+      { label: showPseudoPopups ? 'Hide Pseudo Popups' : 'Show Pseudo Popups', keywords: 'pseudo popups settings', section: 'Settings', disabled: false, action: () => setShowPseudoPopups(v => !v) },
+      { label: showHotkeys ? 'Hide Hotkey Labels' : 'Show Hotkey Labels', keywords: 'hotkeys labels settings', section: 'Settings', disabled: false, action: () => setShowHotkeys(v => !v) },
+      { label: `Set Tab Size: ${tabSize === 2 ? 4 : 2}`, keywords: 'tab size settings indent', section: 'Settings', disabled: false, action: () => setTabSize(tabSize === 2 ? 4 : 2) },
+      { label: `Reset Font Size (${fontSize}px)`, keywords: 'font size settings editor', section: 'Settings', disabled: false, action: () => setFontSize(15) },
+    ];
+    const toolEntries: CommandEntry[] = TOOL_DEFINITIONS.map(tool => {
+      const enabled = enabledToolIds.includes(tool.id);
+      return {
+        label: `${enabled ? 'Hide' : 'Show'} ${tool.label}`,
+        keywords: `${tool.label} tool panel sidebar`,
+        section: 'Tools',
+        disabled: false,
+        action: () => toggleToolEnabled(tool.id),
+      };
+    });
+    return [...base, ...toolEntries];
+  }, [
+    activeTab, canEditActiveTab, canStepBack, closeActiveTab, enabledToolIds, focusEditor, fontSize,
+    handleAssemble, handleContinue, handleDownload, handleReset, handleRun, handleStep, handleStepBack,
+    handleUpload, isAssembled, isDark, isDocsTab, isTerminated, isWaiting, isWelcomeTab, openDocsTab,
+    openWelcomeTab, runLabel, showHotkeys, showPseudoPopups, sidebarOpen, tabSize, tabs.length,
+    toggleTheme, toggleToolEnabled,
+  ]);
+
+  const filteredCommands = useMemo(() => {
+    const query = commandQuery.trim().toLowerCase();
+    if (!query) return commandEntries;
+    return commandEntries.filter(entry =>
+      entry.label.toLowerCase().includes(query) ||
+      entry.section.toLowerCase().includes(query) ||
+      entry.keywords.toLowerCase().includes(query),
+    );
+  }, [commandEntries, commandQuery]);
+
+  useEffect(() => {
+    setCommandSelectedIndex(prev => {
+      if (filteredCommands.length === 0) return 0;
+      return Math.min(prev, filteredCommands.length - 1);
+    });
+  }, [filteredCommands]);
+
+  useEffect(() => {
+    const handlePointer = (e: MouseEvent) => {
+      if (commandRef.current && !commandRef.current.contains(e.target as Node)) {
+        setCommandOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handlePointer);
+    return () => document.removeEventListener('mousedown', handlePointer);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        focusCommandInput();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [focusCommandInput]);
+
+  const runCommand = useCallback((entry: CommandEntry | undefined) => {
+    if (!entry || entry.disabled) return;
+    entry.action();
+    setCommandQuery('');
+    setCommandOpen(false);
+  }, [commandEntries]);
 
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
   if (!ready) return <IdeSkeleton theme={theme} />;
 
-  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
   const saveHotkey = isMac ? '⌘S' : 'Ctrl+S';
   const assembleKey = isMac ? '⌘ Enter' : 'Ctrl+Enter';
   const toolBarDivider = <div style={{ width: 1, height: 14, backgroundColor: theme.border, flexShrink: 0 }} />;
   const statusLeftItems = [activeTab?.name ?? 'No file', isDocsTab ? 'Docs' : 'MIPS'];
   const statusRightItems = [STATUS_CONFIG[simStatus].label, cursorLine ? `Ln ${cursorLine}` : null].filter(Boolean) as string[];
+  const menuItemPadding = '2px 24px';
+  const menuDivider = <div style={{ height: 1, backgroundColor: theme.border, margin: '3px 0' }} />;
 
   return (
     <div style={{
@@ -1602,7 +1700,7 @@ export default function IdePage() {
                       padding: '0 8px',
                       borderRadius: openMenu === menu.key ? '4px 4px 0 0' : 4,
                       border: `1px solid ${openMenu === menu.key ? theme.border : 'transparent'}`,
-                      borderBottomColor: openMenu === menu.key ? theme.card : 'transparent',
+                      borderBottomColor: openMenu === menu.key ? 'var(--ide-commandbar-bg)' : 'transparent',
                       backgroundColor: openMenu === menu.key ? 'var(--ide-menu-active)' : 'transparent',
                       color: theme.text,
                       cursor: 'pointer',
@@ -1621,50 +1719,111 @@ export default function IdePage() {
                       top: 'calc(100% - 1px)',
                       left: -1,
                       minWidth: menu.key === 'run' || menu.key === 'settings' ? 228 : 196,
-                      backgroundColor: theme.card,
+                      backgroundColor: 'var(--ide-commandbar-bg)',
                       border: `1px solid ${theme.border}`,
-                      borderTop: `1px solid ${theme.card}`,
+                      borderTop: '1px solid var(--ide-commandbar-bg)',
                       borderRadius: '0 6px 6px 6px',
                       boxShadow: isDark ? '0 8px 18px rgba(0,0,0,0.22)' : '0 10px 18px rgba(15,23,42,0.12)',
-                      padding: '4px 0',
+                      padding: '4px 0 0',
                       zIndex: 1000,
                     }}>
-                      {menu.key === 'file' && [
-                        { label: 'New File', action: () => triggerExplorerAction('new-file'), disabled: false },
-                        { label: 'New Folder', action: () => triggerExplorerAction('new-folder'), disabled: false },
-                        { label: 'Import File...', action: handleUpload, disabled: false },
-                        { label: 'Export Active File', action: handleDownload, disabled: !activeTab || isDocsTab },
-                        { label: 'Close Active Tab', action: closeActiveTab, disabled: tabs.length <= 1 || !activeTab, hotkey: isMac ? '⌘W' : 'Ctrl+W' },
-                      ].map(item => (
-                        <button
-                          key={item.label}
-                          type="button"
-                          className="ide-menu-item"
-                          disabled={item.disabled}
-                          onClick={() => {
-                            if (item.disabled) return;
-                            item.action();
-                            setOpenMenu(null);
-                          }}
-                          style={{
-                            width: '100%',
-                            border: 'none',
-                            background: 'transparent',
-                            color: item.disabled ? theme.subText : theme.text,
-                            cursor: item.disabled ? 'not-allowed' : 'pointer',
-                            textAlign: 'left',
-                            borderRadius: 0,
-                            padding: '5px 14px',
-                            fontSize: 13,
-                            opacity: item.disabled ? 0.45 : 1,
-                          }}
-                        >
-                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
-                            <span>{item.label}</span>
-                            {item.hotkey ? <span style={{ color: theme.subText, fontSize: 12 }}>{item.hotkey}</span> : null}
-                          </span>
-                        </button>
-                      ))}
+                      {menu.key === 'file' && (
+                        <>
+                          {[
+                            { label: 'New File', action: () => triggerExplorerAction('new-file'), disabled: false },
+                            { label: 'New Folder', action: () => triggerExplorerAction('new-folder'), disabled: false },
+                          ].map(item => (
+                            <button
+                              key={item.label}
+                              type="button"
+                              className="ide-menu-item"
+                              disabled={item.disabled}
+                              onClick={() => {
+                                if (item.disabled) return;
+                                item.action();
+                                setOpenMenu(null);
+                              }}
+                              style={{
+                                width: '100%',
+                                border: 'none',
+                                background: 'transparent',
+                                color: item.disabled ? theme.subText : theme.text,
+                                cursor: item.disabled ? 'not-allowed' : 'pointer',
+                                textAlign: 'left',
+                                borderRadius: 0,
+                                padding: menuItemPadding,
+                                fontSize: 13,
+                                opacity: item.disabled ? 0.45 : 1,
+                              }}
+                            >
+                              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
+                                <span>{item.label}</span>
+                              </span>
+                            </button>
+                          ))}
+                          {menuDivider}
+                          {[
+                            { label: 'Import File...', action: handleUpload, disabled: false },
+                            { label: 'Export Active File', action: handleDownload, disabled: !activeTab || isDocsTab },
+                          ].map(item => (
+                            <button
+                              key={item.label}
+                              type="button"
+                              className="ide-menu-item"
+                              disabled={item.disabled}
+                              onClick={() => {
+                                if (item.disabled) return;
+                                item.action();
+                                setOpenMenu(null);
+                              }}
+                              style={{
+                                width: '100%',
+                                border: 'none',
+                                background: 'transparent',
+                                color: item.disabled ? theme.subText : theme.text,
+                                cursor: item.disabled ? 'not-allowed' : 'pointer',
+                                textAlign: 'left',
+                                borderRadius: 0,
+                                padding: menuItemPadding,
+                                fontSize: 13,
+                                opacity: item.disabled ? 0.45 : 1,
+                              }}
+                            >
+                              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
+                                <span>{item.label}</span>
+                              </span>
+                            </button>
+                          ))}
+                          {menuDivider}
+                          <button
+                            type="button"
+                            className="ide-menu-item"
+                            disabled={tabs.length <= 1 || !activeTab}
+                            onClick={() => {
+                              if (tabs.length <= 1 || !activeTab) return;
+                              closeActiveTab();
+                              setOpenMenu(null);
+                            }}
+                            style={{
+                              width: '100%',
+                              border: 'none',
+                              background: 'transparent',
+                              color: tabs.length <= 1 || !activeTab ? theme.subText : theme.text,
+                              cursor: tabs.length <= 1 || !activeTab ? 'not-allowed' : 'pointer',
+                              textAlign: 'left',
+                              borderRadius: 0,
+                              padding: menuItemPadding,
+                              fontSize: 13,
+                              opacity: tabs.length <= 1 || !activeTab ? 0.45 : 1,
+                            }}
+                          >
+                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
+                              <span>Close Tab</span>
+                              <span style={{ color: theme.subText, fontSize: 12 }}>{isMac ? '⌘W' : 'Ctrl+W'}</span>
+                            </span>
+                          </button>
+                        </>
+                      )}
                       {menu.key === 'edit' && [
                         { label: 'Focus Editor', action: focusEditor, disabled: !canEditActiveTab },
                         { label: 'Find', action: () => codeEditorRef.current?.find(), disabled: !canEditActiveTab, hotkey: isMac ? '⌘F' : 'Ctrl+F' },
@@ -1690,7 +1849,7 @@ export default function IdePage() {
                             cursor: item.disabled ? 'not-allowed' : 'pointer',
                             textAlign: 'left',
                             borderRadius: 0,
-                            padding: '5px 14px',
+                            padding: menuItemPadding,
                             fontSize: 13,
                             opacity: item.disabled ? 0.45 : 1,
                           }}
@@ -1728,7 +1887,7 @@ export default function IdePage() {
                                 cursor: item.disabled ? 'not-allowed' : 'pointer',
                                 textAlign: 'left',
                                 borderRadius: 0,
-                                padding: '5px 14px',
+                                padding: menuItemPadding,
                                 fontSize: 13,
                                 opacity: item.disabled ? 0.45 : 1,
                               }}
@@ -1769,7 +1928,7 @@ export default function IdePage() {
                             cursor: 'pointer',
                             textAlign: 'left',
                             borderRadius: 0,
-                            padding: '5px 14px',
+                            padding: menuItemPadding,
                             fontSize: 13,
                           }}
                         >
@@ -1780,7 +1939,7 @@ export default function IdePage() {
                         </button>
                       ))}
                       {menu.key === 'settings' && (
-                        <div style={{ padding: '6px 10px' }}>
+                        <div style={{ padding: '4px 10px' }}>
                           <SettingsPanel
                             theme={theme}
                             isDark={isDark}
@@ -1799,68 +1958,148 @@ export default function IdePage() {
                           />
                         </div>
                       )}
+                      <div style={{ height: 4 }} />
                     </div>
                   )}
                 </div>
               ))}
             </div>
-            <div style={{ flex: 1 }} />
-            <div ref={settingsRef} style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, position: 'relative' }}>
-              <button
-                type="button"
-                onClick={() => setSettingsOpen(o => !o)}
-                title="Settings"
-                aria-label="Settings"
-                aria-expanded={settingsOpen}
-                className="ide-settings-btn"
+            <div style={{ flex: 1, minWidth: 0 }} />
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 'min(600px, 38vw, calc(100vw - 360px))',
+                maxWidth: 600,
+                minWidth: 260,
+                pointerEvents: 'none',
+              }}
+            >
+              <div
+                ref={commandRef}
                 style={{
-                  background: settingsOpen ? '#2563eb22' : 'var(--ide-control-bg)',
-                  border: settingsOpen ? '1px solid #2563eb' : '1px solid var(--ide-control-border)',
-                  cursor: 'pointer',
-                  padding: '5px 10px',
-                  borderRadius: 6,
-                  color: settingsOpen ? '#2563eb' : theme.text,
+                  width: '100%',
                   display: 'flex',
-                  alignItems: 'center',
+                  flexDirection: 'column',
+                  position: 'relative',
                   justifyContent: 'center',
-                  gap: 6,
-                  transition: 'border-color 0.15s, color 0.15s, background 0.15s',
+                  padding: '0',
+                  pointerEvents: 'auto',
                 }}
               >
-                <ActionIcon name="Settings" size={14} />
-                <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1 }}>Settings</span>
-              </button>
-              {settingsOpen && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: 4,
-                  backgroundColor: theme.card,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: 8,
-                  padding: '8px 10px',
-                  width: 244,
-                  zIndex: 1000,
-                }}>
-                  <SettingsPanel
-                    theme={theme}
-                    isDark={isDark}
-                    toggleTheme={toggleTheme}
-                    fontSize={fontSize}
-                    setFontSize={setFontSize}
-                    tabSize={tabSize}
-                    setTabSize={setTabSize}
-                    showPseudoPopups={showPseudoPopups}
-                    setShowPseudoPopups={setShowPseudoPopups}
-                    showHotkeys={showHotkeys}
-                    setShowHotkeys={setShowHotkeys}
-                    runSpeed={runSpeed}
-                    setRunSpeed={setRunSpeed}
-                    isTerminated={isTerminated}
+                <div
+                  style={{
+                    width: '100%',
+                    height: 22,
+                    border: `1px solid ${commandOpen ? '#2563eb' : theme.border}`,
+                    backgroundColor: commandOpen ? 'var(--ide-commandbar-bg)' : 'var(--ide-titlebar-bg)',
+                    borderRadius: 7,
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 8px',
+                    gap: 0,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', margin: '0 3px' }}>
+                    <ActionIcon name="Search" size={14} />
+                  </div>
+                  <input
+                    ref={commandInputRef}
+                    value={commandQuery}
+                    onFocus={() => {
+                      setCommandOpen(true);
+                      setCommandSelectedIndex(0);
+                    }}
+                    onChange={e => {
+                      setCommandQuery(e.target.value);
+                      setCommandOpen(true);
+                      setCommandSelectedIndex(0);
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setCommandOpen(true);
+                        setCommandSelectedIndex(prev => filteredCommands.length === 0 ? 0 : Math.min(prev + 1, filteredCommands.length - 1));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setCommandSelectedIndex(prev => Math.max(prev - 1, 0));
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        runCommand(filteredCommands[commandSelectedIndex]);
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        if (commandQuery) setCommandQuery('');
+                        else setCommandOpen(false);
+                      }
+                    }}
+                    placeholder="Search actions and settings"
+                    className="ide-command-search"
+                    aria-label="Search actions and settings"
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      border: 'none',
+                      outline: 'none',
+                      background: 'transparent',
+                      color: theme.text,
+                      fontSize: 12,
+                    }}
                   />
+                  <span style={{ color: theme.subText, fontSize: 11, flexShrink: 0 }}>{isMac ? '⌘⇧P' : 'Ctrl+Shift+P'}</span>
                 </div>
-              )}
+                {commandOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 4px)',
+                      left: 0,
+                      right: 0,
+                      backgroundColor: 'var(--ide-commandbar-bg)',
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: 10,
+                      boxShadow: isDark ? '0 10px 24px rgba(0,0,0,0.28)' : '0 12px 24px rgba(15,23,42,0.12)',
+                      overflow: 'hidden',
+                      zIndex: 2550,
+                    }}
+                  >
+                    <div style={{ maxHeight: 360, overflowY: 'auto', padding: filteredCommands.length === 0 ? 0 : 0 }}>
+                      {filteredCommands.length === 0 ? (
+                        <div style={{ padding: '12px 14px', color: theme.subText, fontSize: 12 }}>
+                          No matching actions.
+                        </div>
+                      ) : filteredCommands.map((entry, index) => (
+                        <button
+                          key={`${entry.section}-${entry.label}`}
+                          type="button"
+                          disabled={entry.disabled}
+                          onMouseEnter={() => setCommandSelectedIndex(index)}
+                          onClick={() => runCommand(entry)}
+                      style={{
+                        width: '100%',
+                        border: 'none',
+                        background: index === commandSelectedIndex ? (isDark ? '#1e293b' : '#eff6ff') : 'transparent',
+                        color: entry.disabled ? theme.subText : theme.text,
+                            cursor: entry.disabled ? 'not-allowed' : 'pointer',
+                            textAlign: 'left',
+                            borderRadius: 8,
+                            padding: menuItemPadding,
+                            minHeight: 22,
+                            opacity: entry.disabled ? 0.5 : 1,
+                          }}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%' }}>
+                            <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>{entry.label}</span>
+                            {entry.hotkey ? (
+                              <span style={{ display: 'block', fontSize: 11, color: theme.subText, textAlign: 'right', flexShrink: 0, opacity: 0.9 }}>{entry.hotkey}</span>
+                            ) : <span />}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1942,7 +2181,6 @@ export default function IdePage() {
               </button>
             ))}
             {toolBarDivider}
-            <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} compact />
             <div style={{ flex: 1 }} />
             <div
               className="sim-status-pill"
@@ -1978,9 +2216,6 @@ export default function IdePage() {
           }}>
             <div style={{ color: theme.text, fontWeight: 800, fontSize: 17, flexShrink: 0 }}><Logo size={20} gap={0} textSize={12} showText={false} /></div>
             <div style={{ flex: 1 }} />
-            <div style={{ marginRight: 8 }}>
-              <SaveStatus status={saveStatus} lastSavedAt={lastSavedAt} onRetry={() => flushNow()} compact />
-            </div>
             <SaveAction onClick={handleSaveLocal} hotkey={saveHotkey} showHotkeys={showHotkeys} />
             <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Docs</Link>
             {/* TEMP: login disabled

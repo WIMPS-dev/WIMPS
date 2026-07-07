@@ -416,6 +416,9 @@ input, textarea {
   padding: 0 10px;
   background: var(--ide-titlebar-bg, #181f2d);
   border-bottom: 1px solid var(--ide-border);
+  position: relative;
+  z-index: 20;
+  overflow: visible;
 }
 
 .ide-menubar {
