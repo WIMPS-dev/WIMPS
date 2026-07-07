@@ -1325,13 +1325,13 @@ export default function IdePage() {
 
   const closeTab = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (tabs.length === 1) return;
     // Flush before removing so the tab's final content is saved
     flushNow();
     const idx = tabs.findIndex(t => t.id === id);
+    if (idx === -1) return;
     const next = tabs[idx === 0 ? 1 : idx - 1];
     setTabs(prev => prev.filter(t => t.id !== id));
-    if (activeTabId === id) setActiveTabId(next.id);
+    if (activeTabId === id) setActiveTabId(next?.id ?? '');
   };
 
   const startRename = (tab: CodeTab, e: React.MouseEvent) => {
@@ -1396,12 +1396,12 @@ export default function IdePage() {
 
   const closeActiveTab = useCallback(() => {
     if (!activeTab) return;
-    if (tabs.length === 1) return;
     flushNow();
     const idx = tabs.findIndex(t => t.id === activeTab.id);
+    if (idx === -1) return;
     const next = tabs[idx === 0 ? 1 : idx - 1];
     setTabs(prev => prev.filter(t => t.id !== activeTab.id));
-    setActiveTabId(next.id);
+    setActiveTabId(next?.id ?? '');
     setOpenMenu(null);
   }, [activeTab, flushNow, tabs]);
 
@@ -1573,7 +1573,7 @@ export default function IdePage() {
       { label: 'New Folder', keywords: 'create folder explorer', section: 'File', disabled: false, action: () => triggerExplorerAction('new-folder') },
       { label: 'Import File', keywords: 'upload import file', section: 'File', disabled: false, action: handleUpload },
       { label: 'Export Active File', keywords: 'download export save file', section: 'File', disabled: !activeTab || isDocsTab || isWelcomeTab, action: handleDownload },
-      { label: 'Close Tab', keywords: 'close tab', section: 'File', disabled: tabs.length <= 1 || !activeTab, action: closeActiveTab, hotkey: isMac ? '⌘W' : 'Ctrl+W' },
+      { label: 'Close Tab', keywords: 'close tab', section: 'File', disabled: !activeTab, action: closeActiveTab, hotkey: isMac ? '⌘W' : 'Ctrl+W' },
       { label: 'Focus Editor', keywords: 'editor cursor focus', section: 'Edit', disabled: !canEditActiveTab, action: focusEditor },
       { label: 'Find', keywords: 'search find text editor', section: 'Edit', disabled: !canEditActiveTab, action: () => codeEditorRef.current?.find(), hotkey: isMac ? '⌘F' : 'Ctrl+F' },
       { label: 'Replace', keywords: 'search replace editor', section: 'Edit', disabled: !canEditActiveTab, action: () => codeEditorRef.current?.replace(), hotkey: isMac ? '⌘H' : 'Ctrl+H' },
@@ -1802,9 +1802,9 @@ export default function IdePage() {
                           <button
                             type="button"
                             className="ide-menu-item"
-                            disabled={tabs.length <= 1 || !activeTab}
+                            disabled={!activeTab}
                             onClick={() => {
-                              if (tabs.length <= 1 || !activeTab) return;
+                              if (!activeTab) return;
                               closeActiveTab();
                               setOpenMenu(null);
                             }}
@@ -1812,13 +1812,13 @@ export default function IdePage() {
                               width: '100%',
                               border: 'none',
                               background: 'transparent',
-                              color: tabs.length <= 1 || !activeTab ? theme.subText : theme.text,
-                              cursor: tabs.length <= 1 || !activeTab ? 'not-allowed' : 'pointer',
+                              color: !activeTab ? theme.subText : theme.text,
+                              cursor: !activeTab ? 'not-allowed' : 'pointer',
                               textAlign: 'left',
                               borderRadius: 0,
                               padding: menuItemPadding,
                               fontSize: 13,
-                              opacity: tabs.length <= 1 || !activeTab ? 0.45 : 1,
+                              opacity: !activeTab ? 0.45 : 1,
                             }}
                           >
                             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
@@ -2410,17 +2410,15 @@ export default function IdePage() {
                           {tab.name}{tab.isDirty ? ' •' : ''}
                         </span>
                       )}
-                      {tabs.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={e => closeTab(tab.id, e)}
-                          aria-label={`Close ${tab.name}`}
-                          className="ide-tab-close"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}
-                        >
-                          ×
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={e => closeTab(tab.id, e)}
+                        aria-label={`Close ${tab.name}`}
+                        className="ide-tab-close"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.subText, fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}
+                      >
+                        ×
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -2564,7 +2562,7 @@ export default function IdePage() {
                   </svg>
                   <div style={{ fontSize: 13, opacity: 0.6 }}>No file open</div>
                   <div style={{ fontSize: 12, opacity: 0.45, textAlign: 'center', lineHeight: '18px' }}>
-                    Create a new file or open one<br />from the Files panel
+                    Create a new file or open one<br />from the File Explorer
                   </div>
                 </div>
               ) : isDocsTab ? (
