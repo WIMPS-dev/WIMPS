@@ -1664,11 +1664,15 @@ export default function IdePage() {
 
   const saveHotkey = isMac ? '⌘S' : 'Ctrl+S';
   const assembleKey = isMac ? '⌘ Enter' : 'Ctrl+Enter';
-  const toolBarDivider = <div style={{ width: 1, height: 14, backgroundColor: theme.border, flexShrink: 0 }} />;
   const statusLeftItems = [activeTab?.name ?? 'No file', isDocsTab ? 'Docs' : 'MIPS'];
   const statusRightItems = [STATUS_CONFIG[simStatus].label, cursorLine ? `Ln ${cursorLine}` : null].filter(Boolean) as string[];
   const menuItemPadding = '2px 24px';
   const menuDivider = <div style={{ height: 1, backgroundColor: theme.border, margin: '3px 0' }} />;
+  const editorRunActions = [
+    { label: 'Assemble', onPress: handleAssemble, enabled: canEditActiveTab && !isWaiting, title: `Assemble (${assembleKey})`, hotkey: assembleKey },
+    ...primaryDebugActions,
+  ];
+  const showFloatingDebugToolbar = isAssembled && !isDocsTab && !isWelcomeTab;
 
   return (
     <div style={{
@@ -2103,101 +2107,6 @@ export default function IdePage() {
             </div>
           </div>
 
-          <div className="ide-commandbar" style={{ flexShrink: 0 }}>
-            <button
-              type="button"
-              onClick={canEditActiveTab && !isWaiting ? handleAssemble : undefined}
-              title="Assemble (Ctrl+Enter)"
-              aria-label="Assemble"
-              className="ide-commandbar-primary"
-              style={{
-                backgroundColor: canEditActiveTab ? '#2563eb' : theme.card,
-                border: 'none',
-                borderRadius: 4,
-                color: canEditActiveTab ? '#fff' : theme.subText,
-                cursor: canEditActiveTab ? 'pointer' : 'not-allowed',
-                opacity: canEditActiveTab ? 1 : 0.55,
-                height: 26,
-                padding: '0 10px',
-                fontSize: 11,
-                fontWeight: 700,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <ActionIcon name="Assemble" size={12} />
-              <span>Assemble</span>
-              {showHotkeys && (
-                <span style={{
-                  fontSize: 10, fontFamily: 'ui-monospace, monospace', fontWeight: 700,
-                  color: '#1e3a8a',
-                  backgroundColor: '#ffffff',
-                  padding: '1px 5px', borderRadius: 3,
-                  lineHeight: '14px', marginLeft: 3, flexShrink: 0,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
-                }}>{assembleKey}</span>
-              )}
-            </button>
-            {toolBarDivider}
-
-            {primaryDebugActions.map(a => (
-              <button
-                key={a.label}
-                type="button"
-                onClick={a.enabled ? a.onPress : undefined}
-                title={a.title}
-                aria-label={a.label}
-                aria-disabled={!a.enabled}
-                className="ide-commandbar-secondary"
-                style={{
-                  backgroundColor: (a.label === 'Run' || a.label === 'Continue') && isAssembled ? '#16a34a18' : theme.card,
-                  border: `1px solid ${(a.label === 'Run' || a.label === 'Continue') && isAssembled ? '#16a34a55' : theme.border}`,
-                  borderRadius: 4,
-                  color: (a.label === 'Run' || a.label === 'Continue') && isAssembled
-                    ? (a.enabled ? '#16a34a' : '#86efac')
-                    : (a.enabled ? theme.text : theme.subText),
-                  cursor: a.enabled ? 'pointer' : 'not-allowed',
-                  height: 26,
-                  padding: '0 7px',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  whiteSpace: 'nowrap',
-                  transition: 'color 0.15s',
-                  opacity: a.enabled ? 1 : 0.55,
-                }}
-              >
-                <ActionIcon name={a.label} size={12} />
-                <span>{a.label}</span>
-                {showHotkeys && (
-                  <span style={{
-                    fontSize: 10, fontFamily: 'monospace', fontWeight: 800,
-                    color: a.enabled ? theme.text : theme.subText,
-                    padding: '1px 5px', borderRadius: 3,
-                    border: `1px solid ${a.enabled ? theme.text + '66' : theme.border}`,
-                    backgroundColor: a.enabled ? theme.bg : theme.card,
-                    lineHeight: '13px', marginLeft: 1, flexShrink: 0,
-                    boxShadow: a.enabled ? '0 1px 1px rgba(0,0,0,0.08)' : 'none',
-                  }}>{a.hotkey}</span>
-                )}
-              </button>
-            ))}
-            {toolBarDivider}
-            <div style={{ flex: 1 }} />
-            <div
-              className="sim-status-pill"
-              role="status"
-              aria-live="polite"
-              style={{
-                color: STATUS_CONFIG[simStatus].color,
-                backgroundColor: 'transparent',
-                borderColor: 'transparent',
-                padding: 0,
-                fontSize: 11,
-              }}
-            >
-              {STATUS_CONFIG[simStatus].label}
-            </div>
-          </div>
-
         </>
 
       ) : (
@@ -2541,8 +2450,112 @@ export default function IdePage() {
               >
                 +
               </button>
+              <div
+                className="ide-editor-actions"
+                aria-label="Editor run actions"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  height: 35,
+                  padding: '0 8px',
+                  borderLeft: `1px solid ${theme.border}`,
+                  flexShrink: 0,
+                }}
+              >
+                {editorRunActions.map(action => {
+                  const isAssembleAction = action.label === 'Assemble';
+                  const isRunAction = action.label === 'Run' || action.label === 'Continue';
+                  const actionColor = isAssembleAction && action.enabled
+                    ? '#7dd3fc'
+                    : isRunAction && action.enabled
+                      ? '#86efac'
+                      : action.enabled
+                        ? theme.text
+                        : theme.subText;
+                  return (
+                    <button
+                      key={action.label}
+                      type="button"
+                      onClick={action.enabled ? action.onPress : undefined}
+                      title={action.title}
+                      aria-label={action.label}
+                      aria-disabled={!action.enabled}
+                      className="ide-editor-action"
+                      style={{
+                        width: 28,
+                        height: 28,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: 'none',
+                        borderRadius: 4,
+                        background: 'transparent',
+                        color: actionColor,
+                        cursor: action.enabled ? 'pointer' : 'not-allowed',
+                        opacity: action.enabled ? 1 : 0.42,
+                        padding: 0,
+                      }}
+                    >
+                      <ActionIcon name={action.label} size={15} />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div style={{ height: `${editorHeightPct}%`, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ height: `${editorHeightPct}%`, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+              {showFloatingDebugToolbar && (
+                <div
+                  className="ide-floating-debug"
+                  aria-label="Debug controls"
+                  style={{
+                    position: 'absolute',
+                    top: 10,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 20,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    height: 32,
+                    padding: '0 6px',
+                    borderRadius: 6,
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: isDark ? '#111827' : '#ffffff',
+                  }}
+                >
+                  {primaryDebugActions.map(action => {
+                    const isRunAction = action.label === 'Run' || action.label === 'Continue';
+                    return (
+                      <button
+                        key={action.label}
+                        type="button"
+                        onClick={action.enabled ? action.onPress : undefined}
+                        title={action.title}
+                        aria-label={action.label}
+                        aria-disabled={!action.enabled}
+                        className="ide-editor-action"
+                        style={{
+                          width: 24,
+                          height: 24,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: 'none',
+                          borderRadius: 4,
+                          background: 'transparent',
+                          color: isRunAction && action.enabled ? '#22c55e' : action.enabled ? theme.text : theme.subText,
+                          cursor: action.enabled ? 'pointer' : 'not-allowed',
+                          opacity: action.enabled ? 1 : 0.42,
+                          padding: 0,
+                        }}
+                      >
+                        <ActionIcon name={action.label} size={14} />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {tabs.length === 0 ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: theme.subText }}>
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.35 }}>

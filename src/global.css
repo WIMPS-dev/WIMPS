@@ -436,8 +436,21 @@ input, textarea {
   align-items: center;
   min-height: 35px;
   padding: 0;
-  background: var(--ide-tabbar-bg, #151c29);
-  border-bottom: 1px solid var(--ide-border);
+  background: var(--ide-active-tab-bg, var(--ide-card));
+  border-bottom: 0;
+  position: relative;
+}
+
+.ide-tabbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--ide-border);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .ide-tab {
@@ -446,10 +459,13 @@ input, textarea {
   gap: 8px;
   min-width: 0;
   height: 35px;
-  padding: 0 12px;
+  padding: 0 20px 0 12px;
   border-right: 1px solid var(--ide-border);
   border-top: 2px solid transparent;
+  border-bottom: 1px solid var(--ide-border);
   background: var(--ide-tabbar-bg, #151c29);
+  position: relative;
+  z-index: 1;
 }
 
 .ide-tab:hover {
@@ -458,16 +474,42 @@ input, textarea {
 
 .ide-tab.ide-tab--active {
   border-top-color: #2f7fff;
+  border-bottom-color: var(--ide-active-tab-bg, var(--ide-card));
   background: var(--ide-active-tab-bg, var(--ide-card));
+  z-index: 2;
+}
+
+.ide-tab.ide-tab--active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--ide-active-tab-bg, var(--ide-card));
+  z-index: 3;
 }
 
 .ide-tab-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 16px;
   height: 16px;
   border-radius: 3px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease-out, background-color 100ms ease-out;
+}
+
+.ide-tab:hover .ide-tab-close,
+.ide-tab-close:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .ide-tab-close:hover {
@@ -498,6 +540,15 @@ input, textarea {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+
+.ide-editor-action:hover:not([aria-disabled="true"]) {
+  background: var(--ide-hover, #334155) !important;
+}
+
+.ide-editor-action:focus-visible {
+  outline: 2px solid var(--ide-active, #2563eb);
+  outline-offset: 1px;
 }
 
 .ide-statusbar {

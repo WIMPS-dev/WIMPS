@@ -10,7 +10,7 @@ export function getIdeChromeVars(theme: Theme, isDark: boolean): React.CSSProper
     '--ide-titlebar-bg': isDark ? '#151c29' : '#e2e8f0',
     '--ide-commandbar-bg': isDark ? '#111827' : '#f8fafc',
     '--ide-tabbar-bg': isDark ? '#101826' : '#eef2f7',
-    '--ide-active-tab-bg': theme.bg,
+    '--ide-active-tab-bg': theme.card,
     '--ide-sidebar-bg': isDark ? '#141c2b' : '#f8fafc',
     '--ide-rail-bg': isDark ? '#0f1724' : '#e9eef5',
     '--ide-hover': isDark ? '#334155' : '#e2e8f0',

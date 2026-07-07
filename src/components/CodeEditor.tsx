@@ -195,8 +195,8 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
       minHeight: 0,
       display: 'flex',
       flexDirection: 'column',
-      backgroundColor: theme.bg,
-      padding: 14,
+      backgroundColor: theme.card,
+      padding: 0,
     }}>
       {/* Editor shell */}
       <div style={{
@@ -204,8 +204,8 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
         minHeight: 0,
         position: 'relative',
         backgroundColor: theme.card,
-        borderRadius: 12,
-        border: `1px solid ${theme.border}`,
+        borderRadius: 0,
+        border: 'none',
         overflow: 'hidden',
       }}>
         <Editor
