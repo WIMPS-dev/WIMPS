@@ -72,12 +72,10 @@ export function SaveStatus({ status, lastSavedAt, onRetry, compact = false }: Sa
 export function SaveAction({
   onClick,
   hotkey,
-  showHotkeys,
   disabled = false,
 }: {
   onClick: () => void;
   hotkey: string;
-  showHotkeys: boolean;
   disabled?: boolean;
 }) {
   return (
@@ -106,25 +104,6 @@ export function SaveAction({
     >
       <ActionIcon name="Save" size={13} />
       <span>Save</span>
-      {showHotkeys && (
-        <span
-          style={{
-            fontSize: 12,
-            fontFamily: 'ui-monospace, monospace',
-            fontWeight: 700,
-            color: '#1e3a8a',
-            backgroundColor: '#ffffff',
-            padding: '2px 6px',
-            borderRadius: 4,
-            lineHeight: '16px',
-            marginLeft: 4,
-            flexShrink: 0,
-            boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
-          }}
-        >
-          {hotkey}
-        </span>
-      )}
     </button>
   );
 }

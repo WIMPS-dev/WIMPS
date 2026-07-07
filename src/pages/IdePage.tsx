@@ -60,9 +60,10 @@ const ENABLED_TOOLS_KEY = 'ide_enabled_tools';
 const ACTIVE_TOOL_KEY = 'ide_active_tool';
 
 const DEFAULT_TABS: CodeTab[] = [{ id: '1', name: 'file1.asm', code: '', isDirty: false }];
-const SIDEBAR_MIN_WIDTH = 340;
+const SIDEBAR_LEGACY_DEFAULT_WIDTH = 400;
+const SIDEBAR_MIN_WIDTH = 112;
 const SIDEBAR_MAX_WIDTH = 960;
-const SIDEBAR_DEFAULT_WIDTH = 400;
+const SIDEBAR_DEFAULT_WIDTH = 200;
 const DOCS_TAB_ID = 'wimps-docs';
 const DOCS_TAB_NAME = 'Documentation';
 const WELCOME_TAB_ID = 'wimps-welcome';
@@ -169,7 +170,7 @@ function RunSpeedControl({
   showLabel?: boolean;
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 auto', minWidth: 0 }}>
       {showLabel && <span style={{ color: theme.subText, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase' }}>Speed</span>}
       <input
         type="range"
@@ -182,7 +183,8 @@ function RunSpeedControl({
         aria-label="Run speed"
         title={['Crawl', 'Slow', 'Normal', 'Fast', 'Max'][runSpeed]}
         style={{
-          width: 92,
+          width: '100%',
+          minWidth: 0,
           accentColor: '#2563eb',
           cursor: isTerminated ? 'not-allowed' : 'pointer',
         }}
@@ -410,8 +412,6 @@ function SettingsPanel({
   setTabSize,
   showPseudoPopups,
   setShowPseudoPopups,
-  showHotkeys,
-  setShowHotkeys,
   runSpeed,
   setRunSpeed,
   isTerminated,
@@ -425,8 +425,6 @@ function SettingsPanel({
   setTabSize: React.Dispatch<React.SetStateAction<2 | 4>>;
   showPseudoPopups: boolean;
   setShowPseudoPopups: React.Dispatch<React.SetStateAction<boolean>>;
-  showHotkeys: boolean;
-  setShowHotkeys: React.Dispatch<React.SetStateAction<boolean>>;
   runSpeed: number;
   setRunSpeed: (value: number) => void;
   isTerminated: boolean;
@@ -504,22 +502,9 @@ function SettingsPanel({
           }}
         >{showPseudoPopups ? 'Visible' : 'Hidden'}</button>
       </div>
-      <div style={rowStyle}>
-        <span style={labelStyle}>Hotkey Labels</span>
-        <button
-          type="button"
-          onClick={() => setShowHotkeys(v => !v)}
-          style={{
-            padding: '4px 8px', borderRadius: 0, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-            border: `1px solid ${showHotkeys ? '#2563eb' : theme.border}`,
-            backgroundColor: showHotkeys ? '#2563eb22' : 'transparent',
-            color: showHotkeys ? '#2563eb' : theme.subText,
-          }}
-        >{showHotkeys ? 'Visible' : 'Hidden'}</button>
-      </div>
       <div style={{ ...rowStyle, marginBottom: 0 }}>
         <span style={labelStyle}>Speed</span>
-        <div style={{ width: 128 }}>
+        <div style={{ flex: '1 1 120px', minWidth: 0 }}>
           <RunSpeedControl theme={theme} runSpeed={runSpeed} setRunSpeed={setRunSpeed} isTerminated={isTerminated} showLabel={false} />
         </div>
       </div>
@@ -726,7 +711,14 @@ export default function IdePage() {
     try { const v = localStorage.getItem('sidebar_open'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
-    try { const v = localStorage.getItem('sidebar_width'); return v ? Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Number(v))) : SIDEBAR_DEFAULT_WIDTH; } catch { return SIDEBAR_DEFAULT_WIDTH; }
+    try {
+      const v = localStorage.getItem('sidebar_width');
+      if (!v) return SIDEBAR_DEFAULT_WIDTH;
+      const savedWidth = Number(v);
+      if (!Number.isFinite(savedWidth)) return SIDEBAR_DEFAULT_WIDTH;
+      const nextWidth = savedWidth === SIDEBAR_LEGACY_DEFAULT_WIDTH ? SIDEBAR_DEFAULT_WIDTH : savedWidth;
+      return Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, nextWidth));
+    } catch { return SIDEBAR_DEFAULT_WIDTH; }
   });
   const [registerEditable, setRegisterEditable] = useState(false);
   const [memoryEditable, setMemoryEditable] = useState(false);
@@ -740,9 +732,6 @@ export default function IdePage() {
   });
   const [tabSize, setTabSize] = useState<2 | 4>(() => {
     try { const v = localStorage.getItem('editor_tab_size'); return v === '2' ? 2 : 4; } catch { return 4; }
-  });
-  const [showHotkeys, setShowHotkeys] = useState<boolean>(() => {
-    try { const v = localStorage.getItem('show_hotkeys'); return v === null ? false : v === 'true'; } catch { return false; }
   });
   const [showPseudoPopups, setShowPseudoPopups] = useState<boolean>(() => {
     try { const v = localStorage.getItem('show_pseudo_popups'); return v === null ? true : v === 'true'; } catch { return true; }
@@ -870,7 +859,6 @@ export default function IdePage() {
   }, [activeToolId]);
   useEffect(() => { try { localStorage.setItem('editor_font_size',   String(fontSize));           } catch {} }, [fontSize]);
   useEffect(() => { try { localStorage.setItem('editor_tab_size',    String(tabSize));            } catch {} }, [tabSize]);
-  useEffect(() => { try { localStorage.setItem('show_hotkeys',       String(showHotkeys));        } catch {} }, [showHotkeys]);
   useEffect(() => { try { localStorage.setItem('show_pseudo_popups', String(showPseudoPopups));   } catch {} }, [showPseudoPopups]);
 
   useEffect(() => {
@@ -1589,7 +1577,6 @@ export default function IdePage() {
       { label: 'Standalone Docs Page', keywords: 'documentation docs browser page', section: 'Help', disabled: false, action: () => window.open('/docs', '_blank', 'noopener,noreferrer') },
       { label: isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme', keywords: 'theme settings appearance dark light', section: 'Settings', disabled: false, action: toggleTheme },
       { label: showPseudoPopups ? 'Hide Pseudo Popups' : 'Show Pseudo Popups', keywords: 'pseudo popups settings', section: 'Settings', disabled: false, action: () => setShowPseudoPopups(v => !v) },
-      { label: showHotkeys ? 'Hide Hotkey Labels' : 'Show Hotkey Labels', keywords: 'hotkeys labels settings', section: 'Settings', disabled: false, action: () => setShowHotkeys(v => !v) },
       { label: `Set Tab Size: ${tabSize === 2 ? 4 : 2}`, keywords: 'tab size settings indent', section: 'Settings', disabled: false, action: () => setTabSize(tabSize === 2 ? 4 : 2) },
       { label: `Reset Font Size (${fontSize}px)`, keywords: 'font size settings editor', section: 'Settings', disabled: false, action: () => setFontSize(15) },
     ];
@@ -1608,7 +1595,7 @@ export default function IdePage() {
     activeTab, canEditActiveTab, canStepBack, closeActiveTab, enabledToolIds, focusEditor, fontSize,
     handleAssemble, handleContinue, handleDownload, handleReset, handleRun, handleStep, handleStepBack,
     handleUpload, isAssembled, isDark, isDocsTab, isTerminated, isWaiting, isWelcomeTab, openDocsTab,
-    openWelcomeTab, runLabel, showHotkeys, showPseudoPopups, sidebarOpen, tabSize, tabs.length,
+    openWelcomeTab, runLabel, showPseudoPopups, sidebarOpen, tabSize, tabs.length,
     toggleTheme, toggleToolEnabled,
   ]);
 
@@ -1954,8 +1941,6 @@ export default function IdePage() {
                             setTabSize={setTabSize}
                             showPseudoPopups={showPseudoPopups}
                             setShowPseudoPopups={setShowPseudoPopups}
-                            showHotkeys={showHotkeys}
-                            setShowHotkeys={setShowHotkeys}
                             runSpeed={runSpeed}
                             setRunSpeed={setRunSpeed}
                             isTerminated={isTerminated}
@@ -2125,7 +2110,7 @@ export default function IdePage() {
           }}>
             <div style={{ color: theme.text, fontWeight: 800, fontSize: 17, flexShrink: 0 }}><Logo size={20} gap={0} textSize={12} showText={false} /></div>
             <div style={{ flex: 1 }} />
-            <SaveAction onClick={handleSaveLocal} hotkey={saveHotkey} showHotkeys={showHotkeys} />
+            <SaveAction onClick={handleSaveLocal} hotkey={saveHotkey} />
             <Link to="/docs" className="ide-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Docs</Link>
             {/* TEMP: login disabled
             {isLoggedIn ? (
