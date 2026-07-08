@@ -28,6 +28,7 @@ type RailControl = 'files' | 'tool-library';
 type ToolId = 'registers' | 'memory' | 'display' | 'program' | 'performance';
 type SidebarView = RailControl | ToolId;
 type MobileView = 'files' | 'editor' | 'console' | 'tool-library' | ToolId;
+type ConsoleTab = 'program' | 'activity';
 
 type ToolDefinition = {
   id: ToolId;
@@ -685,7 +686,9 @@ export default function IdePage() {
   const [editTabName, setEditTabName] = useState('');
 
   const [registers, setRegisters] = useState<RegisterValue[]>(buildInitialRegisters());
-  const [output, setOutput] = useState('');
+  const [programOutput, setProgramOutput] = useState('');
+  const [activityLog, setActivityLog] = useState('');
+  const [activeConsoleTab, setActiveConsoleTab] = useState<ConsoleTab>('program');
   const [activeLine, setActiveLine] = useState<number | null>(null);
   const [cursorLine, setCursorLine] = useState<number | null>(1);
   const [isWaiting, setIsWaiting] = useState(false);
@@ -884,6 +887,11 @@ export default function IdePage() {
   const isDocsTab = activeTab?.kind === 'docs';
   const isWelcomeTab = activeTab?.kind === 'welcome';
   const canEditActiveTab = activeTab != null && !isEphemeralTab(activeTab);
+  const activeFileName = activeTab?.name ?? 'untitled.asm';
+
+  const appendActivity = useCallback((line: string) => {
+    setActivityLog(current => current ? `${current}\n\n${line}` : line);
+  }, []);
 
   const clearDerivedSimMetadata = () => {
     setInstrStats(null);
@@ -1021,7 +1029,7 @@ export default function IdePage() {
     }
     prevRegistersRef.current = next;
     setRegisters(next);
-    setOutput(state.output);
+    setProgramOutput(state.output);
     setActiveLine(options && 'activeLineOverride' in options ? options.activeLineOverride ?? null : state.lineNumber);
     setIsWaiting(state.isWaiting);
     setCanStepBack(state.canUndo);
@@ -1038,6 +1046,8 @@ export default function IdePage() {
   const handleAssemble = () => {
     if (!canEditActiveTab) return;
     stopAutoRun();
+    setActiveConsoleTab('activity');
+    appendActivity(`Build: assembling ${activeFileName}`);
     resetSim();
     setActiveLine(null);
     setIsWaiting(false);
@@ -1046,11 +1056,14 @@ export default function IdePage() {
     stepHistoryRef.current = [];
     const result = assemble(activeCode);
     if (!result.ok) {
-      setOutput(`Assembly failed:\n${result.error}`);
+      const report = result.error.trim();
+      if (report) appendActivity(report);
+      appendActivity('Build: operation completed with errors.');
       setIsAssembled(false);
       setErrorLines(result.errors.filter(e => !e.isWarning).map(e => ({ line: e.lineNumber, message: e.message })));
       clearDerivedSimMetadata();
     } else {
+      appendActivity('Build: operation completed successfully.');
       setIsAssembled(true);
       setErrorLines([]);
       applyState(getState(), { activeLineOverride: null, pseudoExpansionAddressOverride: null });
@@ -1059,9 +1072,13 @@ export default function IdePage() {
 
   const handleRun = () => {
     stopAutoRun();
+    setActiveConsoleTab('program');
+    appendActivity(`Run: running ${activeFileName}`);
     stepHistoryRef.current = [];
     if (runSpeed === 4) {
-      applyState(runSim(Array.from(breakpoints)), { pseudoExpansionAddressOverride: null });
+      const state = runSim(Array.from(breakpoints));
+      applyState(state, { pseudoExpansionAddressOverride: null });
+      if (state.terminated) appendActivity('Run: execution terminated by null instruction.');
     } else {
       startTimedRun(true);
     }
@@ -1084,6 +1101,7 @@ export default function IdePage() {
       first = false;
       applyState(state, { pseudoExpansionAddressOverride: null });
       if (state.terminated || state.isWaiting) {
+        if (state.terminated) appendActivity('Run: execution terminated by null instruction.');
         stopAutoRun();
         return;
       }
@@ -1094,9 +1112,13 @@ export default function IdePage() {
 
   const handleContinue = () => {
     stopAutoRun();
+    setActiveConsoleTab('program');
+    appendActivity(`Run: continuing ${activeFileName}`);
     stepHistoryRef.current = [];
     if (runSpeed === 4) {
-      applyState(continueSim(Array.from(breakpoints)), { pseudoExpansionAddressOverride: null });
+      const state = continueSim(Array.from(breakpoints));
+      applyState(state, { pseudoExpansionAddressOverride: null });
+      if (state.terminated) appendActivity('Run: execution terminated by null instruction.');
     } else {
       startTimedRun(false);
     }
@@ -1104,6 +1126,7 @@ export default function IdePage() {
 
   const handleStep = () => {
     stopAutoRun();
+    setActiveConsoleTab('program');
     const beforeState = getState();
     const currentLine = getSourceLineForAddress(beforeState.pc) ?? beforeState.lineNumber;
     const state = stepSim();
@@ -1132,7 +1155,7 @@ export default function IdePage() {
     setChangedRegisters(new Set());
     prevRegistersRef.current = [];
     stepHistoryRef.current = [];
-    setOutput('');
+    setProgramOutput('');
     setActiveLine(null);
     setIsWaiting(false);
     setIsAssembled(false);
@@ -1152,6 +1175,7 @@ export default function IdePage() {
   };
 
   const handleFeedInput = useCallback((value: string) => {
+    setActiveConsoleTab('program');
     stepHistoryRef.current = [];
     const state = feedInput(value);
     applyState(state, { pseudoExpansionAddressOverride: null });
@@ -1168,7 +1192,10 @@ export default function IdePage() {
 
   const handleSaveLocal = () => {
     flushNow();
-    if (isLoggedIn) setOutput('Saved to account.');
+    if (isLoggedIn) {
+      setActiveConsoleTab('activity');
+      appendActivity('Files: saved to account.');
+    }
   };
 
   const handleLogout = () => {
@@ -1288,10 +1315,15 @@ export default function IdePage() {
         headers: getApiHeaders(token),
       });
       if (res.status === 401) { clearAuthToken(); setIsLoggedIn(false); return; }
-      if (!res.ok) { setOutput('Delete failed. Check your connection.'); return; }
+      if (!res.ok) {
+        setActiveConsoleTab('activity');
+        appendActivity('Files: delete failed. Check your connection.');
+        return;
+      }
       removeTabLocally(tab.id);
     } catch {
-      setOutput('Delete failed. Check your connection.');
+      setActiveConsoleTab('activity');
+      appendActivity('Files: delete failed. Check your connection.');
     }
   };
 
@@ -2569,7 +2601,15 @@ export default function IdePage() {
             {vDragHandle}
 
             <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <ConsolePanel output={output} isWaiting={isWaiting} onSubmit={handleFeedInput} theme={theme} />
+              <ConsolePanel
+                programOutput={programOutput}
+                activityLog={activityLog}
+                activeTab={activeConsoleTab}
+                onTabChange={setActiveConsoleTab}
+                isWaiting={isWaiting}
+                onSubmit={handleFeedInput}
+                theme={theme}
+              />
             </div>
           </div>
 
@@ -2607,7 +2647,10 @@ export default function IdePage() {
           )}
           {mobileView === 'console' && (
             <ConsolePanel
-              output={output}
+              programOutput={programOutput}
+              activityLog={activityLog}
+              activeTab={activeConsoleTab}
+              onTabChange={setActiveConsoleTab}
               isWaiting={isWaiting}
               onSubmit={handleFeedInput}
               theme={theme}
@@ -2626,34 +2669,36 @@ export default function IdePage() {
 // Console sub-component
 // ---------------------------------------------------------------------------
 interface ConsolePanelProps {
-  output: string;
+  programOutput: string;
+  activityLog: string;
+  activeTab: ConsoleTab;
+  onTabChange: (tab: ConsoleTab) => void;
   isWaiting: boolean;
   onSubmit: (value: string) => void;
   theme: import('../theme/themes').Theme;
 }
 
-function ConsolePanel({ output, isWaiting, onSubmit, theme }: ConsolePanelProps) {
+function ConsolePanel({ programOutput, activityLog, activeTab, onTabChange, isWaiting, onSubmit, theme }: ConsolePanelProps) {
   const [currentInput, setCurrentInput] = useState('');
   const termRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLSpanElement>(null);
+  const visibleOutput = activeTab === 'program' ? programOutput : activityLog;
+  const isProgramTab = activeTab === 'program';
 
-  // Auto-scroll whenever output or in-progress input changes
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [output, currentInput]);
+  }, [visibleOutput, currentInput, activeTab]);
 
-  // Grab focus as soon as the program asks for input
   useEffect(() => {
-    if (isWaiting) termRef.current?.focus();
-  }, [isWaiting]);
+    if (isWaiting && isProgramTab) termRef.current?.focus();
+  }, [isWaiting, isProgramTab]);
 
-  // Clear the typed-but-not-submitted text when waiting ends
   useEffect(() => {
     if (!isWaiting) setCurrentInput('');
   }, [isWaiting]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!isWaiting) return;
+    if (!isWaiting || !isProgramTab) return;
     if (e.key === 'Enter') {
       e.preventDefault();
       const val = currentInput;
@@ -2671,19 +2716,64 @@ function ConsolePanel({ output, isWaiting, onSubmit, theme }: ConsolePanelProps)
   return (
     <div style={{ flex: 1, minHeight: 0, padding: 10, display: 'flex', flexDirection: 'column' }}>
       <div
+        role="tablist"
+        aria-label="Console views"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          height: 30,
+          flexShrink: 0,
+          border: `1px solid ${theme.border}`,
+          borderBottom: 'none',
+          borderRadius: '8px 8px 0 0',
+          backgroundColor: theme.card,
+          padding: '0 6px',
+        }}
+      >
+        {([
+          ['program', 'Program I/O'],
+          ['activity', 'Activity'],
+        ] as const).map(([key, label]) => {
+          const selected = activeTab === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => onTabChange(key)}
+              style={{
+                height: 24,
+                padding: '0 9px',
+                border: 'none',
+                borderBottom: `2px solid ${selected ? '#2563eb' : 'transparent'}`,
+                background: 'transparent',
+                color: selected ? theme.text : theme.subText,
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 700,
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      <div
         ref={termRef}
-        tabIndex={0}
+        tabIndex={isProgramTab ? 0 : -1}
         role="log"
         aria-live="polite"
-        aria-label="Program console"
+        aria-label={isProgramTab ? 'Program I/O' : 'Activity'}
         aria-relevant="additions"
         onKeyDown={handleKeyDown}
-        onClick={() => termRef.current?.focus()}
+        onClick={() => { if (isProgramTab) termRef.current?.focus(); }}
         style={{
           flex: 1,
           minHeight: 0,
           backgroundColor: theme.bg,
-          borderRadius: 10,
+          borderRadius: '0 0 10px 10px',
           border: `1px solid ${theme.border}`,
           padding: '12px 14px',
           overflowY: 'auto',
@@ -2695,24 +2785,24 @@ function ConsolePanel({ output, isWaiting, onSubmit, theme }: ConsolePanelProps)
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
           userSelect: 'text',
-          cursor: isWaiting ? 'text' : 'default',
+          cursor: isWaiting && isProgramTab ? 'text' : 'default',
         }}
       >
-        {isWaiting && (
+        {isWaiting && isProgramTab && (
           <span className="sr-only" aria-live="assertive">
             Program is waiting for input. Type your response and press Enter.
           </span>
         )}
-        {output ? (
-          <span>{output}</span>
+        {visibleOutput ? (
+          <span>{visibleOutput}</span>
         ) : (
-          !isWaiting && (
+          !(isWaiting && isProgramTab) && (
             <span style={{ color: theme.subText, fontStyle: 'italic' }}>
-              Run a program to see output here.
+              {isProgramTab ? 'Run a program to see I/O here.' : 'Build and run activity appears here.'}
             </span>
           )
         )}
-        {isWaiting && (
+        {isWaiting && isProgramTab && (
           <>
             <span style={{ color: '#2563eb' }}>{currentInput}</span>
             <span className="terminal-cursor" />
