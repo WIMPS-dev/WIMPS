@@ -892,6 +892,9 @@ export default function IdePage() {
   const appendActivity = useCallback((line: string) => {
     setActivityLog(current => current ? `${current}\n\n${line}` : line);
   }, []);
+  const startActivity = useCallback((line: string) => {
+    setActivityLog(line);
+  }, []);
 
   const clearDerivedSimMetadata = () => {
     setInstrStats(null);
@@ -1047,7 +1050,7 @@ export default function IdePage() {
     if (!canEditActiveTab) return;
     stopAutoRun();
     setActiveConsoleTab('activity');
-    appendActivity(`Build: assembling ${activeFileName}`);
+    startActivity(`Build: assembling ${activeFileName}`);
     resetSim();
     setActiveLine(null);
     setIsWaiting(false);
@@ -1073,7 +1076,7 @@ export default function IdePage() {
   const handleRun = () => {
     stopAutoRun();
     setActiveConsoleTab('program');
-    appendActivity(`Run: running ${activeFileName}`);
+    startActivity(`Run: running ${activeFileName}`);
     stepHistoryRef.current = [];
     if (runSpeed === 4) {
       const state = runSim(Array.from(breakpoints));
@@ -1113,7 +1116,7 @@ export default function IdePage() {
   const handleContinue = () => {
     stopAutoRun();
     setActiveConsoleTab('program');
-    appendActivity(`Run: continuing ${activeFileName}`);
+    startActivity(`Run: continuing ${activeFileName}`);
     stepHistoryRef.current = [];
     if (runSpeed === 4) {
       const state = continueSim(Array.from(breakpoints));
@@ -1194,7 +1197,7 @@ export default function IdePage() {
     flushNow();
     if (isLoggedIn) {
       setActiveConsoleTab('activity');
-      appendActivity('Files: saved to account.');
+      startActivity('Files: saved to account.');
     }
   };
 
@@ -1317,13 +1320,13 @@ export default function IdePage() {
       if (res.status === 401) { clearAuthToken(); setIsLoggedIn(false); return; }
       if (!res.ok) {
         setActiveConsoleTab('activity');
-        appendActivity('Files: delete failed. Check your connection.');
+        startActivity('Files: delete failed. Check your connection.');
         return;
       }
       removeTabLocally(tab.id);
     } catch {
       setActiveConsoleTab('activity');
-      appendActivity('Files: delete failed. Check your connection.');
+      startActivity('Files: delete failed. Check your connection.');
     }
   };
 
