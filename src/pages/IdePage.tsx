@@ -60,7 +60,6 @@ const DEFAULT_ENABLED_TOOL_IDS = TOOL_DEFINITIONS.filter(tool => tool.defaultEna
 const ENABLED_TOOLS_KEY = 'ide_enabled_tools';
 const ACTIVE_TOOL_KEY = 'ide_active_tool';
 
-const DEFAULT_TABS: CodeTab[] = [{ id: '1', name: 'file1.asm', code: '', isDirty: false }];
 const SIDEBAR_LEGACY_DEFAULT_WIDTH = 400;
 const SIDEBAR_MIN_WIDTH = 112;
 const SIDEBAR_MAX_WIDTH = 960;
@@ -636,13 +635,13 @@ function DisplayPanel({ theme, simTick }: { theme: ReturnType<typeof useTheme>['
 function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
   try {
     const raw = localStorage.getItem('saved_tabs');
-    // No key at all = genuine first visit; spawn default file
-    if (raw === null) return { tabs: DEFAULT_TABS, activeTabId: '1' };
+    // No key at all = genuine first visit; Welcome tab handles onboarding.
+    if (raw === null) return { tabs: [], activeTabId: '' };
     const parsed = JSON.parse(raw);
     if (parsed && Array.isArray(parsed.tabs)) {
       if (parsed.tabs.length > 0) {
         const tabs: CodeTab[] = parsed.tabs.map(normalizeTab).filter((tab: CodeTab) => !isEphemeralTab(tab));
-        if (tabs.length === 0) return { tabs: DEFAULT_TABS, activeTabId: DEFAULT_TABS[0].id };
+        if (tabs.length === 0) return { tabs: [], activeTabId: '' };
         // activeTabId must reference a real (post-normalize) tab id, otherwise
         // activeCode never matches and the editor desyncs from React state.
         const activeTabId = tabs.some(t => t.id === parsed.activeTabId) ? parsed.activeTabId : tabs[0].id;
@@ -654,12 +653,12 @@ function readLocalState(): { tabs: CodeTab[]; activeTabId: string } {
     // legacy: plain array
     if (Array.isArray(parsed) && parsed.length > 0) {
       const tabs = parsed.map(normalizeTab).filter((tab: CodeTab) => !isEphemeralTab(tab));
-      if (tabs.length === 0) return { tabs: DEFAULT_TABS, activeTabId: DEFAULT_TABS[0].id };
+      if (tabs.length === 0) return { tabs: [], activeTabId: '' };
       return { tabs, activeTabId: tabs[0].id };
     }
   } catch {}
-  // Corrupt/unparseable — treat as first visit
-  return { tabs: DEFAULT_TABS, activeTabId: '1' };
+  // Corrupt/unparseable — recover to empty workspace.
+  return { tabs: [], activeTabId: '' };
 }
 
 function writeLocalState(tabs: CodeTab[], activeTabId: string) {
@@ -979,8 +978,8 @@ export default function IdePage() {
           setActiveTabId(loaded[0].id);
         } else {
           // Logged in but no server files — clear any guest localStorage files
-          setTabs(DEFAULT_TABS);
-          setActiveTabId(DEFAULT_TABS[0].id);
+          setTabs([]);
+          setActiveTabId('');
         }
       })
       .catch(() => {});
@@ -1206,8 +1205,8 @@ export default function IdePage() {
     localStorage.removeItem('saved_tabs');
     localStorage.removeItem('saved_files');
     setIsLoggedIn(false);
-    setTabs(DEFAULT_TABS);
-    setActiveTabId(DEFAULT_TABS[0].id);
+    setTabs([]);
+    setActiveTabId('');
   };
 
   // Shared helper: removes a tab from local state and fixes the active tab.

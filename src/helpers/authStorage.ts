@@ -53,7 +53,7 @@ export async function migrateGuestFiles(token: string, apiBase: string): Promise
     const savedFiles: any[] = savedRaw ? JSON.parse(savedRaw) : [];
 
     // Union: open tabs + saved files not already represented as an open tab.
-    // Skip empty files (default blank file1 created on logout) — nothing worth migrating.
+    // Skip empty files left by older default-file behavior — nothing worth migrating.
     const openIds = new Set(openTabs.map((t: any) => t.id));
     let guestFiles = [...openTabs, ...savedFiles.filter((f: any) => !openIds.has(f.id))]
       .filter((f: any) => f?.kind !== 'docs' && f?.kind !== 'welcome')
@@ -68,8 +68,8 @@ export async function migrateGuestFiles(token: string, apiBase: string): Promise
     if (!getRes.ok) return;
     let serverTabs: any[] = await getRes.json();
 
-    // Special case: if server has an empty file1.asm and the guest has a non-empty file1.asm,
-    // fill the server file's content rather than creating a duplicate "file1 (1).asm".
+    // Legacy special case: if server has an empty file1.asm and guest has a non-empty
+    // file1.asm, fill the server file's content rather than creating a duplicate.
     let serverTabsModified = false;
     const serverFile1Idx = serverTabs.findIndex((t: any) => t.name === 'file1.asm');
     const guestFile1 = guestFiles.find((g: any) => g.name === 'file1.asm');
