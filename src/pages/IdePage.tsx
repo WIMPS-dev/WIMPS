@@ -1719,7 +1719,12 @@ export default function IdePage() {
                 <div key={menu.key} style={{ position: 'relative' }}>
                   <button
                     type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={openMenu === menu.key}
                     onClick={() => setOpenMenu(current => current === menu.key ? null : menu.key)}
+                    onMouseEnter={() => {
+                      if (openMenu && openMenu !== menu.key) setOpenMenu(menu.key);
+                    }}
                     style={{
                       height: 24,
                       padding: '0 8px',
