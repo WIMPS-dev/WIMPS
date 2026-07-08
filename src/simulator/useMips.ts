@@ -111,6 +111,7 @@ function normalizeSourceText(src: string): string {
 // ---------------------------------------------------------------------------
 let source = '';
 let sourceLines: string[] = [];
+let hasAssembledSource = false;
 let instance: JsMips = makeMipsfromSource('');
 
 let allInputs: string[] = [];
@@ -358,6 +359,7 @@ function executeLimited(limit: number, breakpointAddresses: Set<number>): Simula
 export function assemble(src: string) {
   source = normalizeSourceText(src);
   sourceLines = source.split('\n');
+  hasAssembledSource = false;
   outputBuffer = '';
   outputSnapshots = [];
   allInputs = [];
@@ -372,6 +374,7 @@ export function assemble(src: string) {
 
   instance.initialize(true);
   registerHandlers(instance);
+  hasAssembledSource = true;
   return { ok: true as const };
 }
 
@@ -398,33 +401,33 @@ export function getSourceLineForAddress(address: number): number | null {
 }
 
 export function runSim(breakpointLines: number[] = []): SimulatorState {
-  if (!source) return getState();
+  if (!hasAssembledSource) return getState();
   if (!restart()) return getState();
   const bpAddresses = buildBreakpointAddresses(breakpointLines);
   return executeLoop(bpAddresses);
 }
 
 export function runSimWithLimit(limit: number, breakpointLines: number[] = []): SimulatorState {
-  if (!source) return getState();
+  if (!hasAssembledSource) return getState();
   if (!restart()) return getState();
   return executeLimited(Math.max(1, limit), buildBreakpointAddresses(breakpointLines));
 }
 
 export function continueSim(breakpointLines: number[] = []): SimulatorState {
-  if (!source || instance.terminated) return getState();
+  if (!hasAssembledSource || instance.terminated) return getState();
   outputSnapshots = [];
   const bpAddresses = buildBreakpointAddresses(breakpointLines);
   return continueLoop(bpAddresses);
 }
 
 export function runWithLimit(limit: number, breakpointLines: number[] = []): SimulatorState {
-  if (!source || instance.terminated) return getState();
+  if (!hasAssembledSource || instance.terminated) return getState();
   outputSnapshots = [];
   return executeLimited(Math.max(1, limit), buildBreakpointAddresses(breakpointLines));
 }
 
 export function runUntilLine(line: number, breakpointLines: number[] = []): SimulatorState {
-  if (!source) return getState();
+  if (!hasAssembledSource) return getState();
   const target = (() => {
     try { return instance.getStatementAtSourceLine(line)?.address; } catch { return null; }
   })();
@@ -490,6 +493,7 @@ export function feedInput(rawInput: string): SimulatorState {
 export function resetSim() {
   source = '';
   sourceLines = [];
+  hasAssembledSource = false;
   outputBuffer = '';
   outputSnapshots = [];
   allInputs = [];
