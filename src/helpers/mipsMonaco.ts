@@ -241,6 +241,14 @@ export function defineMipsThemes(monaco: MonacoNS) {
       'editorHoverWidget.border': THEMES.dark.border,
       'editorHoverWidget.foreground': THEMES.dark.text,
       'editorHoverWidget.statusBarBackground': THEMES.dark.bg,
+      // Context menu
+      'menu.background': THEMES.dark.card,
+      'menu.foreground': THEMES.dark.text,
+      'menu.selectionBackground': THEMES.dark.tabActive,
+      'menu.selectionForeground': THEMES.dark.text,
+      'menu.separatorBackground': THEMES.dark.border,
+      'menu.border': THEMES.dark.border,
+      'menu.keybindingLabelForeground': THEMES.dark.subText,
       // Generic editor widgets (parameter hints, etc.)
       'editorWidget.resizeBorder': THEMES.dark.linkColor,
     },
@@ -290,6 +298,14 @@ export function defineMipsThemes(monaco: MonacoNS) {
       'editorHoverWidget.border': THEMES.light.border,
       'editorHoverWidget.foreground': THEMES.light.text,
       'editorHoverWidget.statusBarBackground': THEMES.light.bg,
+      // Context menu
+      'menu.background': THEMES.light.card,
+      'menu.foreground': THEMES.light.text,
+      'menu.selectionBackground': THEMES.light.tabActive,
+      'menu.selectionForeground': THEMES.light.text,
+      'menu.separatorBackground': THEMES.light.border,
+      'menu.border': THEMES.light.border,
+      'menu.keybindingLabelForeground': THEMES.light.subText,
       // Generic editor widgets (parameter hints, etc.)
       'editorWidget.resizeBorder': THEMES.light.linkColor,
     },

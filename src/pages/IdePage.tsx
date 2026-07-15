@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { ActionIcon } from '../components/ActionIcons';
 import { BitmapDisplay } from '../components/BitmapDisplay';
@@ -29,6 +30,18 @@ type ToolId = 'registers' | 'memory' | 'display' | 'program' | 'performance';
 type SidebarView = RailControl | ToolId;
 type MobileView = 'files' | 'editor' | 'console' | 'tool-library' | ToolId;
 type ConsoleTab = 'program' | 'activity';
+
+type TabContextMenuState = {
+  tabId: string;
+  left: number;
+  top: number;
+  submenu: null | {
+    key: 'close';
+    left: number;
+    top: number;
+    side: 'left' | 'right';
+  };
+};
 
 type ToolDefinition = {
   id: ToolId;
@@ -69,6 +82,47 @@ const DOCS_TAB_NAME = 'Documentation';
 const WELCOME_TAB_ID = 'wimps-welcome';
 const WELCOME_TAB_NAME = 'Welcome';
 const WELCOME_SEEN_KEY = 'ide_welcome_seen';
+const TAB_CONTEXT_MENU_WIDTH = 224;
+const TAB_CONTEXT_MENU_HEIGHT = 198;
+const TAB_CONTEXT_SUBMENU_WIDTH = 210;
+const TAB_CONTEXT_SUBMENU_HEIGHT = 112;
+const MENU_VIEWPORT_GAP = 6;
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+function placeFloatingMenu(x: number, y: number, width: number, height: number) {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const left = x + width + MENU_VIEWPORT_GAP > viewportWidth
+    ? x - width
+    : x;
+  const top = y + height + MENU_VIEWPORT_GAP > viewportHeight
+    ? y - height
+    : y;
+
+  return {
+    left: clamp(left, MENU_VIEWPORT_GAP, Math.max(MENU_VIEWPORT_GAP, viewportWidth - width - MENU_VIEWPORT_GAP)),
+    top: clamp(top, MENU_VIEWPORT_GAP, Math.max(MENU_VIEWPORT_GAP, viewportHeight - height - MENU_VIEWPORT_GAP)),
+  };
+}
+
+function placeSubmenu(parentRect: DOMRect, width: number, height: number) {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const opensRight = parentRect.right + width + MENU_VIEWPORT_GAP <= viewportWidth;
+  const left = opensRight ? parentRect.right - 1 : parentRect.left - width + 1;
+  const top = clamp(
+    parentRect.top - 4,
+    MENU_VIEWPORT_GAP,
+    Math.max(MENU_VIEWPORT_GAP, viewportHeight - height - MENU_VIEWPORT_GAP),
+  );
+
+  return {
+    left: clamp(left, MENU_VIEWPORT_GAP, Math.max(MENU_VIEWPORT_GAP, viewportWidth - width - MENU_VIEWPORT_GAP)),
+    top,
+    side: opensRight ? 'right' as const : 'left' as const,
+  };
+}
 
 const isEphemeralTab = (tab: Pick<CodeTab, 'kind'> | null | undefined): boolean =>
   tab?.kind === 'docs' || tab?.kind === 'welcome';
@@ -697,6 +751,7 @@ export default function IdePage() {
   const [editTabName, setEditTabName] = useState('');
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const [tabDropIndicator, setTabDropIndicator] = useState<{ tabId: string; side: 'before' | 'after' } | null>(null);
+  const [tabContextMenu, setTabContextMenu] = useState<TabContextMenuState | null>(null);
 
   const [registers, setRegisters] = useState<RegisterValue[]>(buildInitialRegisters());
   const [programOutput, setProgramOutput] = useState('');
@@ -754,6 +809,7 @@ export default function IdePage() {
   });
   const [openMenu, setOpenMenu] = useState<'file' | 'edit' | 'run' | 'help' | 'settings' | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
+  const tabContextMenuRef = useRef<HTMLDivElement>(null);
   const [explorerAction, setExplorerAction] = useState<{ type: 'new-file' | 'new-folder'; nonce: number } | null>(null);
   const [commandQuery, setCommandQuery] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
@@ -900,6 +956,24 @@ export default function IdePage() {
       document.removeEventListener('keydown', handleKey);
     };
   }, [openMenu]);
+
+  useEffect(() => {
+    if (!tabContextMenu) return;
+    const handlePointer = (e: MouseEvent) => {
+      if (tabContextMenuRef.current?.contains(e.target as Node)) return;
+      setTabContextMenu(null);
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTabContextMenu(null);
+    };
+
+    document.addEventListener('mousedown', handlePointer, true);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handlePointer, true);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [tabContextMenu]);
 
   const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId) ?? null, [tabs, activeTabId]);
   const activeCode = activeTab?.code ?? '';
@@ -1376,6 +1450,124 @@ export default function IdePage() {
     if (activeTabId === id) setActiveTabId(next?.id ?? '');
   };
 
+  const closeTabById = useCallback((id: string) => {
+    flushNow();
+    setTabs(prev => {
+      const idx = prev.findIndex(t => t.id === id);
+      if (idx === -1) return prev;
+      if (prev.length === 1) {
+        if (activeTabId === id) setActiveTabId('');
+        return [];
+      }
+      const next = prev[idx === 0 ? 1 : idx - 1];
+      if (activeTabId === id) setActiveTabId(next.id);
+      return prev.filter(t => t.id !== id);
+    });
+    setTabContextMenu(null);
+  }, [activeTabId, flushNow]);
+
+  const closeOtherTabs = useCallback((tabId: string) => {
+    flushNow();
+    setTabs(prev => prev.filter(tab => tab.id === tabId));
+    setActiveTabId(tabId);
+    setTabContextMenu(null);
+  }, [flushNow]);
+
+  const closeTabsToSide = useCallback((tabId: string, side: 'left' | 'right') => {
+    flushNow();
+    setTabs(prev => {
+      const idx = prev.findIndex(tab => tab.id === tabId);
+      if (idx === -1) return prev;
+      const next = side === 'right' ? prev.slice(0, idx + 1) : prev.slice(idx);
+      if (!next.some(tab => tab.id === activeTabId)) setActiveTabId(tabId);
+      return next;
+    });
+    setTabContextMenu(null);
+  }, [activeTabId, flushNow]);
+
+  const renameTabById = useCallback((tabId: string) => {
+    const tab = tabsRef.current.find(t => t.id === tabId);
+    if (!tab || isEphemeralTab(tab)) return;
+    setEditingTabId(tabId);
+    setEditTabName(tab.name);
+    setActiveTabId(tabId);
+    setTabContextMenu(null);
+  }, []);
+
+  const revealTabInFiles = useCallback((tabId: string) => {
+    setActiveTabId(tabId);
+    setSidebarOpen(true);
+    setActiveSidebarView('files');
+    setMobileView('files');
+    setTabContextMenu(null);
+  }, []);
+
+  const copyTabPath = useCallback(async (tab: CodeTab) => {
+    const path = tab.path ? `${tab.path}/${tab.name}` : tab.name;
+    try {
+      await navigator.clipboard?.writeText(path);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = path;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+    setActiveConsoleTab('activity');
+    startActivity(`Files: copied ${path}`);
+    setTabContextMenu(null);
+  }, [startActivity]);
+
+  const saveTabById = useCallback((tabId: string) => {
+    setActiveTabId(tabId);
+    handleSaveLocal();
+    setTabContextMenu(null);
+  }, [handleSaveLocal]);
+
+  const exportTabById = useCallback((tabId: string) => {
+    const tab = tabsRef.current.find(t => t.id === tabId);
+    if (!tab || isEphemeralTab(tab)) return;
+    const blob = new Blob([tab.code], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = tab.name;
+    a.click();
+    URL.revokeObjectURL(url);
+    setTabContextMenu(null);
+  }, []);
+
+  const openTabContextMenuAt = (tab: CodeTab, x: number, y: number) => {
+    setOpenMenu(null);
+    setActiveTabId(tab.id);
+    const position = placeFloatingMenu(x, y, TAB_CONTEXT_MENU_WIDTH, TAB_CONTEXT_MENU_HEIGHT);
+    setTabContextMenu({ tabId: tab.id, ...position, submenu: null });
+  };
+
+  const openTabContextMenu = (tab: CodeTab, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openTabContextMenuAt(tab, e.clientX, e.clientY);
+  };
+
+  const openTabContextMenuFromTarget = (target: EventTarget | null, x: number, y: number) => {
+    const element = target instanceof Element ? target.closest<HTMLElement>('[data-tab-id]') : null;
+    const tabId = element?.dataset.tabId;
+    if (!tabId) return false;
+    const tab = tabsRef.current.find(t => t.id === tabId);
+    if (!tab) return false;
+    openTabContextMenuAt(tab, x, y);
+    return true;
+  };
+
+  const openTabContextSubmenu = (key: 'close', item: HTMLElement) => {
+    const placement = placeSubmenu(item.getBoundingClientRect(), TAB_CONTEXT_SUBMENU_WIDTH, TAB_CONTEXT_SUBMENU_HEIGHT);
+    setTabContextMenu(current => current ? { ...current, submenu: { key, ...placement } } : current);
+  };
+
   const handleTabDragStart = (tabId: string, e: React.DragEvent<HTMLDivElement>) => {
     if (editingTabId === tabId) {
       e.preventDefault();
@@ -1814,13 +2006,14 @@ export default function IdePage() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
+      if (((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'p') || e.key === 'F1') {
         e.preventDefault();
+        e.stopPropagation();
         focusCommandInput();
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
   }, [focusCommandInput]);
 
   const runCommand = useCallback((entry: CommandEntry | undefined) => {
@@ -1846,6 +2039,9 @@ export default function IdePage() {
     ...primaryDebugActions,
   ];
   const showFloatingDebugToolbar = isAssembled && !isDocsTab && !isWelcomeTab;
+  const contextTab = tabContextMenu ? tabs.find(tab => tab.id === tabContextMenu.tabId) ?? null : null;
+  const contextTabIndex = contextTab ? tabs.findIndex(tab => tab.id === contextTab.id) : -1;
+  const contextTabIsEphemeral = isEphemeralTab(contextTab);
 
   return (
     <div style={{
@@ -2548,6 +2744,19 @@ export default function IdePage() {
                 className="tab-scroll"
                 role="tablist"
                 aria-label="Editor files"
+                onMouseDownCapture={e => {
+                  if (e.button !== 2) return;
+                  if (openTabContextMenuFromTarget(e.target, e.clientX, e.clientY)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
+                onContextMenuCapture={e => {
+                  if (openTabContextMenuFromTarget(e.target, e.clientX, e.clientY)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
                 onDragOver={e => {
                   if (!draggedTabIdRef.current) return;
                   e.preventDefault();
@@ -2581,6 +2790,7 @@ export default function IdePage() {
                         commitTabDrop();
                       }}
                       onDragEnd={handleTabDragEnd}
+                      onContextMenu={e => openTabContextMenu(tab, e)}
                       className={`ide-tab${tab.id === activeTabId ? ' ide-tab--active' : ''}${draggingTabId === tab.id ? ' ide-tab--dragging' : ''}${tabDropIndicator?.tabId === tab.id ? ` ide-tab--drop-${tabDropIndicator.side}` : ''}`}
                       style={{
                         cursor: draggingTabId === tab.id ? 'grabbing' : 'grab',
@@ -2776,7 +2986,7 @@ export default function IdePage() {
               ) : (
                 <>
                   {showPseudoPopups && <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} pseudoExpansionAddress={pseudoExpansionAddress} />}
-                  <CodeEditor ref={codeEditorRef} code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} fontSize={fontSize} tabSize={tabSize} />
+                  <CodeEditor ref={codeEditorRef} code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} errorLines={errorLines} onAssemble={handleAssemble} onToggleSidebar={() => setSidebarOpen(o => !o)} onOpenCommandPalette={focusCommandInput} fontSize={fontSize} tabSize={tabSize} />
                 </>
               )}
             </div>
@@ -2823,7 +3033,7 @@ export default function IdePage() {
               ) : (
                 <>
                   {showPseudoPopups && <PseudoExpansionNotice theme={theme} pseudoExpansion={pseudoExpansion} pseudoExpansionAddress={pseudoExpansionAddress} />}
-                  <CodeEditor ref={codeEditorRef} code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} onAssemble={handleAssemble} fontSize={fontSize} tabSize={tabSize} />
+                  <CodeEditor ref={codeEditorRef} code={activeCode} setCode={setActiveCode} theme={theme} activeLine={activeLine} cursorLine={cursorLine} breakpoints={breakpoints} onBreakpointToggle={handleBreakpointToggle} onCursorLineChange={setCursorLine} onAssemble={handleAssemble} onOpenCommandPalette={focusCommandInput} fontSize={fontSize} tabSize={tabSize} />
                 </>
               )}
             </>
@@ -2844,6 +3054,135 @@ export default function IdePage() {
         </div>
       )}
 
+      {tabContextMenu && contextTab && createPortal(
+        <div
+          ref={tabContextMenuRef}
+          className="ide-context-menu"
+          role="menu"
+          aria-label={`${contextTab.name} actions`}
+          style={{
+            left: tabContextMenu.left,
+            top: tabContextMenu.top,
+            width: TAB_CONTEXT_MENU_WIDTH,
+            backgroundColor: 'var(--ide-commandbar-bg)',
+            borderColor: theme.border,
+            color: theme.text,
+          }}
+          onContextMenu={e => e.preventDefault()}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="ide-context-menu-item"
+            disabled={contextTabIsEphemeral}
+            onClick={() => !contextTabIsEphemeral && saveTabById(contextTab.id)}
+          >
+            <span>Save</span>
+            <span className="ide-context-menu-key">{saveHotkey}</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="ide-context-menu-item"
+            disabled={contextTabIsEphemeral}
+            onClick={() => !contextTabIsEphemeral && renameTabById(contextTab.id)}
+          >
+            <span>Rename</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="ide-context-menu-item"
+            onClick={() => revealTabInFiles(contextTab.id)}
+          >
+            <span>Reveal in Files</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="ide-context-menu-item"
+            onClick={() => copyTabPath(contextTab)}
+          >
+            <span>Copy Path</span>
+          </button>
+
+          <div className="ide-context-menu-separator" role="separator" style={{ backgroundColor: theme.border }} />
+
+          <button
+            type="button"
+            role="menuitem"
+            aria-haspopup="menu"
+            aria-expanded={tabContextMenu.submenu?.key === 'close'}
+            className={`ide-context-menu-item ide-context-menu-submenu-trigger${tabContextMenu.submenu?.key === 'close' ? ` ide-context-menu-submenu-trigger--${tabContextMenu.submenu.side}` : ''}`}
+            onMouseEnter={e => openTabContextSubmenu('close', e.currentTarget)}
+            onFocus={e => openTabContextSubmenu('close', e.currentTarget)}
+          >
+            <span>Close</span>
+            <span className="ide-context-menu-arrow">›</span>
+          </button>
+
+          <div className="ide-context-menu-separator" role="separator" style={{ backgroundColor: theme.border }} />
+
+          <button
+            type="button"
+            role="menuitem"
+            className="ide-context-menu-item"
+            disabled={contextTabIsEphemeral}
+            onClick={() => !contextTabIsEphemeral && exportTabById(contextTab.id)}
+          >
+            <span>Export...</span>
+          </button>
+
+          {tabContextMenu.submenu?.key === 'close' && (
+            <div
+              className="ide-context-menu ide-context-submenu"
+              role="menu"
+              aria-label="Close tab actions"
+              style={{
+                left: tabContextMenu.submenu.left,
+                top: tabContextMenu.submenu.top,
+                width: TAB_CONTEXT_SUBMENU_WIDTH,
+                backgroundColor: 'var(--ide-commandbar-bg)',
+                borderColor: theme.border,
+                color: theme.text,
+              }}
+            >
+              <button type="button" role="menuitem" className="ide-context-menu-item" onClick={() => closeTabById(contextTab.id)}>
+                <span>Close</span>
+                <span className="ide-context-menu-key">{isMac ? '⌘W' : 'Ctrl+W'}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="ide-context-menu-item"
+                disabled={tabs.length <= 1}
+                onClick={() => tabs.length > 1 && closeOtherTabs(contextTab.id)}
+              >
+                <span>Close Others</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="ide-context-menu-item"
+                disabled={contextTabIndex >= tabs.length - 1}
+                onClick={() => contextTabIndex < tabs.length - 1 && closeTabsToSide(contextTab.id, 'right')}
+              >
+                <span>Close to the Right</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="ide-context-menu-item"
+                disabled={contextTabIndex <= 0}
+                onClick={() => contextTabIndex > 0 && closeTabsToSide(contextTab.id, 'left')}
+              >
+                <span>Close to the Left</span>
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

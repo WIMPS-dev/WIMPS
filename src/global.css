@@ -101,6 +101,38 @@ input, textarea {
   margin-top: 6px;
 }
 
+/* Monaco context menu — match WIMPS chrome instead of Monaco defaults. */
+.monaco-menu,
+.monaco-menu .monaco-action-bar {
+  border-radius: 6px;
+}
+
+.monaco-menu .actions-container {
+  padding: 4px 0 !important;
+}
+
+.monaco-menu .action-item {
+  height: 26px !important;
+}
+
+.monaco-menu .action-item .action-label {
+  height: 26px !important;
+  line-height: 26px !important;
+  padding: 0 24px !important;
+  font-size: 13px !important;
+  font-family: ui-sans-serif, system-ui, sans-serif !important;
+}
+
+.monaco-menu .action-item .keybinding {
+  line-height: 26px !important;
+  font-size: 12px !important;
+  padding-right: 10px !important;
+}
+
+.monaco-menu .action-item.disabled {
+  opacity: 0.45;
+}
+
 /* Tab strip — thin visible scrollbar */
 .tab-scroll {
   scrollbar-width: thin;
@@ -548,6 +580,94 @@ input, textarea {
   width: 28px;
   height: 35px;
   border-left: 1px solid var(--ide-border);
+}
+
+.ide-context-menu {
+  position: fixed;
+  z-index: 1200;
+  padding: 4px 0;
+  border: 1px solid;
+  border-radius: 6px;
+  background: var(--ide-commandbar-bg, #101826);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.ide-context-submenu {
+  z-index: 1201;
+}
+
+.ide-context-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  height: 26px;
+  padding: 0 10px 0 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ide-context-menu-item:hover:not(:disabled):not([aria-disabled="true"]),
+.ide-context-menu-item--active:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--ide-hover, #334155);
+}
+
+.ide-context-menu-item:focus-visible {
+  outline: none;
+}
+
+.ide-context-menu-item:disabled,
+.ide-context-menu-item[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.ide-context-menu-key,
+.ide-context-menu-arrow {
+  color: var(--ide-muted, #94a3b8);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.ide-context-menu-arrow {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.ide-context-menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  opacity: 0.9;
+}
+
+.ide-context-menu-submenu-trigger--right::after,
+.ide-context-menu-submenu-trigger--left::after {
+  content: "";
+  position: absolute;
+  top: -8px;
+  width: 36px;
+  height: 42px;
+  pointer-events: auto;
+  background: transparent;
+}
+
+.ide-context-menu-submenu-trigger--right::after {
+  right: -32px;
+  clip-path: polygon(0 8px, 100% 0, 100% 100%, 0 34px);
+}
+
+.ide-context-menu-submenu-trigger--left::after {
+  left: -32px;
+  clip-path: polygon(100% 8px, 0 0, 0 100%, 100% 34px);
 }
 
 .ide-commandbar {
