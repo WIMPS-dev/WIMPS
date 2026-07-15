@@ -73,6 +73,18 @@ const WELCOME_SEEN_KEY = 'ide_welcome_seen';
 const isEphemeralTab = (tab: Pick<CodeTab, 'kind'> | null | undefined): boolean =>
   tab?.kind === 'docs' || tab?.kind === 'welcome';
 
+function reorderTabsToIndex(tabs: CodeTab[], draggedTabId: string, dropIndex: number): CodeTab[] {
+  const fromIndex = tabs.findIndex(tab => tab.id === draggedTabId);
+  if (fromIndex === -1) return tabs;
+
+  const next = [...tabs];
+  const [draggedTab] = next.splice(fromIndex, 1);
+  const insertIndex = Math.max(0, Math.min(next.length, fromIndex < dropIndex ? dropIndex - 1 : dropIndex));
+  if (insertIndex === fromIndex) return tabs;
+  next.splice(insertIndex, 0, draggedTab);
+  return next;
+}
+
 const buildInitialRegisters = (): RegisterValue[] =>
   ['$zero','$at','$v0','$v1','$a0','$a1','$a2','$a3',
    '$t0','$t1','$t2','$t3','$t4','$t5','$t6','$t7',
@@ -683,6 +695,8 @@ export default function IdePage() {
   const [activeTabId, setActiveTabId] = useState<string>(initialState.activeTabId);
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editTabName, setEditTabName] = useState('');
+  const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
+  const [tabDropIndicator, setTabDropIndicator] = useState<{ tabId: string; side: 'before' | 'after' } | null>(null);
 
   const [registers, setRegisters] = useState<RegisterValue[]>(buildInitialRegisters());
   const [programOutput, setProgramOutput] = useState('');
@@ -766,6 +780,12 @@ export default function IdePage() {
 
   const tabsRef = useRef(tabs);
   useEffect(() => { tabsRef.current = tabs; }, [tabs]);
+  const tabScrollRef = useRef<HTMLDivElement>(null);
+  const draggedTabIdRef = useRef<string | null>(null);
+  const originalTabOrderRef = useRef<CodeTab[] | null>(null);
+  const tabOrderChangedRef = useRef(false);
+  const tabDropCommittedRef = useRef(false);
+  const tabDropIndexRef = useRef<number | null>(null);
 
   const getLastSteppedLine = () => {
     const history = stepHistoryRef.current;
@@ -1355,6 +1375,138 @@ export default function IdePage() {
     setTabs(prev => prev.filter(t => t.id !== id));
     if (activeTabId === id) setActiveTabId(next?.id ?? '');
   };
+
+  const handleTabDragStart = (tabId: string, e: React.DragEvent<HTMLDivElement>) => {
+    if (editingTabId === tabId) {
+      e.preventDefault();
+      return;
+    }
+    draggedTabIdRef.current = tabId;
+    originalTabOrderRef.current = tabsRef.current;
+    tabOrderChangedRef.current = false;
+    tabDropCommittedRef.current = false;
+    tabDropIndexRef.current = tabsRef.current.findIndex(tab => tab.id === tabId);
+    setDraggingTabId(tabId);
+    setTabDropIndicator(null);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/x-wimps-tab-id', tabId);
+  };
+
+  const updateTabDropIndicatorFromX = (clientX: number) => {
+    const tabElements = Array.from(tabScrollRef.current?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? []);
+    if (tabElements.length === 0) return null;
+
+    let dropIndex = tabElements.length;
+    const midpoints = tabElements.map(element => {
+      const rect = element.getBoundingClientRect();
+      return rect.left + rect.width / 2;
+    });
+
+    for (let index = 0; index < midpoints.length; index++) {
+      if (clientX < midpoints[index]) {
+        dropIndex = index;
+        break;
+      }
+    }
+
+    const previousDropIndex = tabDropIndexRef.current;
+    if (previousDropIndex !== null && previousDropIndex !== dropIndex) {
+      const boundaryIndex = dropIndex > previousDropIndex ? dropIndex - 1 : dropIndex;
+      const boundary = midpoints[boundaryIndex];
+      if (boundary !== undefined && Math.abs(clientX - boundary) < 4) {
+        dropIndex = previousDropIndex;
+      }
+    }
+
+    const tabs = tabsRef.current;
+    const boundedDropIndex = Math.max(0, Math.min(tabs.length, dropIndex));
+    const indicatorTabIndex = boundedDropIndex >= tabs.length ? tabs.length - 1 : boundedDropIndex;
+    const indicatorTab = tabs[indicatorTabIndex];
+    if (!indicatorTab) return null;
+    const nextIndicator = {
+      tabId: indicatorTab.id,
+      side: boundedDropIndex >= tabs.length ? 'after' as const : 'before' as const,
+    };
+
+    tabDropIndexRef.current = boundedDropIndex;
+    setTabDropIndicator(current =>
+      current?.tabId === nextIndicator.tabId && current.side === nextIndicator.side ? current : nextIndicator,
+    );
+    return boundedDropIndex;
+  };
+
+  const handleTabDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!draggedTabIdRef.current) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    updateTabDropIndicatorFromX(e.clientX);
+  };
+
+  const finishTabDrag = (commit = true) => {
+    const originalTabs = originalTabOrderRef.current;
+    const changed = tabOrderChangedRef.current;
+
+    draggedTabIdRef.current = null;
+    originalTabOrderRef.current = null;
+    tabOrderChangedRef.current = false;
+    tabDropCommittedRef.current = false;
+    tabDropIndexRef.current = null;
+    setDraggingTabId(null);
+    setTabDropIndicator(null);
+
+    if (!changed) return;
+    if (!commit) {
+      if (originalTabs) setTabs(originalTabs);
+      return;
+    }
+    scheduleSave({ force: true });
+  };
+
+  const commitTabDrop = () => {
+    const draggedTabId = draggedTabIdRef.current;
+    const dropIndex = tabDropIndexRef.current;
+    if (!draggedTabId || dropIndex === null) {
+      finishTabDrag(false);
+      return;
+    }
+
+    const currentTabs = tabsRef.current;
+    const nextTabs = reorderTabsToIndex(currentTabs, draggedTabId, dropIndex);
+    tabOrderChangedRef.current = nextTabs !== currentTabs;
+    if (nextTabs !== currentTabs) setTabs(nextTabs);
+    tabDropCommittedRef.current = true;
+    finishTabDrag(true);
+  };
+
+  const handleTabDragEnd = () => {
+    if (tabDropCommittedRef.current) {
+      finishTabDrag(true);
+      return;
+    }
+    finishTabDrag(false);
+  };
+
+  useEffect(() => {
+    const cancelExternalTabDrop = (e: DragEvent) => {
+      if (!draggedTabIdRef.current) return;
+      const target = e.target as Node | null;
+      if (target && tabScrollRef.current?.contains(target)) return;
+      if (e.type === 'dragover') updateTabDropIndicatorFromX(e.clientX);
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.type === 'drop') {
+        updateTabDropIndicatorFromX(e.clientX);
+        commitTabDrop();
+      }
+    };
+
+    document.addEventListener('dragover', cancelExternalTabDrop, true);
+    document.addEventListener('drop', cancelExternalTabDrop, true);
+    return () => {
+      document.removeEventListener('dragover', cancelExternalTabDrop, true);
+      document.removeEventListener('drop', cancelExternalTabDrop, true);
+    };
+  }, []);
 
   const startRename = (tab: CodeTab, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -2392,23 +2544,46 @@ export default function IdePage() {
           <div className="editor-column" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div className="ide-tabbar" style={{ flexShrink: 0 }}>
               <div
+                ref={tabScrollRef}
                 className="tab-scroll"
                 role="tablist"
                 aria-label="Editor files"
+                onDragOver={e => {
+                  if (!draggedTabIdRef.current) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  updateTabDropIndicatorFromX(e.clientX);
+                }}
+                onDrop={e => {
+                  if (!draggedTabIdRef.current) return;
+                  e.preventDefault();
+                  commitTabDrop();
+                }}
                 style={{ flex: 1, minWidth: 0, overflowX: 'auto' }}
               >
                 <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', width: 'max-content', height: 35 }}>
                   {tabs.map(tab => (
                     <div
                       key={tab.id}
+                      data-tab-id={tab.id}
                       role="tab"
                       tabIndex={0}
                       aria-selected={tab.id === activeTabId}
+                      aria-grabbed={draggingTabId === tab.id}
+                      draggable={editingTabId !== tab.id}
                       onClick={() => setActiveTabId(tab.id)}
                       onKeyDown={e => e.key === 'Enter' || e.key === ' ' ? setActiveTabId(tab.id) : undefined}
-                      className={`ide-tab${tab.id === activeTabId ? ' ide-tab--active' : ''}`}
+                      onDragStart={e => handleTabDragStart(tab.id, e)}
+                      onDragOver={handleTabDragOver}
+                      onDragEnter={e => updateTabDropIndicatorFromX(e.clientX)}
+                      onDrop={e => {
+                        e.preventDefault();
+                        commitTabDrop();
+                      }}
+                      onDragEnd={handleTabDragEnd}
+                      className={`ide-tab${tab.id === activeTabId ? ' ide-tab--active' : ''}${draggingTabId === tab.id ? ' ide-tab--dragging' : ''}${tabDropIndicator?.tabId === tab.id ? ` ide-tab--drop-${tabDropIndicator.side}` : ''}`}
                       style={{
-                        cursor: 'pointer',
+                        cursor: draggingTabId === tab.id ? 'grabbing' : 'grab',
                         flexShrink: 0,
                         maxWidth: 220,
                         fontFamily: 'inherit',
@@ -2436,6 +2611,7 @@ export default function IdePage() {
                       )}
                       <button
                         type="button"
+                        draggable={false}
                         onClick={e => closeTab(tab.id, e)}
                         aria-label={`Close ${tab.name}`}
                         className="ide-tab-close"

@@ -38,6 +38,7 @@ export function useAutosave({
   const pendingRef = useRef(false);
   const retryCountRef = useRef(0);
   const lastPayloadRef = useRef('');
+  const forceSaveRef = useRef(false);
   const isLoggedInRef = useRef(isLoggedIn);
   useEffect(() => { isLoggedInRef.current = isLoggedIn; }, [isLoggedIn]);
 
@@ -63,7 +64,9 @@ export function useAutosave({
     const token = getAuthToken();
     if (!token) return;
 
-    if (!currentTabs.some(t => t.isDirty)) {
+    const forceSave = forceSaveRef.current;
+    forceSaveRef.current = false;
+    if (!forceSave && !currentTabs.some(t => t.isDirty)) {
       setStatus('saved');
       return;
     }
@@ -168,7 +171,8 @@ export function useAutosave({
   }, []);
 
   // Guests get 300ms debounce (localStorage is sync — just batches rapid keystrokes)
-  const scheduleSave = useCallback(() => {
+  const scheduleSave = useCallback((options?: { force?: boolean }) => {
+    if (options?.force) forceSaveRef.current = true;
     if (inFlightRef.current && isLoggedInRef.current) { pendingRef.current = true; return; }
     if (debounceTimerRef.current !== null) clearTimeout(debounceTimerRef.current);
     const delay = isLoggedInRef.current ? debounceMs : 300;

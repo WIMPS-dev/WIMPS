@@ -466,10 +466,35 @@ input, textarea {
   background: var(--ide-tabbar-bg, #151c29);
   position: relative;
   z-index: 1;
+  user-select: none;
+  transition: background-color 120ms ease-out, opacity 120ms ease-out;
 }
 
 .ide-tab:hover {
   background: var(--ide-hover, #334155);
+}
+
+.ide-tab.ide-tab--dragging {
+  opacity: 0.55;
+}
+
+.ide-tab.ide-tab--drop-before::before,
+.ide-tab.ide-tab--drop-after::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #2f7fff;
+  z-index: 4;
+}
+
+.ide-tab.ide-tab--drop-before::before {
+  left: -1px;
+}
+
+.ide-tab.ide-tab--drop-after::after {
+  right: -1px;
 }
 
 .ide-tab.ide-tab--active {
