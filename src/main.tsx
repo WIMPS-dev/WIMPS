@@ -6,6 +6,7 @@ import './global.css';
 import DocsPage from './pages/DocsPage';
 import HomePage from './pages/HomePage';
 import IdePage from './pages/IdePage';
+import VSCodeWebPage from './pages/VSCodeWebPage';
 // import LoginPage from './pages/LoginPage';
 // import RegisterPage from './pages/RegisterPage';
 
@@ -19,7 +20,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/login" element={<Navigate to="/ide" replace />} />
           <Route path="/register" element={<Navigate to="/ide" replace />} />
           <Route path="/docs" element={<DocsPage />} />
-          <Route path="/ide" element={<IdePage />} />
+          <Route path="/classic" element={<IdePage />} />
+          <Route path="/ide" element={<VSCodeWebPage />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>

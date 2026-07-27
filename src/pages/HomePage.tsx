@@ -86,6 +86,7 @@ export default function HomePage() {
         <span style={{ color: theme.text, fontWeight: 800, fontSize: 20 }}><Logo size={24} /></span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           <Link to="/docs" className="home-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Docs</Link>
+          <Link to="/classic" className="home-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Classic</Link>
           {/* TEMP: login disabled
           {isLoggedIn ? (
             <button type="button" onClick={handleLogout} className="home-nav-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: theme.subText, fontSize: 14, fontWeight: 500, fontFamily: 'inherit' }}>Sign out</button>
@@ -237,7 +238,7 @@ export default function HomePage() {
               The active line stays highlighted. Run to completion or stop at any instruction to inspect registers and memory.
             </p>
             <Link
-              to="/ide"
+              to="/classic"
               className="home-feature-link"
               style={{
                 color: theme.linkColor,
@@ -458,7 +459,7 @@ export default function HomePage() {
         <p style={{ color: theme.subText, fontSize: 16, marginBottom: 32 }}>
           No account needed.
         </p>
-        <Link to="/ide" className="home-cta-primary" style={{
+        <Link to="/classic" className="home-cta-primary" style={{
           backgroundColor: '#2563eb',
           color: '#fff',
           textDecoration: 'none',
@@ -468,7 +469,7 @@ export default function HomePage() {
           fontWeight: 700,
           display: 'inline-block',
         }}>
-          Open IDE
+          Open Classic IDE
         </Link>
       </section>
 

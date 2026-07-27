@@ -90,7 +90,10 @@ Create `.env` in the project root:
 
 ```
 VITE_API_URL=http://localhost:3001
+VITE_VSCODE_WEB_URL=https://wimps-vscode.pages.dev/
 ```
+
+`/classic` serves the original WIMPS IDE. `/ide` embeds the hosted VS Code web workbench from `VITE_VSCODE_WEB_URL` when that host allows framing.
 
 Run the backend (one terminal):
 
