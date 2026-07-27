@@ -20,7 +20,22 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Third-Party Notice: Microsoft VS Code / Code - OSS
+Third-Party Notices
+===================
+
+WIMPS embeds a hosted web workbench derived from Code - OSS, the open-source core
+of Visual Studio Code. Code - OSS is available at:
+
+https://github.com/microsoft/vscode
+
+The Code - OSS source is licensed under the MIT License:
+
+https://github.com/microsoft/vscode/blob/main/LICENSE.txt
+
+Visual Studio Code and Code - OSS are Copyright (c) Microsoft Corporation.
+
+Code - OSS / Visual Studio Code Source License
+----------------------------------------------
 
 MIT License
 

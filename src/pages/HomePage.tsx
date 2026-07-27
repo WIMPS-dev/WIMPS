@@ -546,7 +546,32 @@ export default function HomePage() {
         flexWrap: 'wrap',
         gap: 12,
       }}>
-        <span style={{ color: theme.subText, fontSize: 13 }}>WIMPS · Web Interactive MIPS Playground & Simulator</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ color: theme.subText, fontSize: 13 }}>WIMPS · Web Interactive MIPS Playground & Simulator</span>
+          <span style={{ color: theme.subText, fontSize: 12, lineHeight: 1.5 }}>
+            WIMPS IDE uses{' '}
+            <a
+              href="https://github.com/microsoft/vscode"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="home-link-muted"
+              style={{ color: theme.linkColor, textDecoration: 'none', fontWeight: 600 }}
+            >
+              Code - OSS
+            </a>
+            , the open-source core of Visual Studio Code, licensed under the{' '}
+            <a
+              href="https://github.com/microsoft/vscode/blob/main/LICENSE.txt"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="home-link-muted"
+              style={{ color: theme.linkColor, textDecoration: 'none', fontWeight: 600 }}
+            >
+              MIT License
+            </a>
+            . Visual Studio Code and Code - OSS are © Microsoft Corporation.
+          </span>
+        </div>
         <div style={{ display: 'flex', gap: 20 }}>
           <Link to="/docs" className="home-link-muted" style={{ color: theme.subText, textDecoration: 'none', fontSize: 13 }}>Docs</Link>
           {/* TEMP: login disabled per advisor (data privacy) — re-enable later
