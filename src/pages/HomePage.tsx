@@ -94,7 +94,7 @@ export default function HomePage() {
             <Link to="/login" className="home-nav-link" style={{ color: theme.subText, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Sign in</Link>
           )}
           */}
-          <Link to="/ide" className="home-nav-btn" style={{
+          <a href="https://code.wimps.dev/" className="home-nav-btn" style={{
             backgroundColor: '#2563eb',
             color: '#fff',
             textDecoration: 'none',
@@ -104,7 +104,7 @@ export default function HomePage() {
             fontWeight: 600,
           }}>
             Open IDE
-          </Link>
+          </a>
         </div>
       </nav>
 
@@ -135,8 +135,8 @@ export default function HomePage() {
 
         {/* Single primary CTA */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-          <Link
-            to="/ide"
+          <a
+            href="https://code.wimps.dev/"
             className="home-cta-primary"
             style={{
               backgroundColor: '#2563eb',
@@ -151,7 +151,7 @@ export default function HomePage() {
             }}
           >
             Launch IDE →
-          </Link>
+          </a>
         </div>
 
         {/* Secondary text links */}

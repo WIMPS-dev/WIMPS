@@ -33,7 +33,7 @@ export default function LoginPage() {
       if (!res.ok) throw new Error(data.message ?? 'Login failed');
       saveAuthToken(data.token);
       await migrateGuestFiles(data.token, API_BASE);
-      navigate('/ide');
+      navigate('/classic');
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong');
     } finally {
@@ -138,7 +138,7 @@ export default function LoginPage() {
             </Link>
           </p>
           <p style={{ color: theme.subText, fontSize: 13, textAlign: 'center', marginTop: 8 }}>
-            <Link to="/ide" style={{ color: theme.subText, textDecoration: 'none' }}>
+            <Link to="/classic" style={{ color: theme.subText, textDecoration: 'none' }}>
               Continue without signing in →
             </Link>
           </p>

@@ -45,7 +45,7 @@ export default function RegisterPage() {
 
       saveAuthToken(loginData.token);
       await migrateGuestFiles(loginData.token, API_BASE);
-      navigate('/ide');
+      navigate('/classic');
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong');
     } finally {

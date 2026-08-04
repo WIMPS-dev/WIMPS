@@ -6,7 +6,6 @@ import './global.css';
 import DocsPage from './pages/DocsPage';
 import HomePage from './pages/HomePage';
 import IdePage from './pages/IdePage';
-import VSCodeWebPage from './pages/VSCodeWebPage';
 // import LoginPage from './pages/LoginPage';
 // import RegisterPage from './pages/RegisterPage';
 
@@ -16,12 +15,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <BrowserRouter basename="/">
         <Routes>
           <Route path="/" element={<HomePage />} />
-          {/* TEMP: login disabled — redirect to IDE so URLs don't 404 */}
-          <Route path="/login" element={<Navigate to="/ide" replace />} />
-          <Route path="/register" element={<Navigate to="/ide" replace />} />
+          {/* TEMP: login disabled - redirect to classic IDE so URLs don't 404 */}
+          <Route path="/login" element={<Navigate to="/classic" replace />} />
+          <Route path="/register" element={<Navigate to="/classic" replace />} />
           <Route path="/docs" element={<DocsPage />} />
           <Route path="/classic" element={<IdePage />} />
-          <Route path="/ide" element={<VSCodeWebPage />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>
