@@ -7,21 +7,30 @@ import { usePageReady } from '../components/Skeleton';
 import { useTheme } from '../context/ThemeContext';
 import { clearAuthToken, getAuthToken } from '../helpers/authStorage';
 
-interface MockPart { text: string; color: string; }
+interface MockPart { text: string; tone: keyof typeof MOCK_SYNTAX_TONES; }
 interface MockReg  { name: string; value: string; changed: boolean; }
 
-// IDE preview mockup — always rendered in dark theme colors
+const MOCK_SYNTAX_TONES = {
+  directive: true,
+  label: true,
+  text: true,
+  instruction: true,
+  register: true,
+  transparent: true,
+} as const;
+
+// IDE preview mockup. Colors bind to current theme at render time.
 const MOCK_LINES: MockPart[][] = [
-  [{ text: '.data', color: '#f472b6' }],
-  [{ text: 'msg:', color: '#f8fafc' }, { text: ' .asciiz', color: '#f472b6' }, { text: ' "Hi!"', color: '#f8fafc' }],
+  [{ text: '.data', tone: 'directive' }],
+  [{ text: 'msg:', tone: 'label' }, { text: ' .asciiz', tone: 'directive' }, { text: ' "Hi!"', tone: 'text' }],
   [],
-  [{ text: '.text', color: '#f472b6' }],
+  [{ text: '.text', tone: 'directive' }],
   // active line (index 4)
-  [{ text: 'main:', color: '#f8fafc' }, { text: ' li ', color: '#60a5fa' }, { text: '$v0', color: '#fb923c' }, { text: ', 4', color: '#f8fafc' }],
-  [{ text: '      ', color: 'transparent' }, { text: 'la ', color: '#60a5fa' }, { text: '$a0', color: '#fb923c' }, { text: ', msg', color: '#f8fafc' }],
-  [{ text: '      syscall', color: '#60a5fa' }],
-  [{ text: '      ', color: 'transparent' }, { text: 'li ', color: '#60a5fa' }, { text: '$v0', color: '#fb923c' }, { text: ', 10', color: '#f8fafc' }],
-  [{ text: '      syscall', color: '#60a5fa' }],
+  [{ text: 'main:', tone: 'label' }, { text: ' li ', tone: 'instruction' }, { text: '$v0', tone: 'register' }, { text: ', 4', tone: 'text' }],
+  [{ text: '      ', tone: 'transparent' }, { text: 'la ', tone: 'instruction' }, { text: '$a0', tone: 'register' }, { text: ', msg', tone: 'text' }],
+  [{ text: '      syscall', tone: 'instruction' }],
+  [{ text: '      ', tone: 'transparent' }, { text: 'li ', tone: 'instruction' }, { text: '$v0', tone: 'register' }, { text: ', 10', tone: 'text' }],
+  [{ text: '      syscall', tone: 'instruction' }],
 ];
 
 const MOCK_REGISTERS: MockReg[] = [
@@ -56,6 +65,31 @@ const prefersReducedMotion =
 export default function HomePage() {
   const { theme } = useTheme();
   const ready = usePageReady();
+  const isDarkTheme = theme.bg === '#0b1020';
+  const preview = {
+    shell: theme.bg,
+    toolbar: theme.card,
+    panel: theme.card,
+    panelAlt: theme.btnBg,
+    border: theme.border,
+    tabActive: theme.tabActive,
+    tabInactive: theme.tabInactive,
+    text: theme.text,
+    muted: theme.subText,
+    faint: isDarkTheme ? '#64748b' : '#94a3b8',
+    activeWash: `${theme.linkColor}22`,
+    activeGutter: `${theme.linkColor}38`,
+    console: theme.bg,
+    consoleText: theme.consoleText,
+  };
+  const previewSyntax: Record<MockPart['tone'], string> = {
+    directive: theme.syntax.directive,
+    label: theme.syntax.label,
+    text: theme.syntax.text,
+    instruction: theme.syntax.instruction,
+    register: theme.syntax.register,
+    transparent: 'transparent',
+  };
 
   const [isLoggedIn] = useState(() => !!getAuthToken());
 
@@ -255,9 +289,9 @@ export default function HomePage() {
           </div>
 
           {/* Right: IDE mockup */}
-          <div style={{
-            backgroundColor: '#0b1020',
-            border: '1px solid #1f2937',
+          <div className="home-ide-preview" style={{
+            backgroundColor: preview.shell,
+            border: `1px solid ${preview.border}`,
             borderRadius: 12,
             overflow: 'hidden',
             userSelect: 'none',
@@ -268,12 +302,12 @@ export default function HomePage() {
               display: 'flex',
               alignItems: 'center',
               height: 40,
-              backgroundColor: '#1f2937',
-              borderBottom: '1px solid #0b1020',
+              backgroundColor: preview.toolbar,
+              borderBottom: `1px solid ${preview.border}`,
               padding: '0 12px',
               gap: 5,
             }}>
-              <span style={{ color: '#f8fafc', fontWeight: 800, fontSize: 13, marginRight: 6, flexShrink: 0 }}>WIMPS</span>
+              <span style={{ color: preview.text, fontWeight: 800, fontSize: 13, marginRight: 6, flexShrink: 0 }}>WIMPS</span>
               {['main.asm', 'fib.asm'].map((name, i) => (
                 <div key={name} style={{
                   padding: '0 8px',
@@ -281,10 +315,10 @@ export default function HomePage() {
                   display: 'flex',
                   alignItems: 'center',
                   borderRadius: 5,
-                  border: '1px solid #0b1020',
-                  backgroundColor: i === 0 ? '#1e293b' : '#111827',
+                  border: `1px solid ${preview.border}`,
+                  backgroundColor: i === 0 ? preview.tabActive : preview.tabInactive,
                   fontSize: 11,
-                  color: i === 0 ? '#f8fafc' : '#94a3b8',
+                  color: i === 0 ? preview.text : preview.muted,
                   flexShrink: 0,
                 }}>{name}</div>
               ))}
@@ -293,8 +327,8 @@ export default function HomePage() {
                 display: 'flex',
                 gap: 2,
                 alignItems: 'center',
-                backgroundColor: '#0b1020',
-                border: '1px solid #1f2937',
+                backgroundColor: preview.shell,
+                border: `1px solid ${preview.border}`,
                 borderRadius: 6,
                 padding: '0 5px',
                 height: 28,
@@ -310,19 +344,19 @@ export default function HomePage() {
                     width: 22, height: 22, borderRadius: 4,
                     backgroundColor: on ? '#2563eb' : 'transparent',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#f8fafc',
+                    color: on ? '#fff' : preview.text,
                   }}><ActionIcon name={icon} size={12} /></div>
                 ))}
               </div>
             </div>
 
             {/* Editor + Registers */}
-            <div style={{ display: 'flex', height: 218 }}>
+            <div className="home-ide-preview-body" style={{ display: 'flex', height: 218 }}>
               {/* Gutter */}
               <div style={{
                 width: 34,
-                backgroundColor: '#0b1020',
-                borderRight: '1px solid #1f2937',
+                backgroundColor: preview.shell,
+                borderRight: `1px solid ${preview.border}`,
                 paddingTop: 12,
                 flexShrink: 0,
               }}>
@@ -333,21 +367,21 @@ export default function HomePage() {
                     lineHeight: '20px',
                     fontFamily: 'monospace',
                     fontSize: 11,
-                    color: i === ACTIVE_LINE ? '#f8fafc' : '#334155',
+                    color: i === ACTIVE_LINE ? preview.text : preview.faint,
                     fontWeight: i === ACTIVE_LINE ? 700 : 400,
-                    backgroundColor: i === ACTIVE_LINE ? '#2563eb44' : 'transparent',
+                    backgroundColor: i === ACTIVE_LINE ? preview.activeGutter : 'transparent',
                   }}>{i + 1}</div>
                 ))}
               </div>
 
               {/* Code */}
-              <div style={{ flex: 1, minWidth: 0, paddingTop: 12, paddingLeft: 12, overflow: 'hidden' }}>
+              <div className="home-ide-preview-code" style={{ flex: 1, minWidth: 0, paddingTop: 12, paddingLeft: 12, overflow: 'hidden' }}>
                 {MOCK_LINES.map((parts, i) => (
                   <div key={i} style={{
                     lineHeight: '20px',
                     fontFamily: 'monospace',
                     fontSize: 12,
-                    backgroundColor: i === ACTIVE_LINE ? '#2563eb22' : 'transparent',
+                    backgroundColor: i === ACTIVE_LINE ? preview.activeWash : 'transparent',
                     marginLeft: i === ACTIVE_LINE ? -12 : 0,
                     paddingLeft: i === ACTIVE_LINE ? 12 : 0,
                     whiteSpace: 'nowrap',
@@ -355,23 +389,23 @@ export default function HomePage() {
                     {parts.length === 0
                       ? <span>&nbsp;</span>
                       : parts.map((part, j) => (
-                          <span key={j} style={{ color: part.color }}>{part.text}</span>
+                          <span key={j} style={{ color: previewSyntax[part.tone] }}>{part.text}</span>
                         ))}
                   </div>
                 ))}
               </div>
 
               {/* Register panel */}
-              <div style={{
+              <div className="home-ide-preview-registers" style={{
                 width: 148,
-                borderLeft: '1px solid #1f2937',
-                backgroundColor: '#111827',
+                borderLeft: `1px solid ${preview.border}`,
+                backgroundColor: preview.panelAlt,
                 padding: '10px 8px',
                 flexShrink: 0,
                 overflow: 'hidden',
               }}>
                 <div style={{
-                  fontSize: 10, fontWeight: 600, color: '#94a3b8',
+                  fontSize: 10, fontWeight: 600, color: preview.muted,
                   letterSpacing: '0.5px', textTransform: 'uppercase',
                   marginBottom: 8,
                 }}>
@@ -382,36 +416,36 @@ export default function HomePage() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     padding: '3px 0',
-                    borderBottom: '1px solid rgba(31,41,55,0.5)',
+                    borderBottom: `1px solid ${preview.border}66`,
                     fontFamily: 'monospace',
                     fontSize: 10,
                   }}>
-                    <span style={{ color: reg.changed ? '#f8fafc' : '#475569', fontWeight: reg.changed ? 700 : 400 }}>
+                    <span style={{ color: reg.changed ? preview.text : preview.muted, fontWeight: reg.changed ? 700 : 400 }}>
                       {reg.name}
                     </span>
-                    <span style={{ color: reg.changed ? '#60a5fa' : '#334155' }}>
+                    <span style={{ color: reg.changed ? theme.syntax.instruction : preview.faint }}>
                       {reg.value}
                     </span>
                   </div>
                 ))}
-                <div style={{ color: '#334155', fontSize: 9, marginTop: 6 }}>+ 27 more</div>
+                <div style={{ color: preview.faint, fontSize: 9, marginTop: 6 }}>+ 27 more</div>
               </div>
             </div>
 
             {/* Console strip */}
             <div style={{
-              borderTop: '1px solid #1f2937',
-              backgroundColor: '#0b1020',
+              borderTop: `1px solid ${preview.border}`,
+              backgroundColor: preview.console,
               padding: '8px 12px',
               fontFamily: 'monospace',
               fontSize: 11,
-              color: '#cbd5e1',
+              color: preview.consoleText,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
               minHeight: 32,
             }}>
-              <span style={{ color: '#334155', fontSize: 10, fontWeight: 600, flexShrink: 0 }}>output</span>
+              <span style={{ color: preview.faint, fontSize: 10, fontWeight: 600, flexShrink: 0 }}>output</span>
               <span>Hi!</span>
               <span style={{
                 display: 'inline-block',

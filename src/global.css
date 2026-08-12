@@ -284,6 +284,31 @@ input, textarea {
   }
 }
 
+.home-ide-preview {
+  max-width: 100%;
+}
+
+@media (max-width: 560px) {
+  .home-ide-preview {
+    margin-inline: -8px;
+  }
+  .home-ide-preview-body {
+    height: 196px !important;
+  }
+  .home-ide-preview-registers {
+    width: 116px !important;
+  }
+  .home-ide-preview-code {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 430px) {
+  .home-ide-preview-registers {
+    display: none;
+  }
+}
+
 /* Fix: homepage nav/link hovers use CSS variable so both themes work */
 .home-nav-link:hover  { color: var(--hp-ink, #f8fafc) !important; }
 .home-link-muted:hover { color: var(--hp-ink, #f8fafc) !important; }
